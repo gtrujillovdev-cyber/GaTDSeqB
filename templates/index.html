@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TD Sequential Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' };
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+    <style>
+        #terminal::-webkit-scrollbar { width: 8px; }
+        #terminal::-webkit-scrollbar-track { background: transparent; }
+        #terminal::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark #terminal::-webkit-scrollbar-thumb { background: #4b5563; }
+        .binance-btn { font-size: 13px; font-weight: 500; letter-spacing: 0.5px; }
+        .toast-enter { animation: slideIn 0.3s ease-out forwards; }
+        .toast-exit { animation: fadeOut 0.5s ease-in forwards; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-10px); } }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-[#0b0e11] text-gray-900 dark:text-gray-100 font-sans antialiased min-h-screen transition-colors duration-200">
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 w-80"></div>
+
+    <div class="max-w-[1400px] mx-auto p-4 sm:p-6">
+        <header class="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-6 border-b border-gray-300 dark:border-gray-800 pb-4 pt-2 gap-4 transition-colors">
+            <h1 class="text-2xl font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-3">
+                <svg class="w-6 h-6 text-[#fcd535]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                TD Sequential Engine
+            </h1>
+            <div class="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                <div class="flex items-center gap-1 bg-gray-200 dark:bg-[#181a20] p-1 rounded-lg border border-gray-300 dark:border-gray-700">
+                    <button onclick="setTheme('light')" id="btn-theme-light" class="px-2 py-1 rounded text-sm transition" title="Light Mode">🌞</button>
+                    <button onclick="setTheme('system')" id="btn-theme-system" class="px-2 py-1 rounded text-sm transition" title="System Theme">💻</button>
+                    <button onclick="setTheme('dark')" id="btn-theme-dark" class="px-2 py-1 rounded text-sm transition" title="Dark Mode">🌙</button>
+                </div>
+                <div id="status-badge" class="px-3 py-1 rounded text-xs font-semibold bg-gray-200 dark:bg-gray-800 text-gray-500 border border-gray-300 dark:border-gray-700">OFFLINE</div>
+                <button id="toggle-btn" onclick="toggleBot()" class="binance-btn px-4 py-1.5 rounded transition-colors duration-200 bg-gray-200 dark:bg-[#2b3139] hover:bg-gray-300 dark:hover:bg-[#3b4149] text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span id="toggle-icon">▶</span> <span id="toggle-text">Start Engine</span>
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <!-- Left Column -->
+            <div class="space-y-6 xl:col-span-1">
+                <!-- Active Position -->
+                <div id="active-position-card" class="hidden bg-white dark:bg-[#181a20] rounded-lg p-5 border border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] relative overflow-hidden transition-all duration-300">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-500 animate-pulse"></div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xs font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">Active Position</h2>
+                        <span id="ap-type" class="px-2 py-0.5 rounded text-xs font-bold bg-[#0ecb81]/20 text-[#0ecb81]">BUY</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-3">
+                        <div>
+                            <p class="text-[10px] text-gray-500 uppercase">Entry Price</p>
+                            <p class="text-sm font-mono text-gray-800 dark:text-gray-200" id="ap-entry">0.00</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] text-gray-500 uppercase">Current Price</p>
+                            <p class="text-sm font-mono text-gray-800 dark:text-gray-200" id="ap-current">0.00</p>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-200 dark:border-gray-800 pt-3 flex justify-between items-end">
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Floating PnL</p>
+                        <p class="text-xl font-bold font-mono text-[#0ecb81]" id="ap-pnl">+0.00</p>
+                    </div>
+                </div>
+
+                <!-- Balance -->
+                <div class="bg-white dark:bg-[#181a20] rounded-lg p-5 border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none transition-colors">
+                    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Estimated Balance</h2>
+                    <div class="mb-4">
+                        <p class="text-2xl font-medium text-gray-800 dark:text-gray-100 font-mono" id="usdt-balance">0.00 <span class="text-sm text-gray-400 dark:text-gray-500">USDT</span></p>
+                    </div>
+                    <div class="mb-5">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-300 font-mono" id="btc-balance">0.00000000 <span class="text-xs text-gray-400 dark:text-gray-500">BTC</span></p>
+                    </div>
+                    <div class="pt-4 border-t border-gray-200 dark:border-gray-800 flex justify-between items-end transition-colors">
+                        <div>
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Total PnL</p>
+                            <p class="text-lg font-medium font-mono text-gray-500 dark:text-gray-400" id="total-pnl">0.00 USDT</p>
+                        </div>
+                        <button onclick="playAlert('BUY')" class="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-400 p-1" title="Testear sonido">🔊 Test</button>
+                    </div>
+                </div>
+
+                <!-- Advanced Stats -->
+                <div class="bg-white dark:bg-[#181a20] rounded-lg p-5 border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none mb-6 transition-colors">
+                    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Trading Stats</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><p class="text-[10px] text-gray-500 uppercase">Win Rate</p><p class="text-sm font-mono text-gray-800 dark:text-gray-200" id="stat-winrate">0.0%</p></div>
+                        <div><p class="text-[10px] text-gray-500 uppercase">Profit Factor</p><p class="text-sm font-mono text-gray-800 dark:text-gray-200" id="stat-pf">0.00</p></div>
+                        <div><p class="text-[10px] text-gray-500 uppercase">Max Drawdown</p><p class="text-sm font-mono text-red-500" id="stat-dd">0.00</p></div>
+                        <div><p class="text-[10px] text-gray-500 uppercase">Total Trades</p><p class="text-sm font-mono text-gray-800 dark:text-gray-200" id="stat-trades">0</p></div>
+                    </div>
+                </div>
+
+                <!-- Parameters -->
+                <div class="bg-white dark:bg-[#181a20] rounded-lg p-5 border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none transition-colors">
+                    <h2 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-5">Strategy Parameters</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Interval</label>
+                            <select id="timeframe" class="w-full bg-gray-50 dark:bg-[#0b0e11] border border-gray-300 dark:border-gray-700 rounded p-2 text-sm text-gray-800 dark:text-gray-200 outline-none">
+                                <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
+                                <option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Margin Ratio (%)</label>
+                            <input type="range" id="risk" min="1" max="100" class="w-full h-1 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#fcd535]">
+                            <p class="text-right text-xs text-gray-500 dark:text-gray-400 mt-2"><span id="risk-val" class="text-gray-700 dark:text-gray-200">10</span>%</p>
+                        </div>
+                        <button onclick="saveConfig()" class="w-full bg-[#fcd535] hover:bg-[#f0c92f] text-black font-semibold text-sm py-2 rounded transition">Confirm</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Chart -->
+            <div class="xl:col-span-3 h-full flex flex-col">
+                <div class="bg-white dark:bg-[#181a20] rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none min-h-[500px] flex-1 overflow-hidden p-2 relative transition-colors">
+                    <div class="tradingview-widget-container" style="height: 100%; width: 100%;">
+                        <div id="tradingview_chart" style="height: 100%;"></div>
+                        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Row -->
+            <div class="xl:col-span-4 grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <!-- Terminal -->
+                <div class="xl:col-span-1 bg-white dark:bg-[#181a20] rounded-lg border border-gray-200 dark:border-gray-800 flex flex-col h-[400px]">
+                    <div class="bg-gray-100 dark:bg-[#0b0e11] px-4 py-2 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between rounded-t-lg">
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">ENGINE LOGS</span>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="trades-only-toggle" class="accent-[#fcd535] w-3 h-3">
+                            <span class="text-[10px] text-gray-500 dark:text-gray-400">Trades Only</span>
+                        </label>
+                    </div>
+                    <div id="terminal" class="p-4 font-mono text-[13px] overflow-y-auto flex-1 text-gray-600 dark:text-gray-400 whitespace-pre-wrap">Loading...</div>
+                </div>
+                <!-- History -->
+                <div class="xl:col-span-2 bg-white dark:bg-[#181a20] rounded-lg border border-gray-200 dark:border-gray-800 flex flex-col h-[400px]">
+                    <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-100 dark:bg-[#0b0e11] rounded-t-lg">
+                        <h2 class="text-xs font-medium text-gray-500 dark:text-gray-400">ORDER HISTORY</h2>
+                        <button onclick="resetSession()" class="text-[11px] text-red-600 dark:text-red-500 border border-red-500/30 px-3 py-1 rounded">Reset Session</button>
+                    </div>
+                    <div class="overflow-auto flex-1">
+                        <table class="w-full text-left text-xs text-gray-600 dark:text-gray-300">
+                            <thead class="text-gray-500 bg-gray-50 dark:bg-[#0b0e11] sticky top-0">
+                                <tr><th class="px-4 py-3">Time</th><th class="px-4 py-3">Type</th><th class="px-4 py-3">Trigger</th><th class="px-4 py-3">Price</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3 text-right">PNL</th></tr>
+                            </thead>
+                            <tbody id="trades-body" class="divide-y divide-gray-200 dark:divide-gray-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BACKTESTER -->
+            <div class="xl:col-span-4 mt-2 bg-white dark:bg-[#181a20] rounded-lg border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.1)] p-6 transition-colors">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-lg font-bold text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Time Machine Simulator
+                    </h2>
+                    <div class="flex items-center gap-3 w-full md:w-auto">
+                        <select id="bt-timeframe" class="bg-gray-100 dark:bg-[#0b0e11] border border-gray-300 dark:border-gray-700 rounded px-3 py-1.5 text-sm outline-none">
+                            <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
+                            <option value="1h">1h</option><option value="4h">4h</option><option value="1d" selected>1d</option>
+                        </select>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-gray-500">Risk %:</span>
+                            <input type="number" id="bt-risk" value="50" min="1" max="100" class="w-16 bg-gray-100 dark:bg-[#0b0e11] border border-gray-300 dark:border-gray-700 rounded px-2 py-1.5 text-sm text-center outline-none">
+                        </div>
+                        <button onclick="runBacktest()" id="bt-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium text-sm px-4 py-1.5 rounded transition shadow-lg shadow-purple-500/30">Run Backtest</button>
+                    </div>
+                </div>
+                <div id="bt-loading" class="hidden text-center py-8 text-gray-500 text-sm animate-pulse">Descargando velas y simulando matemáticamente...</div>
+                <div id="bt-results" class="hidden grid grid-cols-2 md:grid-cols-4 gap-6 pt-4 border-t border-gray-200 dark:border-gray-800">
+                    <div><p class="text-[10px] text-gray-500 uppercase">Capital Inicial</p><p class="text-lg font-mono text-gray-800 dark:text-gray-200" id="bt-res-initial"></p></div>
+                    <div><p class="text-[10px] text-gray-500 uppercase">Capital Final</p><p class="text-lg font-mono font-bold" id="bt-res-final"></p></div>
+                    <div><p class="text-[10px] text-gray-500 uppercase">Beneficio Neto</p><p class="text-lg font-mono font-bold" id="bt-res-profit"></p></div>
+                    <div><p class="text-[10px] text-gray-500 uppercase">Win Rate (Total Trades)</p><p class="text-lg font-mono text-gray-800 dark:text-gray-200" id="bt-res-winrate"></p></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function setTheme(mode) {
+            if (mode === 'system') { localStorage.removeItem('theme'); document.documentElement.classList.toggle('dark', window.matchMedia('(prefers-color-scheme: dark)').matches); }
+            else { localStorage.theme = mode; document.documentElement.classList.toggle('dark', mode === 'dark'); }
+            updateThemeUI(mode); renderChart();
+        }
+        function updateThemeUI(mode) {
+            const m = mode || localStorage.theme || 'system';
+            ['light','dark','system'].forEach(id => {
+                const b = document.getElementById('btn-theme-'+id);
+                b.classList.remove('bg-gray-300','dark:bg-gray-700','shadow-inner');
+                if (id===m) b.classList.add('bg-gray-300','dark:bg-gray-700','shadow-inner');
+            });
+        }
+        function renderChart() {
+            const isDark = document.documentElement.classList.contains('dark');
+            document.getElementById('tradingview_chart').innerHTML = '';
+            new TradingView.widget({"autosize":true,"symbol":"BINANCE:BTCUSDT","interval":"1","timezone":"Europe/Madrid","theme":isDark?"dark":"light","style":"1","locale":"es","enable_publishing":false,"backgroundColor":isDark?"#181a20":"#ffffff","gridColor":isDark?"#2b3139":"#f3f4f6","hide_top_toolbar":false,"hide_legend":false,"save_image":false,"container_id":"tradingview_chart","toolbar_bg":isDark?"#181a20":"#f9fafb"});
+        }
+        updateThemeUI(localStorage.theme); setTimeout(renderChart, 300);
+
+        function showToast(msg, type='success') {
+            const c = document.getElementById('toast-container'); const t = document.createElement('div');
+            const d = document.documentElement.classList.contains('dark');
+            let bg = type==='success' ? (d?'bg-[#0ecb81]/10 border-[#0ecb81]/30 text-[#0ecb81]':'bg-green-100 border-green-300 text-green-700') : (type==='error' ? (d?'bg-[#f6465d]/10 border-[#f6465d]/30 text-[#f6465d]':'bg-red-100 border-red-300 text-red-700') : (d?'bg-gray-800 border-gray-700 text-gray-200':'bg-white border-gray-300 text-gray-800'));
+            t.className = `toast-enter flex items-center p-4 border rounded-lg shadow-xl backdrop-blur-md ${bg}`;
+            t.innerHTML = `<span class="text-sm font-semibold">${msg}</span>`;
+            c.appendChild(t); setTimeout(()=>{ t.classList.replace('toast-enter','toast-exit'); setTimeout(()=>t.remove(), 500); }, 3000);
+        }
+
+        function playAlert(type) {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                osc.type = 'sine';
+                if (type.includes('BUY') || type.includes('COMPRA') || type.includes('✅')) { osc.frequency.setValueAtTime(880, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.2); } 
+                else { osc.frequency.setValueAtTime(600, ctx.currentTime); osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.3); }
+                gain.gain.setValueAtTime(0.3, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+                osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.5);
+            } catch(e) {}
+        }
+
+        const riskIn = document.getElementById('risk'); const riskV = document.getElementById('risk-val');
+        riskIn.addEventListener('input', e => riskV.innerText = e.target.value);
+
+        let currentStatus = 'stopped', lastTrades = -1;
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/status'); const data = await res.json();
+                document.getElementById('usdt-balance').innerText = `${data.usdt.toFixed(2)} USDT`;
+                document.getElementById('btc-balance').innerText = `${data.btc.toFixed(6)} BTC`;
+                
+                if (data.stats) {
+                    const pnlEl = document.getElementById('total-pnl');
+                    pnlEl.innerText = `${data.stats.total_pnl>0?'+':''}${data.stats.total_pnl.toFixed(2)} USDT`;
+                    pnlEl.className = data.stats.total_pnl > 0 ? "text-lg font-medium font-mono text-[#0ecb81]" : (data.stats.total_pnl < 0 ? "text-lg font-medium font-mono text-[#f6465d]" : "text-lg font-medium font-mono text-gray-500 dark:text-gray-400");
+                    document.getElementById('stat-winrate').innerText = data.stats.win_rate.toFixed(1) + "%";
+                    document.getElementById('stat-pf').innerText = data.stats.profit_factor.toFixed(2);
+                    document.getElementById('stat-dd').innerText = "-" + data.stats.max_drawdown.toFixed(2);
+                    document.getElementById('stat-trades').innerText = data.stats.total_trades;
+                }
+                
+                if (document.activeElement !== riskIn && document.activeElement !== document.getElementById('timeframe')) {
+                    document.getElementById('timeframe').value = data.config.timeframe;
+                    riskIn.value = data.config.risk; riskV.innerText = data.config.risk;
+                }
+
+                currentStatus = data.config.status;
+                const sb = document.getElementById('status-badge'), tb = document.getElementById('toggle-btn');
+                if (currentStatus === 'running') {
+                    sb.className = 'px-3 py-1 rounded text-xs font-semibold bg-[#0ecb81]/10 text-[#0ecb81] border border-[#0ecb81]/20'; sb.innerText = 'RUNNING';
+                    tb.className = 'binance-btn px-4 py-1.5 rounded transition bg-[#f6465d]/10 hover:bg-[#f6465d]/20 text-[#f6465d] flex items-center gap-2';
+                    document.getElementById('toggle-icon').innerText = '■'; document.getElementById('toggle-text').innerText = 'Stop';
+                } else {
+                    sb.className = 'px-3 py-1 rounded text-xs font-semibold bg-gray-200 dark:bg-gray-800 text-gray-500 border border-gray-300 dark:border-gray-700'; sb.innerText = 'OFFLINE';
+                    tb.className = 'binance-btn px-4 py-1.5 rounded transition bg-[#0ecb81]/10 hover:bg-[#0ecb81]/20 text-[#0ecb81] flex items-center gap-2';
+                    document.getElementById('toggle-icon').innerText = '▶'; document.getElementById('toggle-text').innerText = 'Start';
+                }
+
+                const apCard = document.getElementById('active-position-card');
+                if (data.active_position && data.last_price > 0) {
+                    apCard.classList.remove('hidden');
+                    const pos = data.active_position; const isBuy = pos.type === 'buy';
+                    document.getElementById('ap-type').innerText = isBuy ? 'BUY LONG' : 'SELL SHORT';
+                    document.getElementById('ap-type').className = isBuy ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-[#0ecb81]/20 text-[#0ecb81]' : 'px-2 py-0.5 rounded text-[10px] font-bold bg-[#f6465d]/20 text-[#f6465d]';
+                    document.getElementById('ap-entry').innerText = pos.entry.toFixed(2); document.getElementById('ap-current').innerText = data.last_price.toFixed(2);
+                    let fPnl = isBuy ? (data.last_price - pos.entry)*pos.amount : (pos.entry - data.last_price)*pos.amount;
+                    const fPnlEl = document.getElementById('ap-pnl');
+                    fPnlEl.innerText = `${fPnl>0?'+':''}${fPnl.toFixed(2)} USDT`;
+                    fPnlEl.className = fPnl > 0 ? 'text-xl font-bold font-mono text-[#0ecb81]' : (fPnl < 0 ? 'text-xl font-bold font-mono text-[#f6465d]' : 'text-xl font-bold font-mono text-gray-500 dark:text-gray-400');
+                } else { apCard.classList.add('hidden'); }
+
+                const term = document.getElementById('terminal');
+                const wasBottom = term.scrollHeight - term.clientHeight <= term.scrollTop + 10;
+                let lines = data.logs.split('\n');
+                if(document.getElementById('trades-only-toggle').checked) { lines = lines.filter(l => l.includes('🟢') || l.includes('🔴') || l.includes('✅') || l.includes('🛑')); }
+                term.innerHTML = lines.map(l => l.replace(/BUY|COMPRA|🟢|✅/g, '<span class="text-[#0ecb81] font-bold">$&</span>').replace(/SELL|VENTA|🔴|🛑/g, '<span class="text-[#f6465d] font-bold">$&</span>').replace(/⚠️/g, '<span class="text-yellow-500">$&</span>')).join('\n');
+                if (wasBottom) term.scrollTop = term.scrollHeight;
+
+                const tbody = document.getElementById('trades-body');
+                if (data.trades.length > 0) {
+                    if (lastTrades !== -1 && data.trades.length > lastTrades) {
+                        const nt = data.trades[0]; playAlert(nt.type);
+                        showToast(nt.pnl !== 0.0 ? `${nt.type.includes('COMPRA')?'Compra':'Venta'} Cerrada. PnL: ${nt.pnl.toFixed(2)}$` : `Nueva Operación: ${nt.type}`, nt.pnl>0?'success':(nt.pnl<0?'error':'info'));
+                    }
+                    lastTrades = data.trades.length;
+                    tbody.innerHTML = data.trades.map(t => {
+                        let pc = t.pnl > 0 ? 'text-[#0ecb81]' : (t.pnl < 0 ? 'text-[#f6465d]' : 'text-gray-500');
+                        let tc = t.type.includes('COMPRA') || t.type.includes('BUY') ? 'text-[#0ecb81]' : 'text-[#f6465d]';
+                        return `<tr class="hover:bg-gray-100 dark:hover:bg-[#2b3139]"><td class="px-4 py-3 border-t border-gray-200 dark:border-gray-800 text-gray-500 whitespace-nowrap">${t.time}</td><td class="px-4 py-3 border-t border-gray-200 dark:border-gray-800 font-medium ${tc}">${t.type}</td><td class="px-4 py-3 border-t border-gray-200 dark:border-gray-800 text-gray-500">${t.reason}</td><td class="px-4 py-3 border-t border-gray-200 dark:border-gray-800 font-mono">${t.price.toFixed(2)}</td><td class="px-4 py-3 border-t border-gray-200 dark:border-gray-800 font-mono">${t.amount.toFixed(5)}</td><td class="px-4 py-3 border-t border-gray-200 dark:border-gray-800 font-mono text-right ${pc}">${t.pnl!=0?`${t.pnl>0?'+':''}${t.pnl.toFixed(2)}`:'-'}</td></tr>`;
+                    }).join('');
+                } else { lastTrades = 0; tbody.innerHTML = `<tr><td colspan="6" class="px-5 py-6 text-center text-gray-400">No records found.</td></tr>`; }
+            } catch (e) {}
+        }
+
+        async function saveConfig() { await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status: currentStatus, timeframe: document.getElementById('timeframe').value, risk: parseInt(riskIn.value) }) }); }
+        
+        async function toggleBot() {
+            if(currentStatus === 'running' && !confirm("¿Detener escáner?")) return;
+            currentStatus = currentStatus === 'running' ? 'stopped' : 'running';
+            await saveConfig(); fetchStatus(); playAlert('INIT'); 
+        }
+        
+        async function resetSession() {
+            if(confirm("⚠️ ¿Borrar historial?")) { await fetch('/api/reset', { method: 'POST' }); showToast("Sesión reseteada", "info"); fetchStatus(); }
+        }
+
+        async function runBacktest() {
+            const btn = document.getElementById('bt-btn'); const l = document.getElementById('bt-loading'); const r = document.getElementById('bt-results');
+            btn.disabled = true; btn.innerText = "Simulando..."; l.classList.remove('hidden'); r.classList.add('hidden');
+            try {
+                const res = await fetch('/api/backtest', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ timeframe: document.getElementById('bt-timeframe').value, risk: parseFloat(document.getElementById('bt-risk').value) }) });
+                const data = await res.json();
+                if(data.error) showToast("Error: " + data.error, "error");
+                else {
+                    document.getElementById('bt-res-initial').innerText = data.initial_capital.toFixed(2) + " USDT";
+                    document.getElementById('bt-res-final').innerText = data.final_capital.toFixed(2) + " USDT";
+                    document.getElementById('bt-res-final').className = data.final_capital > data.initial_capital ? "text-lg font-mono font-bold text-[#0ecb81]" : "text-lg font-mono font-bold text-[#f6465d]";
+                    document.getElementById('bt-res-profit').innerText = (data.net_profit > 0 ? "+" : "") + data.net_profit.toFixed(2) + " (" + data.net_profit_pct.toFixed(2) + "%)";
+                    document.getElementById('bt-res-profit').className = data.net_profit > 0 ? "text-lg font-mono font-bold text-[#0ecb81]" : "text-lg font-mono font-bold text-[#f6465d]";
+                    document.getElementById('bt-res-winrate').innerText = data.win_rate.toFixed(1) + "% (" + data.total_trades + " ops)";
+                    r.classList.remove('hidden'); showToast("Simulación completada", "success");
+                }
+            } catch(e) { showToast("Error de conexión", "error"); }
+            btn.disabled = false; btn.innerText = "Run Backtest"; l.classList.add('hidden');
+        }
+
+        setInterval(fetchStatus, 1500); fetchStatus();
+    </script>
+</body>
+</html>
