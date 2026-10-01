@@ -114,3 +114,68 @@ To run the system locally:
    python3 bot.py
    ```
 
+
+---
+
+# GaTDSEQ: Sistema Cuantitativo de Monitorización y Shadow-Trading (ES)
+
+GaTDSEQ es un sistema de monitorización y shadow-trading cuantitativo y ligero, diseñado para ser desplegado en un dispositivo edge como una Raspberry Pi. Este proyecto sirve como una muestra técnica de integración de consumo de datos de mercado, evaluación algorítmica personalizada (TD Sequential, EMA, RSI, ATR), gestión de estado local y optimización de hardware en dispositivos edge, dentro de una arquitectura cohesiva y resiliente.
+
+> **Nota:** Este proyecto está diseñado como una pieza de portafolio técnico para demostrar integración de sistemas, edge computing y desarrollo de backend. Opera estrictamente en **Modo Shadow** (simulación de operaciones/paper trading) y no está destinado ni respaldado para el trading financiero real.
+
+## Arquitectura del Sistema
+
+El sistema está diseñado para alta disponibilidad y bajo consumo de recursos en hardware edge, utilizando un backend basado en Flask para servir un Terminal Cuantitativo en vivo y un demonio Python separado para el análisis continuo del mercado. El acceso remoto se gestiona de forma segura a través de una VPN mesh.
+
+*(Ver diagrama en la sección en inglés)*
+
+## Características Principales y Stack Técnico
+
+### 1. Datos de Mercado e Integración de API
+- **Librería CCXT:** Utilizada para una comunicación robusta y estandarizada con la API de Binance para obtener datos OHLCV.
+- **API de Bot de Telegram:** Integrada a través de peticiones HTTP nativas para enviar alertas de ejecución en tiempo real, actualizaciones de trailing stop y notificaciones del sistema directamente al móvil.
+
+### 2. Arquitectura en Modo Shadow
+En lugar de arriesgar capital real, el sistema opera en un "Modo Shadow" simulado:
+- Las transiciones de estado (Inactivo -> En Operación) y las ejecuciones virtuales se serializan localmente en `state.json`.
+- Un libro mayor persistente de operaciones se añade a `trades.json`.
+- Esta gestión de estado basada en archivos asegura que el bot pueda recuperarse de cortes de energía o reinicios sin necesitar una base de datos externa, manteniendo la simplicidad y un bajo consumo de recursos.
+
+### 3. Flujo de Trabajo Asíncrono y Lógica del Bot
+El bot opera independientemente de la interfaz web, ejecutándose en un bucle programado.
+
+*(Ver diagrama de flujo en la sección en inglés)*
+
+### 4. Terminal Web Flask e Interfaz de Usuario
+- **Backend:** Un servidor Flask ligero expone endpoints RESTful (`/api/state`, `/api/trades`, `/api/system`, `/api/backtest`).
+- **Frontend:** Un panel de control en HTML/JS/CSS puro, sin dependencias, que imita un terminal cuantitativo profesional. Utiliza long-polling para mantener una vista en tiempo real del estado del bot, métricas del portafolio virtual y uso del hardware.
+
+### 5. Optimización de Hardware y SO (Raspberry Pi)
+Para asegurar la estabilidad a largo plazo en un dispositivo ARM con recursos limitados, el entorno Linux subyacente fue fuertemente optimizado:
+- **Configuración ZRAM:** Se implementó ZRAM (swap comprimido basado en RAM) para prevenir la degradación de la tarjeta SD por el uso excesivo de la partición swap, mientras se amplía la memoria disponible.
+- **Poda de Servicios:** Se deshabilitaron servicios en segundo plano innecesarios (ej. Bluetooth, características del entorno de escritorio que no son necesarias para el modo Kiosk) para liberar ciclos de CPU y RAM.
+- **Modo Kiosk de Chromium:** El sistema puede iniciar directamente en un gestor de ventanas ligero que lanza Chromium en modo Kiosk para mostrar el terminal localmente, utilizando aceleración por hardware donde sea posible.
+- **Monitorización Térmica:** El servidor Flask se enlaza directamente a `/sys/class/thermal/thermal_zone0/temp` y utilidades nativas de bash (`vmstat`, `free`) para reportar la telemetría del hardware en tiempo real al panel de control.
+
+### 6. Acceso Remoto Seguro
+En lugar de exponer puertos al internet público, la Raspberry Pi forma parte de una red mesh zero-trust de **Tailscale**. Esto permite un acceso seguro y autenticado al panel de Flask (Puerto 5001) y a SSH desde cualquier dispositivo personal autorizado (Mac, iPhone) desde cualquier lugar del mundo.
+
+## Configuración del Repositorio
+
+Para ejecutar el sistema localmente:
+
+1. Clona el repositorio y navega al directorio.
+2. Crea un entorno virtual e instala las dependencias:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install flask flask-cors ccxt pandas requests
+   ```
+3. Inicia el servidor Flask:
+   ```bash
+   python3 server.py
+   ```
+4. Inicia el demonio del bot (en una terminal separada o vía tmux/systemd):
+   ```bash
+   python3 bot.py
+   ```
