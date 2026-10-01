@@ -6,6 +6,9 @@ import os
 import requests
 import datetime
 import math
+import argparse
+
+TIMEFRAME = '4h'
 
 # Archivos de estado
 STATE_FILE = "state.json"
@@ -99,7 +102,8 @@ def calculate_td_sequential(df):
 
 def analyze_market():
     print("Analizando mercado con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
-    df = get_data("BTC/USDT", "4h")
+    global TIMEFRAME
+    df = get_data("BTC/USDT", TIMEFRAME)
     if df is None: return
     
     df = calculate_td_sequential(df)
@@ -312,8 +316,31 @@ def load_trades():
     return []
 
 if __name__ == "__main__":
-    print("Iniciando GaTDSEQ Bot (Modo Cuantitativo)...")
-    send_telegram("🤖 <b>Bot Reiniciado (Risk Engine ON)</b>\n\nEl motor de gestión de riesgo está en línea. Arriesgando un 2% del Bankroll dinámico por operación (Spot Mode sin apalancamiento).")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--bank', type=float, default=10000.0, help='Initial bankroll')
+    args = parser.parse_args()
+
+    INITIAL_BANK = args.bank
+    print(f"Iniciando GaTDSEQ Bot UNIFICADO | Bank: ${INITIAL_BANK}...")
+    send_telegram(f"🤖 <b>Bot UNIFICADO Iniciado</b>
+
+Controlando 5 timeframes simultáneamente para ahorrar RAM.")
+    
+    timeframes = ['5m', '15m', '1h', '4h', '1d']
+    
     while True:
-        analyze_market()
-        time.sleep(60 * 5) # Comprueba cada 5 minutos
+        for tf in timeframes:
+            # Reassign globals for the functions to use
+            global TIMEFRAME, STATE_FILE, TRADES_FILE
+            TIMEFRAME = tf
+            STATE_FILE = f"state_{tf}.json"
+            TRADES_FILE = f"trades_{tf}.json"
+            
+            try:
+                analyze_market()
+            except Exception as e:
+                print(f"Error analizando {tf}: {e}")
+                
+        # Sleep for 5 minutes before checking all again
+        time.sleep(300)

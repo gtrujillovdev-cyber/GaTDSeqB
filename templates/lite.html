@@ -1,273 +1,187 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GaTDSEQ Terminal</title>
+    <title>GaTDSEQ KIOSK</title>
     <style>
-        body { background-color: #000000; color: #ff9900; font-family: 'Courier New', Courier, monospace; padding: 15px; margin: 0; font-size: 13px; text-transform: uppercase; }
-        h1 { color: #ffb84d; border-bottom: 2px solid #333; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 0;}
-        .grid { display: flex; gap: 15px; margin-bottom: 15px; }
-        .panel { border: 1px solid #333; background: #050505; padding: 12px; flex: 1; }
-        .panel-header { font-size: 14px; color: #888; border-bottom: 1px solid #222; margin-bottom: 10px; padding-bottom: 3px; }
-        .data-value { font-size: 20px; font-weight: bold; margin: 5px 0; color: #fff; }
-        
-        .buy { color: #00ff00 !important; }
-        .sell { color: #ff3333 !important; }
-        .neutral { color: #ff9900 !important; }
-
-        .table-container { width: 100%; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; min-width: 500px;}
-        th, td { border-bottom: 1px solid #222; padding: 6px; text-align: left; }
-        th { color: #888; font-weight: normal; font-size: 12px; }
-        
-        .controls { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;}
-        select, button, input { background: #111; color: #ffb84d; border: 1px solid #555; padding: 5px 10px; font-family: inherit; font-size: 12px; cursor: pointer; }
-        button:hover { background: #ff9900; color: #000; border-color: #ff9900;}
-        
-        #btc-price { color: #00ff00; font-size: 65px; font-weight: bold; text-shadow: 0 0 25px rgba(0, 255, 0, 0.5); line-height: 1; margin-top: 5px; display: block;}
-        .blink { animation: blinker 1.5s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0.5; } }
-
-        @media (max-width: 768px) {
-            body { padding: 10px; }
-            h1 { flex-direction: column; align-items: flex-start; gap: 15px; }
-            h1 > div { width: 100%; }
-            h1 > div:last-child { text-align: left !important; }
-            #btc-price { font-size: 45px; }
-            .grid { flex-direction: column; gap: 10px; }
-            .metrics-flex { flex-direction: column; gap: 10px; }
+        body { 
+            background-color: #000000; 
+            color: #ff9900; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-variant-numeric: tabular-nums;
+            margin: 0; padding: 10px 20px; font-size: 13px;
+            height: 100vh; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column;
         }
+        .top-bar { display: flex; justify-content: space-between; border-bottom: 2px solid #333; padding-bottom: 5px; align-items: flex-end; }
+        .top-bar h1 { margin: 0; font-size: 24px; color: #ffb84d; letter-spacing: 0.5px; font-weight: 600; text-transform: uppercase;}
+        .hw-stats { font-size: 13px; font-weight: bold; color: #888; text-transform: uppercase; }
+        .hw-stats span { color: #00ff00; margin-left: 5px; margin-right: 15px;}
+        
+        #btc-price-container { text-align: center; margin: 10px 0 15px 0; }
+        #btc-price { color: #00ff00; font-size: 75px; font-weight: 700; text-shadow: 0 0 25px rgba(0, 255, 0, 0.4); line-height: 1; margin: 0; font-family: -apple-system, sans-serif;}
+        .blink { animation: blinker 1.5s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0.7; } }
+        
+        #macro-context { text-align: center; margin-bottom: 15px; font-size: 15px; color: #888; font-weight: 600;}
+        
+        .content-wrapper { flex: 1; display: flex; flex-direction: column; gap: 15px; }
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; }
+        
+        .bot-card { border: 1px solid #333; background: #080808; display: flex; flex-direction: column; border-radius: 4px;}
+        .bot-header { font-size: 15px; font-weight: 600; background: #151515; padding: 8px 12px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; color: #ffb84d; border-top-left-radius: 4px; border-top-right-radius: 4px;}
+        .status-badge { padding: 3px 6px; font-size: 11px; color: #000; font-weight: bold; border-radius: 3px; }
+        .status-active { background-color: #00ff00; box-shadow: 0 0 10px rgba(0,255,0,0.5);}
+        .status-idle { background-color: #ffb84d; }
+        .status-offline { background-color: #ff3333; }
+        
+        .bot-body { padding: 10px 15px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 4px; border-bottom: 1px solid #1a1a1a; padding-bottom: 3px;}
+        .row:last-child { border-bottom: none; }
+        .label { color: #888; font-size: 12px; font-weight: 500;}
+        .value { font-weight: 600; color: #fff; font-size: 12px;}
+        .val-green { color: #00ff00; }
+        .val-red { color: #ff3333; }
+        .val-blue { color: #4dc3ff; }
+        
+        .trades-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; flex: 1; margin-top: 2px;}
+        .trade-card { border: 1px dashed #333; background: #050505; padding: 10px; display: flex; flex-direction: column; border-radius: 4px;}
+        .trade-header { font-size: 13px; color: #999; border-bottom: 1px solid #222; margin-bottom: 8px; text-align: center; padding-bottom: 5px; font-weight: 600;}
+        .trade-row { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 1px dotted #151515; padding: 4px 0; font-weight: 500;}
+        .trade-row:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
-    <h1>
-        <div>
-            <div style="font-size: 22px;">GATDSEQ QUANT TERMINAL</div>
-            <div class="blink" style="color:#00ff00; font-size: 14px; margin-top: 5px;">● LIVE CONNECTION (PORT: 5001)</div>
+    <div class="top-bar">
+        <h1>GaTDSEQ</h1>
+        <div class="hw-stats">
+            CPU: <span id="sys-cpu">--%</span>
+            RAM: <span id="sys-ram">--%</span>
+            TEMP: <span id="sys-temp">--°C</span>
         </div>
-        <div style="text-align: right;">
-            <div style="font-size:14px; color:#888;">BTC/USDT REALTIME TICKER</div>
-            <div id="btc-price">LODING...</div>
-        </div>
-    </h1>
+    </div>
+
+    <div id="btc-price-container">
+        <div id="btc-price" class="blink">LOADING...</div>
+    </div>
     
-    <div class="grid">
-        <div class="panel">
-            <div class="panel-header">SYS.STATUS</div>
-            <div style="display:flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div id="bot-status" class="data-value neutral">CONNECTING...</div>
-                    <div id="bot-details" style="color:#aaa; font-size: 12px;">WAITING DATA STREAM</div>
-                </div>
-                <div style="text-align: right; min-width: 60px;">
-                    <div style="color:#888; font-size:12px;">TIMEFRAME</div>
-                    <div class="data-value" style="color:#00ff00;">4H</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="panel">
-            <div class="panel-header">PORTFOLIO.METRICS (CAPITAL INICIAL: $10,000.00)</div>
-            <div class="metrics-flex" style="display: flex; justify-content: space-between;">
-                <div>
-                    <div style="color:#888; font-size:12px;">TOTAL BANK BALANCE</div>
-                    <div id="stat-bank" class="data-value" style="color:#fff; font-size: 26px;">$10,000.00</div>
-                </div>
-                <div>
-                    <div style="color:#888; font-size:12px;">NET.PNL</div>
-                    <div id="stat-pnl" class="data-value neutral">$0.00</div>
-                </div>
-                <div>
-                    <div style="color:#888; font-size:12px;">WIN.RATE</div>
-                    <div id="stat-winrate" class="data-value">0%</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-header">HW.MONITOR (RASPBERRY PI)</div>
-            <div class="metrics-flex" style="display: flex; justify-content: space-between;">
-                <div>
-                    <div style="color:#888; font-size:12px;">CPU.LOAD</div>
-                    <div id="hw-cpu" class="data-value neutral">0.0%</div>
-                </div>
-                <div>
-                    <div style="color:#888; font-size:12px;">RAM.USE</div>
-                    <div id="hw-ram" class="data-value neutral">0.0%</div>
-                </div>
-                <div>
-                    <div style="color:#888; font-size:12px;">CORE.TEMP</div>
-                    <div id="hw-temp" class="data-value neutral">0.0°C</div>
-                </div>
-            </div>
-        </div>
+    <div id="macro-context">
+        GLOBAL EQUITY: <span id="global-equity" class="val-green">LOADING...</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+        FEAR & GREED: <span id="fng-index" class="val-blue">LOADING...</span>
     </div>
 
-    <div class="panel" style="margin-bottom: 25px;">
-        <div class="panel-header">TRADE.BLOTTER (LAST 12 EXECUTIONS)</div>
-        <div class="table-container">
-            <table>
-                <thead><tr><th>TIMESTAMP</th><th>SIDE</th><th>TRIGGER</th><th>EXEC.PX</th><th>REALIZED.PNL</th></tr></thead>
-                <tbody id="trades-body"><tr><td colspan="5">NO TRADES EXECUTED</td></tr></tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="panel" style="border-color: #222; opacity: 0.7;">
-        <div class="panel-header" style="color: #666;">AUXILIARY TOOL: BACKTEST.ENGINE</div>
-        <div class="controls">
-            <select id="tf-select"><option value="4h">4H</option><option value="1d">1D</option><option value="1w">1W</option></select>
-            <input type="number" id="risk-input" value="1" min="1" max="100" style="width: 50px;" title="RISK %">
-            <button onclick="runBacktest()">EXECUTE SIMULATION</button>
-            <span id="bt-loading" style="display:none; color: #00ff00; font-size: 12px; margin-left: 10px;" class="blink">COMPUTING ALGORITHM...</span>
-        </div>
-        <div id="bt-results" style="margin-top: 5px; color: #ccc; font-size: 13px; line-height: 1.5;"></div>
+    <div class="content-wrapper">
+        <div class="grid" id="fleet-grid"></div>
+        <div class="trades-grid" id="trades-grid"></div>
     </div>
 
     <script>
-        async function fetchBTC() {
-            try {
-                const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-                const data = await res.json();
-                document.getElementById('btc-price').innerText = parseFloat(data.price).toLocaleString('en-US', {style: 'currency', currency: 'USD'});
-            } catch(e) {}
-        }
-        setInterval(fetchBTC, 3000);
-        fetchBTC();
-
         async function fetchSystem() {
             try {
-                const res = await fetch('/api/system');
-                const hw = await res.json();
-                
-                document.getElementById('hw-cpu').innerText = hw.cpu + '%';
-                document.getElementById('hw-cpu').className = "data-value " + (hw.cpu > 80 ? "sell" : "buy");
-                
-                document.getElementById('hw-ram').innerText = hw.ram + '%';
-                document.getElementById('hw-ram').className = "data-value " + (hw.ram > 85 ? "sell" : "buy");
-                
-                document.getElementById('hw-temp').innerText = hw.temp + '°C';
-                document.getElementById('hw-temp').className = "data-value " + (hw.temp > 75 ? "sell" : "buy");
+                let res = await fetch('/api/system');
+                let data = await res.json();
+                document.getElementById('sys-cpu').innerText = `${data.cpu}%`;
+                document.getElementById('sys-ram').innerText = `${data.ram}%`;
+                document.getElementById('sys-temp').innerText = `${data.temp}°C`;
             } catch(e) {}
         }
-        setInterval(fetchSystem, 10000);
-        fetchSystem();
-
-        async function fetchState() {
+        
+        let lastPrice = 0;
+        async function fetchBTC() {
             try {
-                const resState = await fetch('/api/state');
-                const state = await resState.json();
-                const stDiv = document.getElementById('bot-status');
-                const dtDiv = document.getElementById('bot-details');
-                
-                if(state.status === "IDLE" || !state.status) {
-                    stDiv.innerHTML = "SCANNING MARKET";
-                    stDiv.className = "data-value neutral";
-                    dtDiv.innerHTML = "ALGO: TD9 EXHAUSTION + RSI FILTER";
-                } else if(state.status === "IN_TRADE") {
-                    stDiv.innerHTML = "ACTIVE POS (" + state.position + ")";
-                    stDiv.className = "data-value " + (state.position === "BUY" ? "buy" : "sell");
-                    dtDiv.innerHTML = "ENTRY: $" + parseFloat(state.entry_price || 0).toFixed(2) + 
-                                      " | SL: $" + parseFloat(state.stop_loss || 0).toFixed(2) + 
-                                      " | TP: $" + parseFloat(state.take_profit || 0).toFixed(2);
-                }
-
-                const resTrades = await fetch('/api/trades');
-                const trades = await resTrades.json();
-                const tbody = document.getElementById('trades-body');
-                
-                if(trades && trades.length > 0) {
-                    let totalPnl = 0;
-                    let closedTrades = 0;
-                    let wins = 0;
-
-                    trades.forEach(t => {
-                        if(t.pnl !== undefined && t.pnl !== 0) {
-                            totalPnl += t.pnl;
-                            closedTrades++;
-                            if(t.pnl > 0) wins++;
-                        }
-                    });
-
-                    const winRate = closedTrades > 0 ? (wins / closedTrades * 100).toFixed(1) : 0;
-                    const INITIAL_BANK = 10000.00;
-                    const currentBank = INITIAL_BANK + totalPnl;
-                    
-                    document.getElementById('stat-bank').innerText = currentBank.toLocaleString('en-US', {style: 'currency', currency: 'USD'});
-                    document.getElementById('stat-bank').className = "data-value " + (totalPnl > 0 ? "buy" : (totalPnl < 0 ? "sell" : "neutral"));
-
-                    const pnlEl = document.getElementById('stat-pnl');
-                    pnlEl.innerText = (totalPnl >= 0 ? "+$" : "-$") + Math.abs(totalPnl).toFixed(2);
-                    pnlEl.className = "data-value " + (totalPnl > 0 ? "buy" : (totalPnl < 0 ? "sell" : "neutral"));
-                    
-                    document.getElementById('stat-winrate').innerText = winRate + "%";
-
-                    tbody.innerHTML = '';
-                    trades.slice(-12).reverse().forEach(t => {
-                        const tr = document.createElement('tr');
-                        const isBuy = (t.type || "").includes("COMPRA");
-                        const isSell = (t.type || "").includes("VENTA");
-                        let colorClass = isBuy ? 'buy' : (isSell ? 'sell' : 'neutral');
-                        
-                        let pnlText = "-";
-                        if(t.pnl !== undefined && t.pnl !== 0) {
-                            pnlText = (t.pnl > 0 ? "+" : "") + t.pnl.toFixed(2);
-                        }
-
-                        tr.innerHTML = `
-                            <td>${t.time || "-"}</td>
-                            <td class="${colorClass}">${(t.type || "-").replace('COMPRA','BUY').replace('VENTA','SELL')}</td>
-                            <td>${t.reason || "-"}</td>
-                            <td>${parseFloat(t.price || 0).toFixed(2)}</td>
-                            <td class="${(t.pnl || 0) > 0 ? 'buy' : ((t.pnl || 0) < 0 ? 'sell' : 'neutral')}">${pnlText}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-                }
-            } catch(e) {
-                console.error(e);
-            }
+                let res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+                let data = await res.json();
+                let price = parseFloat(data.price);
+                let priceEl = document.getElementById('btc-price');
+                priceEl.innerText = `BTC/USDT: $${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                if (price > lastPrice && lastPrice !== 0) { priceEl.style.color = '#00ff00'; priceEl.style.textShadow = '0 0 25px rgba(0,255,0,0.4)'; }
+                else if (price < lastPrice) { priceEl.style.color = '#ff3333'; priceEl.style.textShadow = '0 0 25px rgba(255,51,51,0.4)'; }
+                lastPrice = price;
+            } catch(e) {}
+        }
+        
+        async function fetchFnG() {
+            try {
+                let res = await fetch('https://api.alternative.me/fng/?limit=1');
+                let data = await res.json();
+                document.getElementById('fng-index').innerText = `${data.data[0].value} (${data.data[0].value_classification})`;
+            } catch(e) {}
         }
 
-        async function runBacktest() {
-            const btn = document.querySelector('button');
-            const load = document.getElementById('bt-loading');
-            const resDiv = document.getElementById('bt-results');
-            
-            btn.disabled = true;
-            load.style.display = 'inline-block';
-            resDiv.innerHTML = '';
-
+        async function fetchFleet() {
             try {
-                const tf = document.getElementById('tf-select').value;
-                const risk = document.getElementById('risk-input').value;
+                let res = await fetch('/api/fleet');
+                let fleet = await res.json();
+                let htmlBots = '';
+                let htmlTrades = '';
+                let globalEquity = 0.0;
                 
-                const res = await fetch('/api/backtest', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ timeframe: tf, risk: parseFloat(risk) })
-                });
-                
-                const data = await res.json();
-                if(data.success) {
-                    const color = data.net_profit >= 0 ? '#00ff00' : '#ff3333';
-                    resDiv.innerHTML = `
-                        TOT.TRADES: ${data.total_trades} | WIN.RATE: ${data.win_rate.toFixed(1)}% | NET.PNL: <span style="color:${color}; font-weight:bold;">$${data.net_profit.toFixed(2)}</span> | END.EQUITY: $${data.final_capital.toFixed(2)}
+                for (const tf of ['5m', '15m', '1h', '4h', '1d']) {
+                    const state = fleet[tf];
+                    globalEquity += state.bank || 10000.0;
+                    
+                    let badgeClass = 'status-offline';
+                    let badgeText = 'OFFLINE';
+                    if (state.status === 'IN_TRADE') { badgeClass = 'status-active'; badgeText = 'IN TRADE'; }
+                    else if (state.status === 'IDLE') { badgeClass = 'status-idle'; badgeText = 'IDLE'; }
+                    
+                    htmlBots += `
+                        <div class="bot-card">
+                            <div class="bot-header">
+                                <span>[ ${tf} ALGO ]</span>
+                                <span class="status-badge ${badgeClass}">${badgeText}</span>
+                            </div>
+                            <div class="bot-body">
+                                <div class="row"><span class="label">Bankroll</span><span class="value val-green">$${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2}) : '10,000.00'}</span></div>
+                                <div class="row"><span class="label">Win Rate</span><span class="value">${state.win_rate ? state.win_rate.toFixed(1) : '0.0'}%</span></div>
+                                <div class="row"><span class="label">Max DD</span><span class="value val-red">-${state.drawdown ? state.drawdown.toFixed(2) : '0.00'}%</span></div>
+                                <div class="row"><span class="label">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
+                                <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString() : '--'}</span></div>
+                                <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString() : '--'}</span></div>
+                                <div class="row"><span class="label">Invest</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString() : '--'}</span></div>
+                                <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>
+                            </div>
+                        </div>
                     `;
-                } else {
-                    resDiv.innerHTML = `<span style="color:red">ERR: ${data.error}</span>`;
+                    
+                    htmlTrades += `<div class="trade-card"><div class="trade-header">ÚLTIMOS TRADES (${tf})</div>`;
+                    if (state.recent_trades && state.recent_trades.length > 0) {
+                        let recent = state.recent_trades.slice().reverse();
+                        for (let tr of recent) {
+                            let type = tr.type.split(' ')[0];
+                            let typeColor = type === 'COMPRA' ? 'val-green' : 'val-red';
+                            let pnlText = tr.pnl ? (tr.pnl > 0 ? '+$' : '-$') + Math.abs(tr.pnl).toFixed(2) : '--';
+                            let pnlColor = tr.pnl > 0 ? 'val-green' : (tr.pnl < 0 ? 'val-red' : '');
+                            htmlTrades += `
+                                <div class="trade-row">
+                                    <span class="${typeColor}" style="width: 45px;">${type.substring(0,4)}</span>
+                                    <span style="color:#aaa;">$${parseFloat(tr.price).toLocaleString()}</span>
+                                    <span class="${pnlColor}">${pnlText}</span>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        htmlTrades += `<div style="text-align:center; color:#444; margin-top:20px; font-size:11px;">ESPERANDO SEÑAL...</div>`;
+                    }
+                    htmlTrades += `</div>`;
                 }
-            } catch(e) {
-                resDiv.innerHTML = `<span style="color:red">SYS.ERR</span>`;
-            }
-
-            btn.disabled = false;
-            load.style.display = 'none';
+                
+                document.getElementById('fleet-grid').innerHTML = htmlBots;
+                document.getElementById('trades-grid').innerHTML = htmlTrades;
+                document.getElementById('global-equity').innerText = `$${globalEquity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                
+            } catch (e) {}
         }
 
-        setInterval(fetchState, 10000);
-        fetchState();
+        setInterval(fetchSystem, 5000);
+        setInterval(fetchBTC, 2000);
+        setInterval(fetchFleet, 5000);
+        setInterval(fetchFnG, 600000); // 10 minutes for F&G
+        
+        fetchSystem();
+        fetchBTC();
+        fetchFleet();
+        fetchFnG();
     </script>
 </body>
 </html>

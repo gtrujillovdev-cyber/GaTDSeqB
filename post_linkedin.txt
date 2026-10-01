@@ -1,0 +1,24 @@
+El mercado Junior de IT está bastante saturado de clones de aplicaciones web básicas y listas de tareas. Tenia muy claro que quería salir de ese bucle de tutoriales y construir algo real, tocando todas las partes de un sistema de principio a fin 🛠️.
+
+El resultado es GaTDSEQ.
+
+Más allá de tirar líneas de código, el verdadero aprendizaje aquí ha sido pegarme con problemas serios de arquitectura y limitaciones de hardware. Os cuento un poco cómo lo he montado:
+
+Infraestructura y DevOps 💻
+Decidí prescindir de servicios cloud gestionados y alojar todo en un servidor propio 24/7 sobre una Raspberry Pi con Linux. Al principio el sistema se caía constantemente por falta de RAM. Tuve que investigar bastante para implementar compresión ZRAM en el SO y limitar los procesos en segundo plano del entorno gráfico. Con esto logré bajar los picos de CPU del 75% a un 10% estable.
+
+Redes y SecOps 🛡️
+Para poder gestionar el servidor y tirar código desde cualquier lado necesitaba acceso remoto, pero abrir los puertos del router de mi casa no era una opción. Lo solucione desplegando una red mesh con Tailscale basada en WireGuard para tener acceso por SSH de forma segura.
+
+Backend y Algoritmia 📈
+El motor del proyecto es un demonio en Python. En lugar de un script simple, desarrollé un sistema de gestión de riesgo matemático que procesa datos y calcula el tamaño de las posiciones de forma dinámica basándose en la volatilidad en tiempo real. 
+
+Frontend e integraciones 📱
+No quería depender de mirar logs de consola. Integré la API de Telegram para que el servidor me mandara alertas push al móvil. Paralelamente, levanté un servidor asíncrono con Flask y diseñé un dashboard responsive para monitorizar tanto la aplicacion como el rendimiento térmico de la Raspberry Pi en vivo.
+
+Levantar un sistema de este tipo desde cero y resolver los cuellos de botella físicos me ha enseñado mil veces más que cualquier curso guiado. Sigue siendo un proyecto de aprendizaje, pero funcona ininterrumpidamente 🚀.
+
+Me gustaría saber qué opinan los perfiles más senior de la red sobre esto. ¿Creéis que empezar lidiando con hardware físico y limitaciones reales aporta más valor que saltar directamente a servicios cloud donde te abstraen de la infraestructura? Os leo.
+
+👇 Todo el código y arquitectura está en mi GitHub:
+https://github.com/gtrujillovdev-cyber/GaTDSeqB
