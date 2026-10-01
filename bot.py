@@ -13,6 +13,8 @@ TRADES_FILE = "trades.json"
 
 TELEGRAM_TOKEN = "8897428364:AAEXvrsysxH7_dOQftBnQbtQr_c_uof5qhU"
 CHAT_ID = "1097154358"
+RISK_PCT = 0.02 # Riesgo del 2% por operacion
+INITIAL_BANK = 10000.0
 
 def send_telegram(msg):
     try:
@@ -142,6 +144,31 @@ def execute_trade(action, price, sl, tp, reason):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     trade_id = str(int(time.time()))
     
+    # Risk Management Engine
+    trades = load_trades()
+    current_bank = INITIAL_BANK + sum(t.get('pnl', 0.0) for t in trades)
+    
+    # 1. Calculamos cuanto estamos dispuestos a perder ($)
+    risk_amount = current_bank * RISK_PCT
+    
+    # 2. Calculamos la distancia del precio al stop loss
+    sl_dist_price = abs(price - sl)
+    
+    # 3. Calculamos la cantidad de BTC que debemos comprar para que, si el precio llega al SL, perdamos exactamente 'risk_amount'
+    position_size_btc = risk_amount / sl_dist_price
+    
+    # 4. Valor total de la posicion (Notional Value)
+    position_size_usd = position_size_btc * price
+    
+    # 5. Spot Market Limit: No usar margen / apalancamiento (Capping al saldo disponible)
+    if position_size_usd > current_bank:
+        position_size_usd = current_bank
+        position_size_btc = position_size_usd / price
+        actual_risk_amount = position_size_btc * sl_dist_price
+        print(f"Alerta: Capital insuficiente para riesgo completo. Operando sin apalancamiento. Riesgo ajustado a ${actual_risk_amount:.2f}")
+    else:
+        actual_risk_amount = risk_amount
+    
     state = {
         "status": "IN_TRADE",
         "trade_id": trade_id,
@@ -149,13 +176,15 @@ def execute_trade(action, price, sl, tp, reason):
         "entry_price": price,
         "stop_loss": sl,
         "take_profit": tp,
-        "timestamp": time_str
+        "timestamp": time_str,
+        "size_btc": position_size_btc,
+        "size_usd": position_size_usd,
+        "risk_usd": actual_risk_amount
     }
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
     
     # Registro de apertura
-    trades = load_trades()
     trades.append({
         "trade_id": trade_id,
         "time": time_str,
@@ -167,9 +196,16 @@ def execute_trade(action, price, sl, tp, reason):
     with open(TRADES_FILE, "w") as f:
         json.dump(trades, f)
         
-    msg = f"🟢 <b>NUEVA OPERACIÓN ({action})</b>\n\n💰 Precio: ${price:,.2f}\n🛡 Stop Loss: ${sl:,.2f}\n🎯 Take Profit: ${tp:,.2f}\n🧠 Estrategia: {reason}"
+    msg = (f"🟢 <b>NUEVA OPERACIÓN ({action})</b>\n\n"
+           f"💰 Precio: ${price:,.2f}\n"
+           f"🛡 Stop Loss: ${sl:,.2f}\n"
+           f"🎯 Take Profit: ${tp:,.2f}\n"
+           f"💵 Inversión: ${position_size_usd:,.2f} ({position_size_btc:.4f} BTC)\n"
+           f"⚠️ Riesgo Máximo: ${actual_risk_amount:,.2f} ({(actual_risk_amount/current_bank)*100:.2f}%)\n"
+           f"🏦 Bankroll: ${current_bank:,.2f}\n"
+           f"🧠 Estrategia: {reason}")
     send_telegram(msg)
-    print(f"Trade {action} Ejecutado a ${price:.2f} | SL: ${sl:.2f} | TP: ${tp:.2f}")
+    print(f"Trade {action} Ejecutado a ${price:.2f} | Inversión: ${position_size_usd:.2f} | Riesgo: ${actual_risk_amount:.2f}")
 
 def check_exit_conditions(current_price, atr, state):
     action = state["position"]
@@ -178,8 +214,11 @@ def check_exit_conditions(current_price, atr, state):
     entry = state["entry_price"]
     trade_id = state.get("trade_id", str(int(time.time())))
     
+    # Recuperar tamaño de posición
+    size_btc = state.get("size_btc", 0.15) # Default seguro si es antiguo
+    
     closed = False
-    pnl_pct = 0
+    pnl_dollars = 0.0
     updated_sl = sl
     close_reason = ""
     
@@ -193,12 +232,12 @@ def check_exit_conditions(current_price, atr, state):
             
         if current_price <= updated_sl:
             print("❌ Stop Loss impactado.")
-            pnl_pct = ((current_price - entry) / entry) * 100
+            pnl_dollars = (current_price - entry) * size_btc
             closed = True
             close_reason = "Stop Loss"
         elif current_price >= tp:
             print("✅ Take Profit alcanzado.")
-            pnl_pct = ((current_price - entry) / entry) * 100
+            pnl_dollars = (current_price - entry) * size_btc
             closed = True
             close_reason = "Take Profit"
             
@@ -212,12 +251,12 @@ def check_exit_conditions(current_price, atr, state):
             
         if current_price >= updated_sl:
             print("❌ Stop Loss impactado.")
-            pnl_pct = ((entry - current_price) / entry) * 100
+            pnl_dollars = (entry - current_price) * size_btc
             closed = True
             close_reason = "Stop Loss"
         elif current_price <= tp:
             print("✅ Take Profit alcanzado.")
-            pnl_pct = ((entry - current_price) / entry) * 100
+            pnl_dollars = (entry - current_price) * size_btc
             closed = True
             close_reason = "Take Profit"
 
@@ -228,13 +267,15 @@ def check_exit_conditions(current_price, atr, state):
             json.dump(state, f)
             
     if closed:
-        # Calcular PNL en dolares asumiendo un banco de $10,000 para el registro local
-        pnl_dollars = (pnl_pct / 100) * 10000.0
-        print(f"Operación cerrada. Beneficio/Pérdida: {pnl_pct:.2f}% (${pnl_dollars:.2f})")
+        trades = load_trades()
+        current_bank = INITIAL_BANK + sum(t.get('pnl', 0.0) for t in trades)
+        pnl_pct_on_bank = (pnl_dollars / current_bank) * 100
+        new_bank = current_bank + pnl_dollars
+        
+        print(f"Operación cerrada. Beneficio/Pérdida: ${pnl_dollars:.2f} ({pnl_pct_on_bank:.2f}% de la cuenta)")
         
         # Guardar cierre en el registro
         time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        trades = load_trades()
         trades.append({
             "trade_id": trade_id + "_close",
             "time": time_str,
@@ -252,7 +293,10 @@ def check_exit_conditions(current_price, atr, state):
             json.dump(state, f)
             
         emoji = "✅" if pnl_dollars > 0 else "❌"
-        msg = f"{emoji} <b>OPERACIÓN CERRADA ({close_reason})</b>\n\n💰 Precio Cierre: ${current_price:,.2f}\n💵 Beneficio (Virtual): ${pnl_dollars:,.2f}\n📈 Rendimiento: {pnl_pct:.2f}%"
+        msg = (f"{emoji} <b>OPERACIÓN CERRADA ({close_reason})</b>\n\n"
+               f"💰 Precio Cierre: ${current_price:,.2f}\n"
+               f"💵 Beneficio/Pérdida: ${pnl_dollars:,.2f}\n"
+               f"🏦 Nuevo Bankroll: ${new_bank:,.2f}")
         send_telegram(msg)
 
 def load_state():
@@ -269,7 +313,7 @@ def load_trades():
 
 if __name__ == "__main__":
     print("Iniciando GaTDSEQ Bot (Modo Cuantitativo)...")
-    send_telegram("🤖 <b>Bot Reiniciado</b>\n\nEl sistema se ha conectado con éxito. Monitorizando BTC/USDT en temporalidad 4H.")
+    send_telegram("🤖 <b>Bot Reiniciado (Risk Engine ON)</b>\n\nEl motor de gestión de riesgo está en línea. Arriesgando un 2% del Bankroll dinámico por operación (Spot Mode sin apalancamiento).")
     while True:
         analyze_market()
         time.sleep(60 * 5) # Comprueba cada 5 minutos
