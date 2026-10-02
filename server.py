@@ -52,6 +52,7 @@ def api_fleet():
         fleet[tf]['bank'] = INITIAL_BANK
         fleet[tf]['win_rate'] = 0.0
         fleet[tf]['drawdown'] = 0.0
+        fleet[tf]['profit_factor'] = 0.0
         
         if os.path.exists(trades_file):
             with open(trades_file, "r") as f:
@@ -65,11 +66,18 @@ def api_fleet():
                     current = INITIAL_BANK
                     max_dd = 0.0
                     
+                    gross_profit = 0.0
+                    gross_loss = 0.0
+                    
                     for trade in t:
                         if 'pnl' in trade:
                             closed_trades += 1
                             pnl = float(trade['pnl'])
-                            if pnl > 0: wins += 1
+                            if pnl > 0: 
+                                wins += 1
+                                gross_profit += pnl
+                            else:
+                                gross_loss += abs(pnl)
                             
                             current += pnl
                             if current > peak: peak = current
@@ -79,6 +87,7 @@ def api_fleet():
                     fleet[tf]['trades_count'] = closed_trades
                     fleet[tf]['bank'] = current
                     fleet[tf]['win_rate'] = (wins / closed_trades * 100) if closed_trades > 0 else 0.0
+                    fleet[tf]['profit_factor'] = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
                     fleet[tf]['drawdown'] = max_dd
                 except: pass
     return jsonify(fleet)
