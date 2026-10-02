@@ -348,4 +348,12 @@ if __name__ == "__main__":
                 print(f"Error analizando {tf}: {e}")
                 
         # Sleep for 5 minutes before checking all again
-        time.sleep(300)
+        
+        # Sincronización de reloj militar (Evita el drift del sleep)
+        # Despierta siempre exactamente en los minutos: 00, 05, 10, 15, 20...
+        import time as time_mod
+        now = time_mod.time()
+        sleep_sec = 300 - (now % 300)
+        # Añadimos 3 segundos de gracia para que Binance haya cerrado y publicado la vela
+        time_mod.sleep(sleep_sec + 3)
+
