@@ -3,6 +3,9 @@ import json
 import ccxt
 import os
 import time
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(page_title="Bot TD Secuencial", layout="wide")
 st.title("🤖 Consola de Control - TD Secuencial")
@@ -26,8 +29,8 @@ control = load_control()
 st.sidebar.header("🏦 Cartera Binance (Testnet)")
 try:
     exchange = ccxt.binance({
-        'apiKey': 'RZ3x3KlwYPmtkJwh7ni0w4nkHMRSQovlvxXC9B5R74d5PI8VIg4t4sikBQfqUjpr',
-        'secret': 'M4NVCD9XSZ2sfzqz3PKoCKpPeiWpdVMjtQ8x6dMF4YbwEcwZtDoBecxqI6uoOgz6',
+        'apiKey': os.getenv('BINANCE_API_KEY'),
+        'secret': os.getenv('BINANCE_SECRET'),
         'enableRateLimit': True,
     })
     exchange.set_sandbox_mode(True)

@@ -14,7 +14,10 @@ TIMEFRAME = '4h'
 STATE_FILE = "state.json"
 TRADES_FILE = "trades.json"
 
-TELEGRAM_TOKEN = "8897428364:AAEXvrsysxH7_dOQftBnQbtQr_c_uof5qhU"
+from dotenv import load_dotenv
+load_dotenv()
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = "1097154358"
 RISK_PCT = 0.02 # Riesgo del 2% por operacion
 INITIAL_BANK = 10000.0
