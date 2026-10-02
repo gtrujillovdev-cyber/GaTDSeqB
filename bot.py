@@ -54,7 +54,7 @@ def calculate_atr(df, period=14):
 def get_data(symbol="BTC/USDT", timeframe="4h", limit=500):
     try:
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df = pd.DataFrame(ohlcv[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']) # Descartar vela actual en formación
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         
         # Filtro Macro (EMA 200)
