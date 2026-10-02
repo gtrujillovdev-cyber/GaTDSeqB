@@ -19,7 +19,7 @@ load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = "1097154358"
-RISK_PCT = 0.02 # Riesgo del 2% por operacion
+
 INITIAL_BANK = 10000.0
 
 import threading
@@ -159,7 +159,11 @@ def analyze_market():
                 if state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
                 else:
-                    execute_trade("BUY", current_price, stop_loss, take_profit, "TD9 Buy Perf", trigger_time)
+                    risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
+                    base_risk = risk_matrix.get(TIMEFRAME, 0.01)
+                    conviction_multiplier = 1.5 if rsi < 30 else 1.0
+                    final_risk = base_risk * conviction_multiplier
+                    execute_trade("BUY", current_price, stop_loss, take_profit, "TD9 Buy Perf", trigger_time, final_risk)
             else:
                 print("TD9 ignorado: Filtro Macro (EMA200) o RSI no permitieron la compra.")
                 
@@ -172,14 +176,18 @@ def analyze_market():
                 if state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
                 else:
-                    execute_trade("SELL", current_price, stop_loss, take_profit, "TD9 Sell Perf", trigger_time)
+                    risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
+                    base_risk = risk_matrix.get(TIMEFRAME, 0.01)
+                    conviction_multiplier = 1.5 if rsi > 70 else 1.0
+                    final_risk = base_risk * conviction_multiplier
+                    execute_trade("SELL", current_price, stop_loss, take_profit, "TD9 Sell Perf", trigger_time, final_risk)
             else:
                 print("TD9 ignorado: Filtro Macro o RSI no permitieron el short.")
                 
     elif state.get("status") == "IN_TRADE":
         check_exit_conditions(live_candle, closed_candle, atr, state)
 
-def execute_trade(action, price, sl, tp, reason, trigger_time=None):
+def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.01):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     trade_id = str(int(time.time()))
     
@@ -188,7 +196,7 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None):
     current_bank = INITIAL_BANK + sum(t.get('pnl', 0.0) for t in trades)
     
     # 1. Calculamos cuanto estamos dispuestos a perder ($)
-    risk_amount = current_bank * RISK_PCT
+    risk_amount = current_bank * risk_pct
     
     # 2. Calculamos la distancia del precio al stop loss
     sl_dist_price = abs(price - sl)
