@@ -243,12 +243,12 @@ def check_exit_conditions(current_price, atr, state):
             
         if current_price <= updated_sl:
             print("❌ Stop Loss impactado.")
-            pnl_dollars = (current_price - entry) * size_btc
+            pnl_dollars = (updated_sl - entry) * size_btc
             closed = True
             close_reason = "Stop Loss"
         elif current_price >= tp:
             print("✅ Take Profit alcanzado.")
-            pnl_dollars = (current_price - entry) * size_btc
+            pnl_dollars = (tp - entry) * size_btc
             closed = True
             close_reason = "Take Profit"
             
@@ -262,12 +262,12 @@ def check_exit_conditions(current_price, atr, state):
             
         if current_price >= updated_sl:
             print("❌ Stop Loss impactado.")
-            pnl_dollars = (entry - current_price) * size_btc
+            pnl_dollars = (entry - updated_sl) * size_btc
             closed = True
             close_reason = "Stop Loss"
         elif current_price <= tp:
             print("✅ Take Profit alcanzado.")
-            pnl_dollars = (entry - current_price) * size_btc
+            pnl_dollars = (entry - tp) * size_btc
             closed = True
             close_reason = "Take Profit"
 
