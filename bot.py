@@ -184,7 +184,9 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None):
     
     # 2. Calculamos la distancia del precio al stop loss
     sl_dist_price = abs(price - sl)
-    
+    if sl_dist_price == 0: 
+        sl_dist_price = 0.00001 # Prevenir división por cero si la volatilidad (ATR) muere por completo
+        
     # 3. Calculamos la cantidad de BTC que debemos comprar para que, si el precio llega al SL, perdamos exactamente 'risk_amount'
     position_size_btc = risk_amount / sl_dist_price
     
