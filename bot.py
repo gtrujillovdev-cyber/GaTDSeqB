@@ -54,7 +54,7 @@ def calculate_atr(df, period=14):
 def get_data(symbol="BTC/USDT", timeframe="4h", limit=500):
     try:
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        df = pd.DataFrame(ohlcv[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']) # Descartar vela actual en formación
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']) # Descartar vela actual en formación
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         
         # Filtro Macro (EMA 200)
@@ -107,14 +107,17 @@ def analyze_market():
     if df is None: return
     
     df = calculate_td_sequential(df)
-    last_candle = df.iloc[-1]
     
-    # Parametros actuales
-    current_price = last_candle['close']
-    ema200 = last_candle['ema_200']
-    rsi = last_candle['rsi']
-    atr = last_candle['atr']
-    count = last_candle['td_count']
+    # SEPARACIÓN CRÍTICA: Vela Cerrada (Entradas) vs Vela Viva (Salidas/StopLoss)
+    closed_candle = df.iloc[-2]
+    live_candle = df.iloc[-1]
+    
+    # Parametros para ENTRADAS (Siempre sobre la vela confirmada y cerrada)
+    current_price = closed_candle['close']
+    ema200 = closed_candle['ema_200']
+    rsi = closed_candle['rsi']
+    atr = closed_candle['atr']
+    count = closed_candle['td_count']
     
     state = load_state()
     
@@ -149,7 +152,7 @@ def analyze_market():
                 print("TD9 ignorado: Filtro Macro o RSI no permitieron el short.")
                 
     elif state.get("status") == "IN_TRADE":
-        check_exit_conditions(last_candle, atr, state)
+        check_exit_conditions(live_candle, atr, state)
 
 def execute_trade(action, price, sl, tp, reason):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -218,7 +221,7 @@ def execute_trade(action, price, sl, tp, reason):
     send_telegram(msg)
     print(f"Trade {action} Ejecutado a ${price:.2f} | Inversión: ${position_size_usd:.2f} | Riesgo: ${actual_risk_amount:.2f}")
 
-def check_exit_conditions(last_candle, atr, state):
+def check_exit_conditions(live_candle, atr, state):
     action = state["position"]
     current_price = last_candle['close']
     low_price = last_candle['low']
