@@ -142,6 +142,8 @@
         }
 
         let lastNetWorth = 0;
+        let lastPortfolioHtml = '<div style="text-align:center; color:#444; margin-top:20px; font-size:11px;">CARGANDO DATOS...</div>';
+        
         async function fetchPortfolio() {
             try {
                 let res = await fetch('/api/portfolio');
@@ -218,13 +220,16 @@
                 else if (totalValue < lastNetWorth) { nwEl.className = 'val-red'; }
                 lastNetWorth = totalValue;
                 
+                pfHtml += `
+                <div style="margin-top: 15px; text-align: center;">
+                    <div style="font-size:11px; color:#888; margin-bottom:5px;">NET WORTH EST.</div>
+                    <div style="font-size:22px; font-weight:bold; color:#00ff00;">$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                </div>`;
+                
+                lastPortfolioHtml = pfHtml;
+                
                 let pfBody = document.getElementById('portfolio-body');
                 if (pfBody) {
-                    pfHtml += `
-                    <div style="margin-top: 15px; text-align: center;">
-                        <div style="font-size:11px; color:#888; margin-bottom:5px;">NET WORTH EST.</div>
-                        <div style="font-size:22px; font-weight:bold; color:#00ff00;">$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                    </div>`;
                     pfBody.innerHTML = pfHtml;
                 }
                 
@@ -303,7 +308,7 @@
                             <span class="status-badge status-active">LIVE</span>
                         </div>
                         <div class="bot-body" id="portfolio-body" style="padding: 15px;">
-                            <div style="text-align:center; color:#444; margin-top:20px; font-size:11px;">SINCRONIZANDO DATOS...</div>
+                            ${lastPortfolioHtml}
                         </div>
                     </div>
                 </div>`;
@@ -311,15 +316,13 @@
                 document.getElementById('main-grid').innerHTML = htmlGrid;
                 document.getElementById('global-equity').innerText = `$${globalEquity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
                 
-                fetchPortfolio(); // Call immediately after fleet renders so portfolio populates the new column
-                
             } catch (e) {}
         }
 
         setInterval(fetchSystem, 5000);
         setInterval(fetchBTC, 2000);
         setInterval(fetchFleet, 5000);
-        setInterval(fetchPortfolio, 10000); // 10 seconds para evitar límites de API con muchas monedas
+        setInterval(fetchPortfolio, 30000); // 30 segundos
         setInterval(fetchFnG, 600000); // 10 minutes for F&G
         
         fetchSystem();
