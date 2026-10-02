@@ -120,6 +120,13 @@ def analyze_market():
     
     print(f"Precio: ${current_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
     
+    # Save the current TD Count to state so the dashboard can display it
+    state["td_count"] = int(count)
+    import json
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+    
     if state.get("status") == "IDLE":
         # CONDICIÓN DE COMPRA LONG (Agotamiento bajista)
         if count == -9:
@@ -323,16 +330,14 @@ if __name__ == "__main__":
 
     INITIAL_BANK = args.bank
     print(f"Iniciando GaTDSEQ Bot UNIFICADO | Bank: ${INITIAL_BANK}...")
-    send_telegram(f"🤖 <b>Bot UNIFICADO Iniciado</b>
-
-Controlando 5 timeframes simultáneamente para ahorrar RAM.")
+    send_telegram("🤖 <b>Bot UNIFICADO Iniciado</b>\n\nControlando 5 timeframes simultáneamente para ahorrar RAM.")
     
     timeframes = ['5m', '15m', '1h', '4h', '1d']
     
     while True:
         for tf in timeframes:
             # Reassign globals for the functions to use
-            global TIMEFRAME, STATE_FILE, TRADES_FILE
+            # global TIMEFRAME, STATE_FILE, TRADES_FILE
             TIMEFRAME = tf
             STATE_FILE = f"state_{tf}.json"
             TRADES_FILE = f"trades_{tf}.json"
