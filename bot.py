@@ -37,8 +37,9 @@ def calculate_rsi(series, period=14):
     up, down = delta.copy(), delta.copy()
     up[up < 0] = 0
     down[down > 0] = 0
-    roll_up = up.ewm(span=period, min_periods=period).mean()
-    roll_down = down.abs().ewm(span=period, min_periods=period).mean()
+    # TradingView EXACT MATCH: Wilder's Smoothing (alpha=1/period) instead of EMA
+    roll_up = up.ewm(alpha=1/period, adjust=False).mean()
+    roll_down = down.abs().ewm(alpha=1/period, adjust=False).mean()
     rs = roll_up / roll_down
     rsi = 100.0 - (100.0 / (1.0 + rs))
     return rsi
@@ -49,7 +50,8 @@ def calculate_atr(df, period=14):
     low_close = (df['low'] - df['close'].shift()).abs()
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
     true_range = ranges.max(axis=1)
-    return true_range.rolling(period).mean()
+    # TradingView EXACT MATCH: Wilder's Smoothing (RMA) instead of Simple Moving Average (SMA)
+    return true_range.ewm(alpha=1/period, adjust=False).mean()
 
 def get_data(symbol="BTC/USDT", timeframe="4h", limit=500):
     try:
