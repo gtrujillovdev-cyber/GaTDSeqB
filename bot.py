@@ -19,13 +19,18 @@ CHAT_ID = "1097154358"
 RISK_PCT = 0.02 # Riesgo del 2% por operacion
 INITIAL_BANK = 10000.0
 
-def send_telegram(msg):
+import threading
+
+def _send_telegram_async(msg):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "HTML"}
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
         print("Error sending telegram:", e)
+
+def send_telegram(msg):
+    threading.Thread(target=_send_telegram_async, args=(msg,), daemon=True).start()
 
 # Inicializar Binance
 exchange = ccxt.binance({
