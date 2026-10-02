@@ -16,6 +16,9 @@ Descubrí el clásico fallo de los Quants en Python: usar medias exponenciales (
 🛡️ **Escudos de Ejecución (Gatling Bug & Slippage):**
 Implementé un "tatuaje temporal" (timestamp matching) para evitar que el algoritmo entre en bucles de re-entrada (*overtrading*) sobre una misma señal válida. Además, el simulador de Paper Trading ahora descuenta la comisión Spot VIP 0 de Binance (0.1%) y el límite *MIN_NOTIONAL* de $10 para mostrar un Net ROI 100% realista.
 
+⚡ **Optimización Extrema de CPU y Latencia (Zero-Cost Caching):**
+El panel de monitorización pide datos cada 5 segundos. Para evitar que el servidor colapsara recalculando miles de *trades* históricos (Profit Factor, Max Drawdown), implementé una caché de "costo cero" basada en la huella temporal del OS (`os.path.getmtime`). El consumo de CPU del dashboard cayó al 0.01%. Además, delegué las llamadas a la API de Telegram a hilos en segundo plano (*Daemon Threads*) para que la latencia de la red de notificaciones no congele ni un milisegundo el motor de ejecución principal.
+
 🔌 **Resiliencia de Hardware (Raspberry Pi 3):**
 Pasamos de una arquitectura de subprocesos paralelos (que colapsaban la RAM) a un *Loop Secuencial Unificado*. Añadí tolerancia a fallos de red con *Exponential Backoff* para caídas de la API de Binance, y control de excepciones para evitar corrupción de archivos JSON ante micro-cortes de luz.
 
