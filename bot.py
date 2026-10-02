@@ -149,7 +149,7 @@ def analyze_market():
                 print("TD9 ignorado: Filtro Macro o RSI no permitieron el short.")
                 
     elif state.get("status") == "IN_TRADE":
-        check_exit_conditions(current_price, atr, state)
+        check_exit_conditions(last_candle, atr, state)
 
 def execute_trade(action, price, sl, tp, reason):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -218,8 +218,12 @@ def execute_trade(action, price, sl, tp, reason):
     send_telegram(msg)
     print(f"Trade {action} Ejecutado a ${price:.2f} | Inversión: ${position_size_usd:.2f} | Riesgo: ${actual_risk_amount:.2f}")
 
-def check_exit_conditions(current_price, atr, state):
+def check_exit_conditions(last_candle, atr, state):
     action = state["position"]
+    current_price = last_candle['close']
+    low_price = last_candle['low']
+    high_price = last_candle['high']
+
     sl = state["stop_loss"]
     tp = state["take_profit"]
     entry = state["entry_price"]
@@ -241,16 +245,19 @@ def check_exit_conditions(current_price, atr, state):
             print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
             send_telegram(f"📈 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_price:,.2f}")
             
-        if current_price <= updated_sl:
-            print("❌ Stop Loss impactado.")
+        # Evaluate against the candle wicks (low/high) for realism
+        if low_price <= updated_sl:
+            print("❌ Stop Loss impactado en la mecha inferior.")
             pnl_dollars = (updated_sl - entry) * size_btc
             closed = True
             close_reason = "Stop Loss"
-        elif current_price >= tp:
-            print("✅ Take Profit alcanzado.")
+            current_price = updated_sl # For closing log
+        elif high_price >= tp:
+            print("✅ Take Profit alcanzado en la mecha superior.")
             pnl_dollars = (tp - entry) * size_btc
             closed = True
             close_reason = "Take Profit"
+            current_price = tp # For closing log
             
     elif action == "SELL":
         # Trailing stop
@@ -260,16 +267,19 @@ def check_exit_conditions(current_price, atr, state):
             print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
             send_telegram(f"📉 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_price:,.2f}")
             
-        if current_price >= updated_sl:
-            print("❌ Stop Loss impactado.")
+        # Evaluate against the candle wicks (low/high) for realism
+        if high_price >= updated_sl:
+            print("❌ Stop Loss impactado en la mecha superior.")
             pnl_dollars = (entry - updated_sl) * size_btc
             closed = True
             close_reason = "Stop Loss"
-        elif current_price <= tp:
-            print("✅ Take Profit alcanzado.")
+            current_price = updated_sl # For closing log
+        elif low_price <= tp:
+            print("✅ Take Profit alcanzado en la mecha inferior.")
             pnl_dollars = (entry - tp) * size_btc
             closed = True
             close_reason = "Take Profit"
+            current_price = tp # For closing log
 
     # Save state if trailing stop moved
     if updated_sl != sl and not closed:
