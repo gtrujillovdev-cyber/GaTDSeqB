@@ -53,7 +53,7 @@ def calculate_atr(df, period=14):
     # TradingView EXACT MATCH: Wilder's Smoothing (RMA) instead of Simple Moving Average (SMA)
     return true_range.ewm(alpha=1/period, adjust=False).mean()
 
-def get_data(symbol="BTC/USDT", timeframe="4h", limit=500):
+def get_data(symbol="BTC/USDT", timeframe="4h", limit=1000):
     for attempt in range(3):
         try:
             ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
@@ -199,6 +199,11 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None):
         print(f"Alerta: Capital insuficiente para riesgo completo. Operando sin apalancamiento. Riesgo ajustado a ${actual_risk_amount:.2f}")
     else:
         actual_risk_amount = risk_amount
+
+    # Institutional Guard: Binance Spot Minimum Order Size ($10)
+    if position_size_usd < 10.0:
+        print(f"⚠️ Operación abortada: Tamaño de posición (${position_size_usd:.2f}) inferior al mínimo de Binance ($10).")
+        return
     
     # Deduct 0.1% Binance Spot Fee on Entry Notional
     entry_fee_usd = position_size_usd * 0.001
