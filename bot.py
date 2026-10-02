@@ -115,7 +115,7 @@ def analyze_market():
     live_candle = df.iloc[-1]
     
     # Parametros para ENTRADAS (Siempre sobre la vela confirmada y cerrada)
-    current_price = closed_candle['close']
+    current_live_price = closed_candle['close']
     ema200 = closed_candle['ema_200']
     rsi = closed_candle['rsi']
     atr = closed_candle['atr']
@@ -123,7 +123,7 @@ def analyze_market():
     
     state = load_state()
     
-    print(f"Precio: ${current_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
+    print(f"Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
     
     # Save the current TD Count to state so the dashboard can display it
     state["td_count"] = int(count)
@@ -135,7 +135,7 @@ def analyze_market():
     if state.get("status") == "IDLE":
         # CONDICIÓN DE COMPRA LONG (Agotamiento bajista)
         if count == -9:
-            if current_price > ema200 and rsi < 40:
+            if current_live_price > ema200 and rsi < 40:
                 print(">>> ALERTA DE COMPRA <<< (TD9 Bajista completado + Tendencia Alcista + RSI favorable)")
                 stop_loss = current_price - (atr * 1.5)
                 take_profit = current_price + (atr * 3.0)
@@ -145,7 +145,7 @@ def analyze_market():
                 
         # CONDICIÓN DE VENTA SHORT (Agotamiento alcista)
         elif count == 9:
-            if current_price < ema200 and rsi > 60:
+            if current_live_price < ema200 and rsi > 60:
                 print(">>> ALERTA DE VENTA <<< (TD9 Alcista completado + Tendencia Bajista + RSI favorable)")
                 stop_loss = current_price + (atr * 1.5)
                 take_profit = current_price - (atr * 3.0)
@@ -154,7 +154,7 @@ def analyze_market():
                 print("TD9 ignorado: Filtro Macro o RSI no permitieron el short.")
                 
     elif state.get("status") == "IN_TRADE":
-        check_exit_conditions(live_candle, atr, state)
+        check_exit_conditions(live_candle, closed_candle, atr, state)
 
 def execute_trade(action, price, sl, tp, reason):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -223,9 +223,9 @@ def execute_trade(action, price, sl, tp, reason):
     send_telegram(msg)
     print(f"Trade {action} Ejecutado a ${price:.2f} | Inversión: ${position_size_usd:.2f} | Riesgo: ${actual_risk_amount:.2f}")
 
-def check_exit_conditions(live_candle, atr, state):
+def check_exit_conditions(live_candle, closed_candle, atr, state):
     action = state["position"]
-    current_price = last_candle['close']
+    current_live_price = last_candle['close']
     low_price = last_candle['low']
     high_price = last_candle['high']
 
@@ -243,12 +243,12 @@ def check_exit_conditions(live_candle, atr, state):
     close_reason = ""
     
     if action == "BUY":
-        # Trailing stop
-        new_sl = current_price - (atr * 1.5)
+        # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
+        new_sl = current_closed_price - (atr * 1.5)
         if new_sl > sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
-            send_telegram(f"📈 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_price:,.2f}")
+            send_telegram(f"📈 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
             
         # Evaluate against the candle wicks (low/high) for realism
         if low_price <= updated_sl:
@@ -256,21 +256,21 @@ def check_exit_conditions(live_candle, atr, state):
             pnl_dollars = (updated_sl - entry) * size_btc
             closed = True
             close_reason = "Stop Loss"
-            current_price = updated_sl # For closing log
+            current_live_price = updated_sl # For closing log
         elif high_price >= tp:
             print("✅ Take Profit alcanzado en la mecha superior.")
             pnl_dollars = (tp - entry) * size_btc
             closed = True
             close_reason = "Take Profit"
-            current_price = tp # For closing log
+            current_live_price = tp # For closing log
             
     elif action == "SELL":
-        # Trailing stop
-        new_sl = current_price + (atr * 1.5)
+        # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
+        new_sl = current_closed_price + (atr * 1.5)
         if new_sl < sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
-            send_telegram(f"📉 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_price:,.2f}")
+            send_telegram(f"📉 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
             
         # Evaluate against the candle wicks (low/high) for realism
         if high_price >= updated_sl:
@@ -278,13 +278,13 @@ def check_exit_conditions(live_candle, atr, state):
             pnl_dollars = (entry - updated_sl) * size_btc
             closed = True
             close_reason = "Stop Loss"
-            current_price = updated_sl # For closing log
+            current_live_price = updated_sl # For closing log
         elif low_price <= tp:
             print("✅ Take Profit alcanzado en la mecha inferior.")
             pnl_dollars = (entry - tp) * size_btc
             closed = True
             close_reason = "Take Profit"
-            current_price = tp # For closing log
+            current_live_price = tp # For closing log
 
     # Save state if trailing stop moved
     if updated_sl != sl and not closed:
@@ -320,7 +320,7 @@ def check_exit_conditions(live_candle, atr, state):
             
         emoji = "✅" if pnl_dollars > 0 else "❌"
         msg = (f"{emoji} <b>OPERACIÓN CERRADA ({close_reason})</b>\n\n"
-               f"💰 Precio Cierre: ${current_price:,.2f}\n"
+               f"💰 Precio Cierre: ${current_live_price:,.2f}\n"
                f"💵 Beneficio/Pérdida: ${pnl_dollars:,.2f}\n"
                f"🏦 Nuevo Bankroll: ${new_bank:,.2f}")
         send_telegram(msg)
