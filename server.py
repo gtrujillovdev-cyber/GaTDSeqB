@@ -7,6 +7,14 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
+
+
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -25,6 +33,8 @@ def api_system():
         ram = float(subprocess.check_output("free -m | awk 'NR==2{printf \"%.1f\", $3*100/$2 }'", shell=True).decode('utf-8').strip())
     except: ram = 0.0
     return jsonify({"temp": round(temp, 1), "cpu": round(cpu, 1), "ram": round(ram, 1)})
+
+TRADES_CACHE = {}
 
 @app.route('/api/fleet')
 def api_fleet():
@@ -55,41 +65,58 @@ def api_fleet():
         fleet[tf]['profit_factor'] = 0.0
         
         if os.path.exists(trades_file):
-            with open(trades_file, "r") as f:
-                try: 
-                    t = json.load(f)
-                    fleet[tf]['recent_trades'] = t[-5:]
-                    
-                    wins = 0
-                    closed_trades = 0
-                    peak = INITIAL_BANK
-                    current = INITIAL_BANK
-                    max_dd = 0.0
-                    
-                    gross_profit = 0.0
-                    gross_loss = 0.0
-                    
-                    for trade in t:
-                        if 'pnl' in trade:
-                            closed_trades += 1
-                            pnl = float(trade['pnl'])
-                            if pnl > 0: 
-                                wins += 1
-                                gross_profit += pnl
-                            else:
-                                gross_loss += abs(pnl)
-                            
-                            current += pnl
-                            if current > peak: peak = current
-                            dd = ((peak - current) / peak) * 100
-                            if dd > max_dd: max_dd = dd
-                            
-                    fleet[tf]['trades_count'] = closed_trades
-                    fleet[tf]['bank'] = current
-                    fleet[tf]['win_rate'] = (wins / closed_trades * 100) if closed_trades > 0 else 0.0
-                    fleet[tf]['profit_factor'] = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
-                    fleet[tf]['drawdown'] = max_dd
-                except: pass
+            try:
+                mtime = os.path.getmtime(trades_file)
+                if tf not in TRADES_CACHE or TRADES_CACHE[tf]['mtime'] != mtime:
+                    with open(trades_file, "r") as f:
+                        t = json.load(f)
+                        recent = t[-5:]
+                        
+                        wins = 0
+                        closed_trades = 0
+                        peak = INITIAL_BANK
+                        current = INITIAL_BANK
+                        max_dd = 0.0
+                        gross_profit = 0.0
+                        gross_loss = 0.0
+                        
+                        for trade in t:
+                            if 'pnl' in trade:
+                                closed_trades += 1
+                                pnl = float(trade['pnl'])
+                                if pnl > 0: 
+                                    wins += 1
+                                    gross_profit += pnl
+                                else:
+                                    gross_loss += abs(pnl)
+                                
+                                current += pnl
+                                if current > peak: peak = current
+                                dd = ((peak - current) / peak) * 100
+                                if dd > max_dd: max_dd = dd
+                                
+                        win_rate = (wins / closed_trades * 100) if closed_trades > 0 else 0.0
+                        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+                        
+                        TRADES_CACHE[tf] = {
+                            'mtime': mtime,
+                            'recent_trades': recent,
+                            'trades_count': closed_trades,
+                            'bank': current,
+                            'win_rate': win_rate,
+                            'profit_factor': profit_factor,
+                            'drawdown': max_dd
+                        }
+                
+                # Apply cache
+                c = TRADES_CACHE[tf]
+                fleet[tf]['recent_trades'] = c['recent_trades']
+                fleet[tf]['trades_count'] = c['trades_count']
+                fleet[tf]['bank'] = c['bank']
+                fleet[tf]['win_rate'] = c['win_rate']
+                fleet[tf]['profit_factor'] = c['profit_factor']
+                fleet[tf]['drawdown'] = c['drawdown']
+            except: pass
     return jsonify(fleet)
 
 if __name__ == '__main__':
