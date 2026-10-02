@@ -82,6 +82,8 @@
     <div id="macro-context">
         <span>GLOBAL EQUITY: <span id="global-equity" class="val-green">LOADING...</span></span>
         <span class="desktop-only">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
+        <span>PATRIMONIO: <span id="net-worth" class="val-green">LOADING...</span></span>
+        <span class="desktop-only">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
         <span>FEAR & GREED: <span id="fng-index" class="val-blue">LOADING...</span></span>
     </div>
 
@@ -117,6 +119,49 @@
                 let res = await fetch('https://api.alternative.me/fng/?limit=1');
                 let data = await res.json();
                 document.getElementById('fng-index').innerText = `${data.data[0].value} (${data.data[0].value_classification})`;
+            } catch(e) {}
+        }
+
+        let lastNetWorth = 0;
+        async function fetchPortfolio() {
+            try {
+                let res = await fetch('/api/portfolio');
+                let data = await res.json();
+                let activos = data.activos || {};
+                let prices = data.prices || {};
+                
+                let totalValue = 0;
+                for (let symbol in activos) {
+                    let asset = activos[symbol];
+                    let type = asset.type || 'spot';
+                    let amount = asset.amount;
+                    let currentPrice = 0;
+                    
+                    if (prices[symbol]) {
+                        currentPrice = prices[symbol];
+                    } else if (symbol === 'USDT' || symbol === 'USDC') {
+                        currentPrice = 1;
+                    } else {
+                        try {
+                            let priceRes = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`);
+                            let priceData = await priceRes.json();
+                            currentPrice = parseFloat(priceData.price);
+                        } catch(e) {}
+                    }
+                    
+                    if (type === 'spot') {
+                        totalValue += amount * currentPrice;
+                    } else if (type === 'long') {
+                        let pnl = (currentPrice - asset.entry_price) * amount;
+                        totalValue += asset.margin + pnl;
+                    }
+                }
+                
+                let nwEl = document.getElementById('net-worth');
+                nwEl.innerText = `$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                if (totalValue > lastNetWorth && lastNetWorth !== 0) { nwEl.className = 'val-green'; }
+                else if (totalValue < lastNetWorth) { nwEl.className = 'val-red'; }
+                lastNetWorth = totalValue;
             } catch(e) {}
         }
 
@@ -193,11 +238,13 @@
         setInterval(fetchSystem, 5000);
         setInterval(fetchBTC, 2000);
         setInterval(fetchFleet, 5000);
+        setInterval(fetchPortfolio, 10000); // 10 seconds para evitar límites de API con muchas monedas
         setInterval(fetchFnG, 600000); // 10 minutes for F&G
         
         fetchSystem();
         fetchBTC();
         fetchFleet();
+        fetchPortfolio();
         fetchFnG();
     </script>
 </body>

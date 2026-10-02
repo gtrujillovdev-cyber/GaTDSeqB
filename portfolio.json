@@ -1,0 +1,25 @@
+{
+    "activos": {
+        "BTC": {
+            "type": "spot",
+            "amount": 0.01819
+        },
+        "MSTR": {
+            "type": "spot",
+            "amount": 17,
+            "entry_price": 102.03
+        },
+        "PEPE": {
+            "type": "long",
+            "amount": 57104000,
+            "entry_price": 0.0000030000,
+            "margin": 65.4809
+        },
+        "ETH": {
+            "type": "long",
+            "amount": 0.26,
+            "entry_price": 1645.05,
+            "margin": 78.7891
+        }
+    }
+}

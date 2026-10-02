@@ -21,6 +21,33 @@ def index(): return render_template('index.html')
 @app.route('/lite')
 def lite(): return render_template('lite.html')
 
+import urllib.request
+import time
+
+MSTR_CACHE = {'price': 160.24, 'time': 0}
+
+@app.route('/api/portfolio')
+def api_portfolio():
+    try:
+        with open("portfolio.json", "r") as f:
+            data = json.load(f)
+            
+        global MSTR_CACHE
+        if time.time() - MSTR_CACHE['time'] > 300:
+            try:
+                req = urllib.request.Request('https://query2.finance.yahoo.com/v8/finance/chart/MSTR', headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req) as response:
+                    res_data = json.loads(response.read())
+                    MSTR_CACHE['price'] = res_data['chart']['result'][0]['meta']['regularMarketPrice']
+                    MSTR_CACHE['time'] = time.time()
+            except:
+                pass
+                
+        data['prices'] = {'MSTR': MSTR_CACHE['price']}
+        return jsonify(data)
+    except:
+        return jsonify({"activos": {}, "prices": {}})
+
 @app.route('/api/system')
 def api_system():
     try:
