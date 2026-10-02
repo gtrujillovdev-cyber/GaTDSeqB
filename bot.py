@@ -54,8 +54,17 @@ def calculate_atr(df, period=14):
     return true_range.ewm(alpha=1/period, adjust=False).mean()
 
 def get_data(symbol="BTC/USDT", timeframe="4h", limit=500):
+    for attempt in range(3):
+        try:
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+            break
+        except Exception as e:
+            if attempt == 2:
+                print(f"❌ Error crítico de red tras 3 reintentos: {e}")
+                return None
+            import time
+            time.sleep(2) # Retrying...
     try:
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']) # Descartar vela actual en formación
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         
@@ -185,8 +194,12 @@ def execute_trade(action, price, sl, tp, reason):
     else:
         actual_risk_amount = risk_amount
     
+    # Deduct 0.1% Binance Spot Fee on Entry Notional
+    entry_fee_usd = position_size_usd * 0.001
+    
     state = {
         "status": "IN_TRADE",
+        "entry_fee_usd": entry_fee_usd,
         "trade_id": trade_id,
         "position": action,
         "entry_price": price,
@@ -254,12 +267,16 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if low_price <= updated_sl:
             print("❌ Stop Loss impactado en la mecha inferior.")
             pnl_dollars = (updated_sl - entry) * size_btc
+            exit_fee = (updated_sl * size_btc) * 0.001
+            pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Stop Loss"
             current_live_price = updated_sl # For closing log
         elif high_price >= tp:
             print("✅ Take Profit alcanzado en la mecha superior.")
             pnl_dollars = (tp - entry) * size_btc
+            exit_fee = (tp * size_btc) * 0.001
+            pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Take Profit"
             current_live_price = tp # For closing log
@@ -276,12 +293,16 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if high_price >= updated_sl:
             print("❌ Stop Loss impactado en la mecha superior.")
             pnl_dollars = (entry - updated_sl) * size_btc
+            exit_fee = (updated_sl * size_btc) * 0.001
+            pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Stop Loss"
             current_live_price = updated_sl # For closing log
         elif low_price <= tp:
             print("✅ Take Profit alcanzado en la mecha inferior.")
             pnl_dollars = (entry - tp) * size_btc
+            exit_fee = (tp * size_btc) * 0.001
+            pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Take Profit"
             current_live_price = tp # For closing log
@@ -327,14 +348,22 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
 
 def load_state():
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
+        try:
+            with open(STATE_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"⚠️ Alerta: {STATE_FILE} corrupto. Restaurando a IDLE.")
+            return {"status": "IDLE"}
     return {"status": "IDLE"}
 
 def load_trades():
     if os.path.exists(TRADES_FILE):
-        with open(TRADES_FILE, "r") as f:
-            return json.load(f)
+        try:
+            with open(TRADES_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print(f"⚠️ Alerta: {TRADES_FILE} corrupto. Iniciando lista vacía.")
+            return []
     return []
 
 if __name__ == "__main__":
