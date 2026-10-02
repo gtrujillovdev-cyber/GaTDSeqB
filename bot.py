@@ -148,7 +148,10 @@ def analyze_market():
                 print(">>> ALERTA DE COMPRA <<< (TD9 Bajista completado + Tendencia Alcista + RSI favorable)")
                 stop_loss = current_price - (atr * 1.5)
                 take_profit = current_price + (atr * 3.0)
-                execute_trade("BUY", current_price, stop_loss, take_profit, "TD9 Buy Perf")
+                if state.get("last_trigger_time") == trigger_time:
+                    print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
+                else:
+                    execute_trade("BUY", current_price, stop_loss, take_profit, "TD9 Buy Perf", trigger_time)
             else:
                 print("TD9 ignorado: Filtro Macro (EMA200) o RSI no permitieron la compra.")
                 
@@ -158,14 +161,17 @@ def analyze_market():
                 print(">>> ALERTA DE VENTA <<< (TD9 Alcista completado + Tendencia Bajista + RSI favorable)")
                 stop_loss = current_price + (atr * 1.5)
                 take_profit = current_price - (atr * 3.0)
-                execute_trade("SELL", current_price, stop_loss, take_profit, "TD9 Sell Perf")
+                if state.get("last_trigger_time") == trigger_time:
+                    print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
+                else:
+                    execute_trade("SELL", current_price, stop_loss, take_profit, "TD9 Sell Perf", trigger_time)
             else:
                 print("TD9 ignorado: Filtro Macro o RSI no permitieron el short.")
                 
     elif state.get("status") == "IN_TRADE":
         check_exit_conditions(live_candle, closed_candle, atr, state)
 
-def execute_trade(action, price, sl, tp, reason):
+def execute_trade(action, price, sl, tp, reason, trigger_time=None):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     trade_id = str(int(time.time()))
     
@@ -208,7 +214,8 @@ def execute_trade(action, price, sl, tp, reason):
         "timestamp": time_str,
         "size_btc": position_size_btc,
         "size_usd": position_size_usd,
-        "risk_usd": actual_risk_amount
+        "risk_usd": actual_risk_amount,
+        "last_trigger_time": trigger_time
     }
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
