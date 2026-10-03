@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GaTDSEQ</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.min.js"></script>
     <style>
         body { 
             background-color: #000000; 
@@ -271,10 +272,8 @@
             } catch(e) {}
         }
 
-        async function fetchFleet() {
+        function renderFleet(fleet) {
             try {
-                let res = await fetch('/api/fleet');
-                let fleet = await res.json();
                 let htmlGrid = '';
                 let globalEquity = 0.0;
                 
@@ -356,15 +355,19 @@
 
         setInterval(fetchSystem, 5000);
         setInterval(fetchBTC, 2000);
-        setInterval(fetchFleet, 5000);
         setInterval(fetchPortfolio, 30000); // 30 segundos
         setInterval(fetchFnG, 600000); // 10 minutes for F&G
         
         fetchSystem();
         fetchBTC();
-        fetchFleet();
         fetchPortfolio();
         fetchFnG();
+        
+        // --- WebSockets ---
+        const socket = io();
+        socket.on('fleet_update', function(data) {
+            renderFleet(data);
+        });
     </script>
 </body>
 </html>

@@ -1,11 +1,16 @@
 import os
 import json
 import subprocess
+import urllib.request
+import time
+import threading
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
 CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.after_request
 def add_header(response):
@@ -14,16 +19,11 @@ def add_header(response):
     response.headers['Expires'] = '-1'
     return response
 
-
 @app.route('/')
 def index(): return render_template('index.html')
 
 @app.route('/lite')
 def lite(): return render_template('lite.html')
-
-import urllib.request
-import time
-import threading
 
 MSTR_CACHE = {'price': 160.24, 'time': 0}
 
@@ -38,9 +38,8 @@ def update_mstr_price_loop():
                 MSTR_CACHE['time'] = time.time()
         except:
             pass
-        time.sleep(300) # Actualizar cada 5 minutos de forma asíncrona
+        time.sleep(300)
 
-# Iniciar el hilo en segundo plano
 threading.Thread(target=update_mstr_price_loop, daemon=True).start()
 
 @app.route('/api/portfolio')
@@ -48,7 +47,6 @@ def api_portfolio():
     try:
         with open("portfolio.json", "r") as f:
             data = json.load(f)
-            
         data['prices'] = {'MSTR': MSTR_CACHE['price']}
         return jsonify(data)
     except:
@@ -67,13 +65,12 @@ def api_system():
     except: ram = 0.0
     return jsonify({"temp": round(temp, 1), "cpu": round(cpu, 1), "ram": round(ram, 1)})
 
+
 TRADES_CACHE = {}
 
-@app.route('/api/fleet')
-def api_fleet():
+def get_fleet_data():
     fleet = {}
     INITIAL_BANK = 10000.0
-    
     try:
         is_running = subprocess.call("pgrep -f 'bot.py' > /dev/null", shell=True) == 0
     except:
@@ -81,7 +78,6 @@ def api_fleet():
         
     for tf in ['5m', '15m', '1h', '4h', '1d']:
         state_file = f"state_{tf}.json"
-
         if os.path.exists(state_file):
             with open(state_file, "r") as f:
                 try: fleet[tf] = json.load(f)
@@ -104,7 +100,6 @@ def api_fleet():
                     with open(trades_file, "r") as f:
                         t = json.load(f)
                         recent = t[-5:]
-                        
                         wins = 0
                         closed_trades = 0
                         peak = INITIAL_BANK
@@ -112,7 +107,6 @@ def api_fleet():
                         max_dd = 0.0
                         gross_profit = 0.0
                         gross_loss = 0.0
-                        
                         for trade in t:
                             if 'pnl' in trade:
                                 closed_trades += 1
@@ -122,7 +116,6 @@ def api_fleet():
                                     gross_profit += pnl
                                 else:
                                     gross_loss += abs(pnl)
-                                
                                 current += pnl
                                 if current > peak: peak = current
                                 dd = ((peak - current) / peak) * 100
@@ -130,18 +123,10 @@ def api_fleet():
                                 
                         win_rate = (wins / closed_trades * 100) if closed_trades > 0 else 0.0
                         profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
-                        
                         TRADES_CACHE[tf] = {
-                            'mtime': mtime,
-                            'recent_trades': recent,
-                            'trades_count': closed_trades,
-                            'bank': current,
-                            'win_rate': win_rate,
-                            'profit_factor': profit_factor,
-                            'drawdown': max_dd
+                            'mtime': mtime, 'recent_trades': recent, 'trades_count': closed_trades,
+                            'bank': current, 'win_rate': win_rate, 'profit_factor': profit_factor, 'drawdown': max_dd
                         }
-                
-                # Apply cache
                 c = TRADES_CACHE[tf]
                 fleet[tf]['recent_trades'] = c['recent_trades']
                 fleet[tf]['trades_count'] = c['trades_count']
@@ -150,7 +135,49 @@ def api_fleet():
                 fleet[tf]['profit_factor'] = c['profit_factor']
                 fleet[tf]['drawdown'] = c['drawdown']
             except: pass
-    return jsonify(fleet)
+    return fleet
+
+
+@app.route('/api/fleet')
+def api_fleet():
+    return jsonify(get_fleet_data())
+
+
+# --- WEBSOCKETS LOGIC ---
+clients = 0
+
+@socketio.on('connect')
+def handle_connect():
+    global clients
+    clients += 1
+    # Emit initial data on connect
+    emit('fleet_update', get_fleet_data())
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    global clients
+    clients -= 1
+
+def websocket_monitor_loop():
+    last_mtimes = {}
+    while True:
+        if clients > 0:
+            changed = False
+            for tf in ['5m', '15m', '1h', '4h', '1d']:
+                state_file = f"state_{tf}.json"
+                if os.path.exists(state_file):
+                    m = os.path.getmtime(state_file)
+                    if last_mtimes.get(state_file) != m:
+                        last_mtimes[state_file] = m
+                        changed = True
+            
+            if changed:
+                socketio.emit('fleet_update', get_fleet_data())
+        
+        # Check every 0.5 seconds for true sub-second latency
+        time.sleep(0.5)
+
+threading.Thread(target=websocket_monitor_loop, daemon=True).start()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    socketio.run(app, host='0.0.0.0', port=5001)
