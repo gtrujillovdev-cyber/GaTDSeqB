@@ -155,7 +155,9 @@
                 let totalValue = 0;
                 let pfHtml = '';
                 
-                for (let symbol in activos) {
+                let symbolOrder = ['BTC', 'MSTR', 'ETH', 'PEPE'];
+                for (let symbol of symbolOrder) {
+                    if (!activos[symbol]) continue;
                     let asset = activos[symbol];
                     let type = asset.type || 'spot';
                     let amount = asset.amount;
@@ -219,7 +221,7 @@
                                 <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 6})}</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#888;">
-                                <span>Margen: $${asset.margin.toLocaleString()} &nbsp;|&nbsp; Entry: $${asset.entry_price.toLocaleString()}</span>
+                                <span>Margen: $${asset.margin.toLocaleString()} &nbsp;|&nbsp; Entry: $${asset.entry_price.toLocaleString()}${asset.liq_price ? ' &nbsp;|&nbsp; <span style="color:#ff6b6b">Liq: $'+asset.liq_price.toLocaleString()+'</span>' : ''}</span>
                                 ${pnlStr}
                             </div>
                         </div>`;
