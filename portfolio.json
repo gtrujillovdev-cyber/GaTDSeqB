@@ -2,12 +2,13 @@
     "activos": {
         "BTC": {
             "type": "spot",
-            "amount": 0.01819
+            "amount": 0.01819,
+            "entry_price": 67000
         },
         "MSTR": {
             "type": "spot",
             "amount": 17,
-            "entry_price": 102.03
+            "entry_price": 102.3
         },
         "PEPE": {
             "type": "long",

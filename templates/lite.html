@@ -184,10 +184,12 @@
                     if (type === 'spot') {
                         let value = amount * currentPrice;
                         totalValue += value;
+                        let extraInfo = `${amount} u.`;
                         if (asset.entry_price) {
                             let pnl = (currentPrice - asset.entry_price) * amount;
                             let pColor = pnl >= 0 ? 'val-green' : 'val-red';
                             pnlStr = `<span class="${pColor}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>`;
+                            extraInfo = `${amount} u. &nbsp;|&nbsp; Compra: $${asset.entry_price.toLocaleString()}`;
                         } else {
                             pnlStr = `<span style="color:#aaa;">Spot</span>`;
                         }
@@ -199,7 +201,7 @@
                                 <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#888;">
-                                <span>${amount} u.</span>
+                                <span>${extraInfo}</span>
                                 ${pnlStr}
                             </div>
                         </div>`;
@@ -217,7 +219,7 @@
                                 <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 6})}</span>
                             </div>
                             <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#888;">
-                                <span>Margen: $${asset.margin.toLocaleString()}</span>
+                                <span>Margen: $${asset.margin.toLocaleString()} &nbsp;|&nbsp; Entry: $${asset.entry_price.toLocaleString()}</span>
                                 ${pnlStr}
                             </div>
                         </div>`;
