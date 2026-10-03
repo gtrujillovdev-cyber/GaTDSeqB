@@ -143,6 +143,7 @@
 
         let lastNetWorth = 0;
         let lastPortfolioHtml = '<div style="text-align:center; color:#444; margin-top:20px; font-size:11px;">CARGANDO DATOS...</div>';
+        let priceFallbackCache = {};
         
         async function fetchPortfolio() {
             try {
@@ -165,9 +166,18 @@
                     else {
                         try {
                             let priceRes = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`);
-                            let priceData = await priceRes.json();
-                            currentPrice = parseFloat(priceData.price);
-                        } catch(e) {}
+                            if (priceRes.ok) {
+                                let priceData = await priceRes.json();
+                                currentPrice = parseFloat(priceData.price);
+                                priceFallbackCache[symbol] = currentPrice;
+                            } else {
+                                throw new Error("Binance Rate Limit / Error");
+                            }
+                        } catch(e) {
+                            if (priceFallbackCache[symbol]) {
+                                currentPrice = priceFallbackCache[symbol];
+                            }
+                        }
                     }
                     
                     let pnlStr = '';
