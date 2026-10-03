@@ -186,12 +186,17 @@
                     if (type === 'spot') {
                         let value = amount * currentPrice;
                         totalValue += value;
-                        let extraInfo = `${amount} u.`;
+                        let extraInfo = `<span>${amount} u.</span>`;
                         if (asset.entry_price) {
                             let pnl = (currentPrice - asset.entry_price) * amount;
                             let pColor = pnl >= 0 ? 'val-green' : 'val-red';
                             pnlStr = `<span class="${pColor}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>`;
-                            extraInfo = `${amount} u. &nbsp;|&nbsp; Compra: $${asset.entry_price.toLocaleString()}`;
+                            extraInfo = `
+                                <div style="display:flex; flex-direction:column; line-height:1.4;">
+                                    <span>${amount} u.</span>
+                                    <span>Compra: $${asset.entry_price.toLocaleString(undefined, {maximumFractionDigits: 8})}</span>
+                                </div>
+                            `;
                         } else {
                             pnlStr = `<span style="color:#aaa;">Spot</span>`;
                         }
@@ -202,9 +207,9 @@
                                 <span style="font-weight:bold;">${symbol}</span>
                                 <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                             </div>
-                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#888;">
-                                <span>${extraInfo}</span>
-                                ${pnlStr}
+                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#888; align-items:center;">
+                                ${extraInfo}
+                                <div>${pnlStr}</div>
                             </div>
                         </div>`;
                         
@@ -214,15 +219,22 @@
                         let pColor = pnl >= 0 ? 'val-green' : 'val-red';
                         pnlStr = `<span class="${pColor}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>`;
                         
+                        let extraInfo = `
+                            <div style="display:flex; flex-direction:column; line-height:1.4;">
+                                <span>Margen: $${asset.margin.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
+                                <span>C: $${asset.entry_price.toLocaleString(undefined, {maximumFractionDigits: 8})}${asset.liq_price ? ' <span style="margin:0 4px;">|</span> <span style="color:#ff6b6b">Liq: $'+asset.liq_price.toLocaleString(undefined, {maximumFractionDigits: 8})+'</span>' : ''}</span>
+                            </div>
+                        `;
+                        
                         pfHtml += `
                         <div class="row" style="display:flex; flex-direction:column; margin-bottom: 12px; border-bottom: 1px dotted #151515; padding-bottom:10px;">
                             <div style="display:flex; justify-content:space-between; width:100%; margin-bottom:4px;">
                                 <span style="font-weight:bold; color:#00ff00;">${symbol} LONG</span>
-                                <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 6})}</span>
+                                <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 8})}</span>
                             </div>
-                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#888;">
-                                <span>Margen: $${asset.margin.toLocaleString()} &nbsp;|&nbsp; Entry: $${asset.entry_price.toLocaleString()}${asset.liq_price ? ' &nbsp;|&nbsp; <span style="color:#ff6b6b">Liq: $'+asset.liq_price.toLocaleString()+'</span>' : ''}</span>
-                                ${pnlStr}
+                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#888; align-items:center;">
+                                ${extraInfo}
+                                <div>${pnlStr}</div>
                             </div>
                         </div>`;
                     }
