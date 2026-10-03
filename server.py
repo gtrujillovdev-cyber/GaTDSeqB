@@ -4,6 +4,7 @@ import subprocess
 import urllib.request
 import time
 import threading
+import psutil
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
@@ -58,10 +59,10 @@ def api_system():
         with open("/sys/class/thermal/thermal_zone0/temp", "r") as f: temp = float(f.read()) / 1000.0
     except: temp = 0.0
     try:
-        cpu = float(subprocess.check_output("vmstat 1 2 | tail -1 | awk '{print 100-$15}'", shell=True).decode('utf-8').strip())
+        cpu = psutil.cpu_percent(interval=None)
     except: cpu = 0.0
     try:
-        ram = float(subprocess.check_output("free -m | awk 'NR==2{printf \"%.1f\", $3*100/$2 }'", shell=True).decode('utf-8').strip())
+        ram = psutil.virtual_memory().percent
     except: ram = 0.0
     return jsonify({"temp": round(temp, 1), "cpu": round(cpu, 1), "ram": round(ram, 1)})
 
