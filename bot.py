@@ -152,37 +152,59 @@ def analyze_market():
     if state.get("status") == "IDLE":
         # CONDICIÓN DE COMPRA LONG (Agotamiento bajista)
         if count == -9:
-            if current_live_price > ema200 and rsi < 40:
-                print(">>> ALERTA DE COMPRA <<< (TD9 Bajista completado + Tendencia Alcista + RSI favorable)")
-                stop_loss = current_price - (atr * 1.5)
-                take_profit = current_price + (atr * 3.0)
+            if rsi < 45: # Permitir compras si no está extremadamente sobrecomprado
+                is_counter_trend = current_live_price < ema200 # Comprar bajo la EMA200 es contra tendencia principal
+                if is_counter_trend:
+                    print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
+                    stop_loss = current_price - (atr * 1.0)
+                    take_profit = current_price + (atr * 1.5)
+                    reason = "TD9 Buy (Counter-Trend)"
+                else:
+                    print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
+                    stop_loss = current_price - (atr * 1.5)
+                    take_profit = current_price + (atr * 3.0)
+                    reason = "TD9 Buy (Trend)"
+                    
                 if state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
                 else:
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
+                    if is_counter_trend: base_risk *= 0.5 # Mitad de riesgo contra tendencia
+                    
                     conviction_multiplier = 1.5 if rsi < 30 else 1.0
                     final_risk = base_risk * conviction_multiplier
-                    execute_trade("BUY", current_price, stop_loss, take_profit, "TD9 Buy Perf", trigger_time, final_risk)
+                    execute_trade("BUY", current_price, stop_loss, take_profit, reason, trigger_time, final_risk)
             else:
-                print("TD9 ignorado: Filtro Macro (EMA200) o RSI no permitieron la compra.")
+                print("TD9 ignorado: El RSI no permite la compra.")
                 
         # CONDICIÓN DE VENTA SHORT (Agotamiento alcista)
         elif count == 9:
-            if current_live_price < ema200 and rsi > 60:
-                print(">>> ALERTA DE VENTA <<< (TD9 Alcista completado + Tendencia Bajista + RSI favorable)")
-                stop_loss = current_price + (atr * 1.5)
-                take_profit = current_price - (atr * 3.0)
+            if rsi > 55: # Permitir ventas si no está extremadamente sobrevendido
+                is_counter_trend = current_live_price > ema200 # Vender sobre la EMA200 es contra tendencia principal
+                if is_counter_trend:
+                    print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
+                    stop_loss = current_price + (atr * 1.0)
+                    take_profit = current_price - (atr * 1.5)
+                    reason = "TD9 Sell (Counter-Trend)"
+                else:
+                    print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
+                    stop_loss = current_price + (atr * 1.5)
+                    take_profit = current_price - (atr * 3.0)
+                    reason = "TD9 Sell (Trend)"
+                    
                 if state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
                 else:
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
+                    if is_counter_trend: base_risk *= 0.5 # Mitad de riesgo contra tendencia
+                    
                     conviction_multiplier = 1.5 if rsi > 70 else 1.0
                     final_risk = base_risk * conviction_multiplier
-                    execute_trade("SELL", current_price, stop_loss, take_profit, "TD9 Sell Perf", trigger_time, final_risk)
+                    execute_trade("SELL", current_price, stop_loss, take_profit, reason, trigger_time, final_risk)
             else:
-                print("TD9 ignorado: Filtro Macro o RSI no permitieron el short.")
+                print("TD9 ignorado: El RSI no permite el short.")
                 
     elif state.get("status") == "IN_TRADE":
         check_exit_conditions(live_candle, closed_candle, atr, state)
