@@ -40,3 +40,7 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Interfaz Kiosko Avanzada y Barras de Progreso:**
   - Se añade un UI dinámico que colapsa los bots que están en "IDLE" en una sola línea elegante, evitando saturar la pantalla.
   - Cuando un bot entra en "IN_TRADE", se despliega y muestra una **barra de progreso visual (Live Trailing Bar)** calculada en el front-end con 0% de coste de CPU, que enseña a cuánta distancia exacta está el precio de tocar el Stop Loss o el Take Profit.
+
+- **Unificación de Idioma y Net Worth Dinámico (UI):**
+  - Se unificó toda la interfaz del Kiosko al inglés ("Holdings", "Recent Trades") para mantener un estándar institucional.
+  - Se desarrolló un algoritmo en el frontend que consulta el Ticker de 24 horas de la API de Binance (y el cierre anterior de Yahoo Finance para MSTR) para calcular y mostrar matemáticamente la **fluctuación del portfolio en las últimas 24 horas** junto al patrimonio (Ej: `+$240.50 (+5.2%)`).
