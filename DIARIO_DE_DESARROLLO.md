@@ -33,3 +33,10 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Se reescribe la lógica cuantitativa. El bot ya no es rígidamente tendencial.
   - *A Favor de Tendencia:* Usa su estrategia de siempre, persiguiendo enormes Take Profits guiados por la fuerza de la EMA200.
   - *Scalping Contra-Tendencia:* Ahora se le permite cazar agotamientos (TD9) a la contra de la tendencia principal (Ej: Short en pleno Bull Market). Para ello reduce su riesgo económico a la mitad (50%) y acerca agresivamente sus parámetros de Stop y Profit, asumiendo que solo habrá un rebote breve de 1 a 4 velas.
+
+- **Expansión Multi-Moneda (El Verdadero Hedge Fund):**
+  - Se reescribe la arquitectura del bot para analizar 3 activos simultáneamente: **BTC, ETH y HYPE**.
+  - El bot pasa de vigilar 5 gráficas a **15 gráficas matemáticas** simultáneas sin impacto en la RAM (gracias al Garbage Collector de Pandas).
+- **Interfaz Kiosko Avanzada y Barras de Progreso:**
+  - Se añade un UI dinámico que colapsa los bots que están en "IDLE" en una sola línea elegante, evitando saturar la pantalla.
+  - Cuando un bot entra en "IN_TRADE", se despliega y muestra una **barra de progreso visual (Live Trailing Bar)** calculada en el front-end con 0% de coste de CPU, que enseña a cuánta distancia exacta está el precio de tocar el Stop Loss o el Take Profit.
