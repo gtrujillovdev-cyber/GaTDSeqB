@@ -104,7 +104,7 @@
         <span class="desktop-only">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
         <span>HOLDINGS: <span id="net-worth" class="val-green">LOADING...</span></span>
         <span class="desktop-only">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
-        <span>FEAR & GREED: <span id="fng-index" class="val-blue">LOADING...</span></span>
+        <span>FEAR & GREED: <span id="fng-index" style="color: #ffb200;">LOADING...</span></span>
     </div>
 
     <div class="main-grid" id="main-grid"></div>
@@ -138,7 +138,12 @@
             try {
                 let res = await fetch('https://api.alternative.me/fng/?limit=1');
                 let data = await res.json();
-                document.getElementById('fng-index').innerText = `${data.data[0].value} (${data.data[0].value_classification})`;
+                let val = parseInt(data.data[0].value);
+                let fngEl = document.getElementById('fng-index');
+                fngEl.innerText = `${val} (${data.data[0].value_classification})`;
+                if (val >= 60) { fngEl.style.color = '#00ff00'; }
+                else if (val <= 40) { fngEl.style.color = '#ff0000'; }
+                else { fngEl.style.color = '#ffb200'; }
             } catch(e) {}
         }
 
