@@ -435,7 +435,7 @@ if __name__ == "__main__":
         for symbol in assets:
             for tf in timeframes:
                 # Reassign globals for the functions to use
-                global TIMEFRAME, SYMBOL, STATE_FILE, TRADES_FILE
+                # No global needed here
                 TIMEFRAME = tf
                 SYMBOL = symbol
                 STATE_FILE = f"state_{symbol}_{tf}.json"
