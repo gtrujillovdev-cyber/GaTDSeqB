@@ -277,94 +277,86 @@
                 let htmlGrid = '';
                 let globalEquity = 0.0;
                 
-                for (const tf of ['5m', '15m', '1h', '4h', '1d']) {
-                    const state = fleet[tf];
-                    globalEquity += state.bank || 10000.0;
+                for (const asset of ['BTC', 'ETH', 'HYPE']) {
+                    let assetGrid = `<div class="bot-column"><h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; text-align: center;">${asset}</h2>`;
                     
-                    let badgeClass = 'status-offline';
-                    let badgeText = 'OFFLINE';
-                    if (state.status === 'IN_TRADE') { badgeClass = 'status-active'; badgeText = 'IN TRADE'; }
-                    else if (state.status === 'IDLE') { badgeClass = 'status-idle'; badgeText = 'IDLE'; }
+                    if (!fleet[asset]) continue;
                     
-                    let tdColor = state.td_count == 9 || state.td_count == -9 ? (state.td_count == 9 ? 'val-red' : 'val-green') : 'val-blue';
-                    
-                    htmlGrid += `<div class="bot-column">`;
-                    
-                    htmlGrid += `
-                        <div class="bot-card">
-                            <div class="bot-header">
-                                <span>[ ${tf} ALGO ]</span>
-                                <span class="status-badge ${badgeClass}">${badgeText}</span>
-                            </div>
-                            <div class="bot-body">
-                                <div class="row"><span class="label">Bankroll</span><span class="value val-green">$${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2}) : '10,000.00'}</span></div>
-                                <div class="row"><span class="label">TD Count</span><span class="value ${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></div>
-                                <div class="row"><span class="label">Win Rate</span><span class="value">${state.win_rate ? state.win_rate.toFixed(1) : '0.0'}%</span></div>
-                                <div class="row"><span class="label">Max DD</span><span class="value val-red">-${state.drawdown ? state.drawdown.toFixed(2) : '0.00'}%</span></div>
-                                <div class="row"><span class="label">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
-                                <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString() : '--'}</span></div>
-                                <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString() : '--'}</span></div>
-                                <div class="row"><span class="label">Invest</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString() : '--'}</span></div>
-                                <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>`;
-                                
-                    if (state.status === 'IN_TRADE' && state.entry_price && state.stop_loss && state.take_profit) {
-                        let sl = parseFloat(state.stop_loss);
-                        let tp = parseFloat(state.take_profit);
-                        let isLong = state.position === 'BUY';
-                        let range = Math.abs(tp - sl);
-                        let currentDist = isLong ? (lastPrice - sl) : (sl - lastPrice);
-                        let pct = 0;
-                        if (range !== 0) {
-                            pct = (currentDist / range) * 100;
-                        }
-                        pct = Math.max(0, Math.min(100, pct));
+                    for (const tf of ['5m', '15m', '1h', '4h', '1d']) {
+                        const state = fleet[asset][tf];
+                        if (!state) continue;
+                        globalEquity += (state.bank / 3) || (10000.0 / 3);
                         
-                        let isWin = (isLong && lastPrice > state.entry_price) || (!isLong && lastPrice < state.entry_price);
-                        let cursorColor = isWin ? '#00ff00' : '#ff4444';
+                        let badgeClass = 'status-offline';
+                        let badgeText = 'OFFLINE';
+                        if (state.status === 'IN_TRADE') { badgeClass = 'status-active'; badgeText = 'IN TRADE'; }
+                        else if (state.status === 'IDLE') { badgeClass = 'status-idle'; badgeText = 'IDLE'; }
                         
-                        htmlGrid += `
-                        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #333;">
-                            <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; color: #888;">
-                                <span style="color:#ff4444;">SL: $${sl.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
-                                <span style="color:#00ff00;">TP: $${tp.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
-                            </div>
-                            <div style="width: 100%; background: #222; height: 6px; border-radius: 3px; position: relative;">
-                                <div style="position: absolute; left: 0; top: 0; height: 100%; width: 100%; background: linear-gradient(90deg, #ff4444, #555, #00ff00); border-radius: 3px; opacity: 0.3;"></div>
-                                <div style="position: absolute; left: ${pct}%; top: -2px; width: 3px; height: 10px; background: ${cursorColor}; box-shadow: 0 0 5px ${cursorColor}; transition: left 0.5s ease-out;"></div>
-                            </div>
-                        </div>`;
-                    }
-                    
-                    htmlGrid += `
-                            </div>
-                        </div>
-                    `;
-                    
-                    let htmlTrades = `<div class="trade-card"><div class="trade-header">ÚLTIMOS TRADES (${tf})</div>`;
-                    if (state.recent_trades && state.recent_trades.length > 0) {
-                        let recent = state.recent_trades.slice().reverse();
-                        for (let tr of recent) {
-                            let type = tr.type.split(' ')[0];
-                            let typeColor = type === 'COMPRA' ? 'val-green' : 'val-red';
-                            let pnlText = tr.pnl ? (tr.pnl > 0 ? '+$' : '-$') + Math.abs(tr.pnl).toFixed(2) : '--';
-                            let pnlColor = tr.pnl > 0 ? 'val-green' : (tr.pnl < 0 ? 'val-red' : '');
-                            htmlTrades += `
-                                <div class="trade-row">
-                                    <span class="${typeColor}" style="width: 45px;">${type.substring(0,4)}</span>
-                                    <span style="color:#aaa;">$${parseFloat(tr.price).toLocaleString()}</span>
-                                    <span class="${pnlColor}">${pnlText}</span>
+                        let tdColor = state.td_count == 9 || state.td_count == -9 ? (state.td_count == 9 ? 'val-red' : 'val-green') : 'val-blue';
+                        
+                        if (state.status !== 'IN_TRADE') {
+                            assetGrid += `
+                                <div class="bot-card" style="margin-bottom: 5px; padding: 8px;">
+                                    <div class="bot-header" style="border: none; padding: 0;">
+                                        <span>[ ${tf} ]</span>
+                                        <div style="display:flex; gap:10px;">
+                                            <span style="font-size: 11px;">TD: <span class="${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></span>
+                                            <span class="status-badge ${badgeClass}">${badgeText}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             `;
+                            continue;
                         }
-                    } else {
-                        htmlTrades += `<div style="text-align:center; color:#444; margin-top:20px; font-size:11px;">ESPERANDO SEÑAL...</div>`;
+                        
+                        assetGrid += `
+                            <div class="bot-card">
+                                <div class="bot-header">
+                                    <span>[ ${tf} ]</span>
+                                    <span class="status-badge ${badgeClass}">${badgeText}</span>
+                                </div>
+                                <div class="bot-body">
+                                    <div class="row"><span class="label">Bankroll</span><span class="value val-green">$${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2}) : '--'}</span></div>
+                                    <div class="row"><span class="label">TD Count</span><span class="value ${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></div>
+                                    <div class="row"><span class="label">Win Rate</span><span class="value">${state.win_rate ? state.win_rate.toFixed(1) : '0.0'}%</span></div>
+                                    <div class="row"><span class="label">Max DD</span><span class="value val-red">-${state.drawdown ? state.drawdown.toFixed(2) : '0.00'}%</span></div>
+                                    <div class="row"><span class="label">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
+                                    <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString() : '--'}</span></div>
+                                    <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString() : '--'}</span></div>
+                                    <div class="row"><span class="label">Invest</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString() : '--'}</span></div>
+                                    <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>`;
+                                    
+                        if (state.status === 'IN_TRADE' && state.entry_price && state.stop_loss && state.take_profit) {
+                            let sl = parseFloat(state.stop_loss);
+                            let tp = parseFloat(state.take_profit);
+                            let isLong = state.position === 'BUY';
+                            let range = Math.abs(tp - sl);
+                            let assetPrice = asset === 'BTC' ? lastPrice : parseFloat(state.entry_price);
+                            let currentDist = isLong ? (assetPrice - sl) : (sl - assetPrice);
+                            let pct = 0;
+                            if (range !== 0) { pct = (currentDist / range) * 100; }
+                            pct = Math.max(0, Math.min(100, pct));
+                            let isWin = (isLong && assetPrice > state.entry_price) || (!isLong && assetPrice < state.entry_price);
+                            let cursorColor = isWin ? '#00ff00' : '#ff4444';
+                            assetGrid += `
+                            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #333;">
+                                <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; color: #888;">
+                                    <span style="color:#ff4444;">SL: $${sl.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                                    <span style="color:#00ff00;">TP: $${tp.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                                </div>
+                                <div style="width: 100%; background: #222; height: 6px; border-radius: 3px; position: relative;">
+                                    <div style="position: absolute; left: 0; top: 0; height: 100%; width: 100%; background: linear-gradient(90deg, #ff4444, #555, #00ff00); border-radius: 3px; opacity: 0.3;"></div>
+                                    <div style="position: absolute; left: ${pct}%; top: -2px; width: 3px; height: 10px; background: ${cursorColor}; box-shadow: 0 0 5px ${cursorColor}; transition: left 0.5s ease-out;"></div>
+                                </div>
+                            </div>`;
+                        }
+                        assetGrid += `</div></div>`;
                     }
-                    htmlTrades += `</div>`;
-                    
-                    htmlGrid += htmlTrades + `</div>`; // Close bot-column
+                    assetGrid += `</div>`;
+                    htmlGrid += assetGrid;
                 }
                 
-                // ADD INSTITUTIONAL PORTFOLIO COLUMN
+                // HOLDINGS
                 htmlGrid += `<div class="bot-column">
                     <div class="bot-card" style="border: 1px solid #00ff00; background: rgba(0,255,0,0.02);">
                         <div class="bot-header" style="color: #00ff00; border-bottom: 1px solid #00ff00;">

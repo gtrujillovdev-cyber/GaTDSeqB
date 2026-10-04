@@ -120,9 +120,9 @@ def calculate_td_sequential(df):
     return df
 
 def analyze_market():
-    print("Analizando mercado con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
-    global TIMEFRAME
-    df = get_data("BTC/USDT", TIMEFRAME)
+    global TIMEFRAME, SYMBOL
+    print(f"Analizando {SYMBOL} en {TIMEFRAME} con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
+    df = get_data(f"{SYMBOL}/USDT", TIMEFRAME)
     if df is None: return
     
     df = calculate_td_sequential(df)
@@ -140,7 +140,7 @@ def analyze_market():
     
     state = load_state()
     
-    print(f"Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
+    print(f"{SYMBOL} | Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
     
     # Save the current TD Count to state so the dashboard can display it
     state["td_count"] = int(count)
@@ -429,22 +429,25 @@ if __name__ == "__main__":
     send_telegram("🤖 <b>Bot UNIFICADO Iniciado</b>\n\nControlando 5 timeframes simultáneamente para ahorrar RAM.")
     
     timeframes = ['5m', '15m', '1h', '4h', '1d']
+    assets = ['BTC', 'ETH', 'HYPE']
     
     while True:
-        for tf in timeframes:
-            # Reassign globals for the functions to use
-            # global TIMEFRAME, STATE_FILE, TRADES_FILE
-            TIMEFRAME = tf
-            STATE_FILE = f"state_{tf}.json"
-            TRADES_FILE = f"trades_{tf}.json"
-            
-            try:
-                analyze_market()
-            except Exception as e:
-                print(f"Error analizando {tf}: {e}")
+        for symbol in assets:
+            for tf in timeframes:
+                # Reassign globals for the functions to use
+                global TIMEFRAME, SYMBOL, STATE_FILE, TRADES_FILE
+                TIMEFRAME = tf
+                SYMBOL = symbol
+                STATE_FILE = f"state_{symbol}_{tf}.json"
+                TRADES_FILE = f"trades_{symbol}_{tf}.json"
                 
-        # Sleep for 5 minutes before checking all again
-        
+                try:
+                    analyze_market()
+                    import gc
+                    gc.collect() # Free up dataframe RAM aggressively
+                except Exception as e:
+                    print(f"Error analizando {symbol} {tf}: {e}")
+                    
         # Sincronización de reloj militar (Evita el drift del sleep)
         # Despierta siempre exactamente en los minutos: 00, 05, 10, 15, 20...
         import time as time_mod

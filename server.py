@@ -77,65 +77,68 @@ def get_fleet_data():
     except:
         is_running = False
         
-    for tf in ['5m', '15m', '1h', '4h', '1d']:
-        state_file = f"state_{tf}.json"
-        if os.path.exists(state_file):
-            with open(state_file, "r") as f:
-                try: fleet[tf] = json.load(f)
-                except: fleet[tf] = {"status": "ERROR"}
-        else:
-            fleet[tf] = {"status": "IDLE" if is_running else "OFFLINE"}
+    for asset in ['BTC', 'ETH', 'HYPE']:
+        fleet[asset] = {}
+        for tf in ['5m', '15m', '1h', '4h', '1d']:
+            state_file = f"state_{asset}_{tf}.json"
+            if os.path.exists(state_file):
+                with open(state_file, "r") as f:
+                    try: fleet[asset][tf] = json.load(f)
+                    except: fleet[asset][tf] = {"status": "ERROR"}
+            else:
+                fleet[asset][tf] = {"status": "IDLE" if is_running else "OFFLINE"}
+                
+            trades_file = f"trades_{asset}_{tf}.json"
+            fleet[asset][tf]['trades_count'] = 0
+            fleet[asset][tf]['recent_trades'] = []
+            fleet[asset][tf]['bank'] = INITIAL_BANK
+            fleet[asset][tf]['win_rate'] = 0.0
+            fleet[asset][tf]['drawdown'] = 0.0
+            fleet[asset][tf]['profit_factor'] = 0.0
             
-        trades_file = f"trades_{tf}.json"
-        fleet[tf]['trades_count'] = 0
-        fleet[tf]['recent_trades'] = []
-        fleet[tf]['bank'] = INITIAL_BANK
-        fleet[tf]['win_rate'] = 0.0
-        fleet[tf]['drawdown'] = 0.0
-        fleet[tf]['profit_factor'] = 0.0
-        
-        if os.path.exists(trades_file):
-            try:
-                mtime = os.path.getmtime(trades_file)
-                if tf not in TRADES_CACHE or TRADES_CACHE[tf]['mtime'] != mtime:
-                    with open(trades_file, "r") as f:
-                        t = json.load(f)
-                        recent = t[-5:]
-                        wins = 0
-                        closed_trades = 0
-                        peak = INITIAL_BANK
-                        current = INITIAL_BANK
-                        max_dd = 0.0
-                        gross_profit = 0.0
-                        gross_loss = 0.0
-                        for trade in t:
-                            if 'pnl' in trade:
-                                closed_trades += 1
-                                pnl = float(trade['pnl'])
-                                if pnl > 0: 
-                                    wins += 1
-                                    gross_profit += pnl
-                                else:
-                                    gross_loss += abs(pnl)
-                                current += pnl
-                                if current > peak: peak = current
-                                dd = ((peak - current) / peak) * 100
-                                if dd > max_dd: max_dd = dd
-                                
-                        win_rate = (wins / closed_trades * 100) if closed_trades > 0 else 0.0
-                        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
-                        TRADES_CACHE[tf] = {
-                            'mtime': mtime, 'recent_trades': recent, 'trades_count': closed_trades,
-                            'bank': current, 'win_rate': win_rate, 'profit_factor': profit_factor, 'drawdown': max_dd
-                        }
-                c = TRADES_CACHE[tf]
-                fleet[tf]['recent_trades'] = c['recent_trades']
-                fleet[tf]['trades_count'] = c['trades_count']
-                fleet[tf]['bank'] = c['bank']
-                fleet[tf]['win_rate'] = c['win_rate']
-                fleet[tf]['profit_factor'] = c['profit_factor']
-                fleet[tf]['drawdown'] = c['drawdown']
-            except: pass
+            cache_key = f"{asset}_{tf}"
+            if os.path.exists(trades_file):
+                try:
+                    mtime = os.path.getmtime(trades_file)
+                    if cache_key not in TRADES_CACHE or TRADES_CACHE[cache_key]['mtime'] != mtime:
+                        with open(trades_file, "r") as f:
+                            t = json.load(f)
+                            recent = t[-5:]
+                            wins = 0
+                            closed_trades = 0
+                            peak = INITIAL_BANK
+                            current = INITIAL_BANK
+                            max_dd = 0.0
+                            gross_profit = 0.0
+                            gross_loss = 0.0
+                            for trade in t:
+                                if 'pnl' in trade:
+                                    closed_trades += 1
+                                    pnl = float(trade['pnl'])
+                                    if pnl > 0: 
+                                        wins += 1
+                                        gross_profit += pnl
+                                    else:
+                                        gross_loss += abs(pnl)
+                                    current += pnl
+                                    if current > peak: peak = current
+                                    dd = ((peak - current) / peak) * 100
+                                    if dd > max_dd: max_dd = dd
+                                    
+                            win_rate = (wins / closed_trades * 100) if closed_trades > 0 else 0.0
+                            profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+                            TRADES_CACHE[cache_key] = {
+                                'mtime': mtime, 'recent_trades': recent, 'trades_count': closed_trades,
+                                'bank': current, 'win_rate': win_rate, 'profit_factor': profit_factor, 'drawdown': max_dd
+                            }
+                    c = TRADES_CACHE[cache_key]
+                    fleet[asset][tf]['recent_trades'] = c['recent_trades']
+                    fleet[asset][tf]['trades_count'] = c['trades_count']
+                    fleet[asset][tf]['bank'] = c['bank']
+                    fleet[asset][tf]['win_rate'] = c['win_rate']
+                    fleet[asset][tf]['profit_factor'] = c['profit_factor']
+                    fleet[asset][tf]['drawdown'] = c['drawdown']
+                except: pass
     return fleet
 
 
@@ -164,13 +167,14 @@ def websocket_monitor_loop():
     while True:
         if clients > 0:
             changed = False
-            for tf in ['5m', '15m', '1h', '4h', '1d']:
-                state_file = f"state_{tf}.json"
-                if os.path.exists(state_file):
-                    m = os.path.getmtime(state_file)
-                    if last_mtimes.get(state_file) != m:
-                        last_mtimes[state_file] = m
-                        changed = True
+            for asset in ['BTC', 'ETH', 'HYPE']:
+                for tf in ['5m', '15m', '1h', '4h', '1d']:
+                    state_file = f"state_{asset}_{tf}.json"
+                    if os.path.exists(state_file):
+                        m = os.path.getmtime(state_file)
+                        if last_mtimes.get(state_file) != m:
+                            last_mtimes[state_file] = m
+                            changed = True
             
             if changed:
                 socketio.emit('fleet_update', get_fleet_data())
