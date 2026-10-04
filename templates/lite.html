@@ -387,7 +387,7 @@
                 document.getElementById('main-grid').innerHTML = htmlGrid;
                 document.getElementById('global-equity').innerText = `$${globalEquity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
                 
-            } catch (e) {}
+            } catch (e) { document.getElementById('macro-context').innerHTML = '<span style="color:red">' + e.message + '</span>';  document.getElementById('macro-context').innerHTML = '<span style="color:red">' + e.message + '</span>'; }
         }
 
         setInterval(fetchSystem, 5000);
