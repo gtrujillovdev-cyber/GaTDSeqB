@@ -156,13 +156,13 @@ def analyze_market():
                 is_counter_trend = current_live_price < ema200 # Comprar bajo la EMA200 es contra tendencia principal
                 if is_counter_trend:
                     print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
-                    stop_loss = current_price - (atr * 1.0)
-                    take_profit = current_price + (atr * 1.5)
+                    stop_loss = current_live_price - (atr * 1.0)
+                    take_profit = current_live_price + (atr * 1.5)
                     reason = "TD9 Buy (Counter-Trend)"
                 else:
                     print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
-                    stop_loss = current_price - (atr * 1.5)
-                    take_profit = current_price + (atr * 3.0)
+                    stop_loss = current_live_price - (atr * 1.5)
+                    take_profit = current_live_price + (atr * 3.0)
                     reason = "TD9 Buy (Trend)"
                     
                 if state.get("last_trigger_time") == trigger_time:
@@ -174,7 +174,7 @@ def analyze_market():
                     
                     conviction_multiplier = 1.5 if rsi < 30 else 1.0
                     final_risk = base_risk * conviction_multiplier
-                    execute_trade("BUY", current_price, stop_loss, take_profit, reason, trigger_time, final_risk)
+                    execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
             else:
                 print("TD9 ignorado: El RSI no permite la compra.")
                 
@@ -184,13 +184,13 @@ def analyze_market():
                 is_counter_trend = current_live_price > ema200 # Vender sobre la EMA200 es contra tendencia principal
                 if is_counter_trend:
                     print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
-                    stop_loss = current_price + (atr * 1.0)
-                    take_profit = current_price - (atr * 1.5)
+                    stop_loss = current_live_price + (atr * 1.0)
+                    take_profit = current_live_price - (atr * 1.5)
                     reason = "TD9 Sell (Counter-Trend)"
                 else:
                     print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
-                    stop_loss = current_price + (atr * 1.5)
-                    take_profit = current_price - (atr * 3.0)
+                    stop_loss = current_live_price + (atr * 1.5)
+                    take_profit = current_live_price - (atr * 3.0)
                     reason = "TD9 Sell (Trend)"
                     
                 if state.get("last_trigger_time") == trigger_time:
@@ -202,7 +202,7 @@ def analyze_market():
                     
                     conviction_multiplier = 1.5 if rsi > 70 else 1.0
                     final_risk = base_risk * conviction_multiplier
-                    execute_trade("SELL", current_price, stop_loss, take_profit, reason, trigger_time, final_risk)
+                    execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
             else:
                 print("TD9 ignorado: El RSI no permite el short.")
                 
@@ -380,7 +380,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             "time": time_str,
             "type": "VENTA (Cierre)" if action == "BUY" else "COMPRA (Cierre)",
             "reason": close_reason,
-            "price": current_price,
+            "price": current_live_price,
             "pnl": pnl_dollars
         })
         with open(TRADES_FILE, "w") as f:
