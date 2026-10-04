@@ -44,3 +44,14 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Unificación de Idioma y Net Worth Dinámico (UI):**
   - Se unificó toda la interfaz del Kiosko al inglés ("Holdings", "Recent Trades") para mantener un estándar institucional.
   - Se desarrolló un algoritmo en el frontend que consulta el Ticker de 24 horas de la API de Binance (y el cierre anterior de Yahoo Finance para MSTR) para calcular y mostrar matemáticamente la **fluctuación del portfolio en las últimas 24 horas** junto al patrimonio (Ej: `+$240.50 (+5.2%)`).
+
+- **Estética Institucional Bloomberg (Terminal UI):**
+  - Se eliminó el diseño redondeado en favor de una interfaz plana de alto contraste (Courier New, bordes cuadrados).
+  - Se restringió la paleta de colores a Negro (Fondo), Ámbar (Texto/Etiquetas), Cian (Datos secundarios), Verde Neón y Rojo Puro, emulando la legendaria terminal de Bloomberg.
+  - El índice de "Fear & Greed" ahora es reactivo a nivel colorimétrico según sus valores (Verde para Greed, Rojo para Fear).
+- **Unrealized PNL Dinámico en tiempo real:**
+  - Las tarjetas de bots activos (*IN TRADE*) ahora interceptan el flujo de precios de Binance para calcular y renderizar el Beneficio/Pérdida no realizado (`Unrealized PNL`) tanto en dólares como en ROE (%).
+  - Cálculo cruzado para operaciones *Short* y *Long* en el Front-End a 0 coste de CPU para el servidor.
+- **Hotfixes Críticos en Entorno de Producción:**
+  - Corrección de ámbito local en variable `global TIMEFRAME` que silenciaba el bot multi-moneda.
+  - Solución del *Gatling Bug* en el módulo *Counter-Trend Scalp* (renombrado de `current_price` a `current_live_price` e inyección de la variable `trigger_time` perdida en refactorizaciones pasadas).
