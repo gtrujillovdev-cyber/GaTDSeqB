@@ -167,3 +167,8 @@ trades.json
 bot_log.txt
 control.json
 
+
+# Dynamic State Files
+state_*.json
+trades_*.json
+control.json
