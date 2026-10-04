@@ -295,7 +295,7 @@
                     for (const tf of ['5m', '15m', '1h', '4h', '1d']) {
                         const state = fleet[asset][tf];
                         if (!state) continue;
-                        globalEquity += (state.bank / 3) || (10000.0 / 3);
+                        globalEquity += state.bank || 10000.0;
                         
                         let badgeClass = 'status-offline';
                         let badgeText = 'OFFLINE';
