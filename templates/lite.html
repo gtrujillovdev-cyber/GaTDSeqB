@@ -305,7 +305,37 @@
                                 <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString() : '--'}</span></div>
                                 <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString() : '--'}</span></div>
                                 <div class="row"><span class="label">Invest</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString() : '--'}</span></div>
-                                <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>
+                                <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>`;
+                                
+                    if (state.status === 'IN_TRADE' && state.entry_price && state.stop_loss && state.take_profit) {
+                        let sl = parseFloat(state.stop_loss);
+                        let tp = parseFloat(state.take_profit);
+                        let isLong = state.position === 'BUY';
+                        let range = Math.abs(tp - sl);
+                        let currentDist = isLong ? (lastPrice - sl) : (sl - lastPrice);
+                        let pct = 0;
+                        if (range !== 0) {
+                            pct = (currentDist / range) * 100;
+                        }
+                        pct = Math.max(0, Math.min(100, pct));
+                        
+                        let isWin = (isLong && lastPrice > state.entry_price) || (!isLong && lastPrice < state.entry_price);
+                        let cursorColor = isWin ? '#00ff00' : '#ff4444';
+                        
+                        htmlGrid += `
+                        <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #333;">
+                            <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; color: #888;">
+                                <span style="color:#ff4444;">SL: $${sl.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                                <span style="color:#00ff00;">TP: $${tp.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
+                            </div>
+                            <div style="width: 100%; background: #222; height: 6px; border-radius: 3px; position: relative;">
+                                <div style="position: absolute; left: 0; top: 0; height: 100%; width: 100%; background: linear-gradient(90deg, #ff4444, #555, #00ff00); border-radius: 3px; opacity: 0.3;"></div>
+                                <div style="position: absolute; left: ${pct}%; top: -2px; width: 3px; height: 10px; background: ${cursorColor}; box-shadow: 0 0 5px ${cursorColor}; transition: left 0.5s ease-out;"></div>
+                            </div>
+                        </div>`;
+                    }
+                    
+                    htmlGrid += `
                             </div>
                         </div>
                     `;
