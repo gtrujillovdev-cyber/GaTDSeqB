@@ -302,7 +302,7 @@
                         if (state.status === 'IN_TRADE') { badgeClass = 'status-active'; badgeText = 'IN TRADE'; }
                         else if (state.status === 'IDLE') { badgeClass = 'status-idle'; badgeText = 'IDLE'; }
                         
-                        let tdColor = state.td_count == 9 || state.td_count == -9 ? (state.td_count == 9 ? 'val-red' : 'val-green') : 'val-blue';
+                        let tdColor = state.td_count > 0 ? 'val-red' : (state.td_count < 0 ? 'val-green' : '');
                         
                         if (state.status !== 'IN_TRADE') {
                             assetGrid += `
