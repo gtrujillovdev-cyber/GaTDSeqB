@@ -102,7 +102,7 @@
     <div id="macro-context">
         <span>GLOBAL EQUITY: <span id="global-equity" class="val-green">LOADING...</span></span>
         <span class="desktop-only">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
-        <span>PATRIMONIO: <span id="net-worth" class="val-green">LOADING...</span></span>
+        <span>HOLDINGS: <span id="net-worth" class="val-green">LOADING...</span></span>
         <span class="desktop-only">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
         <span>FEAR & GREED: <span id="fng-index" class="val-blue">LOADING...</span></span>
     </div>
@@ -152,9 +152,11 @@
                 let data = await res.json();
                 let activos = data.activos || {};
                 let prices = data.prices || {};
+                let changes = data.changes || {};
                 
                 let totalValue = 0;
                 let totalPnl = 0;
+                let totalDailyChangeUSD = 0;
                 let pfHtml = '';
                 
                 let symbolOrder = ['BTC', 'MSTR', 'ETH', 'PEPE'];
@@ -165,24 +167,30 @@
                     let amount = asset.amount;
                     let currentPrice = 0;
                     
+                    let priceChange24h = changes[symbol] || 0;
                     if (prices[symbol]) { currentPrice = prices[symbol]; } 
                     else if (symbol === 'USDT' || symbol === 'USDC') { currentPrice = 1; }
                     else {
                         try {
-                            let priceRes = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`);
+                            let priceRes = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}USDT`);
                             if (priceRes.ok) {
                                 let priceData = await priceRes.json();
-                                currentPrice = parseFloat(priceData.price);
+                                currentPrice = parseFloat(priceData.lastPrice);
+                                priceChange24h = parseFloat(priceData.priceChange);
                                 priceFallbackCache[symbol] = currentPrice;
+                                priceFallbackCache[symbol+'_change'] = priceChange24h;
                             } else {
                                 throw new Error("Binance Rate Limit / Error");
                             }
                         } catch(e) {
                             if (priceFallbackCache[symbol]) {
                                 currentPrice = priceFallbackCache[symbol];
+                                priceChange24h = priceFallbackCache[symbol+'_change'] || 0;
                             }
                         }
                     }
+                    totalDailyChangeUSD += (priceChange24h * amount);
+
                     
                     let pnlStr = '';
                     if (type === 'spot') {
@@ -245,7 +253,9 @@
                 }
                 
                 let nwEl = document.getElementById('net-worth');
-                nwEl.innerText = `$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                let dailyPct = totalValue > 0 ? (totalDailyChangeUSD / (totalValue - totalDailyChangeUSD)) * 100 : 0;
+                let dailySign = totalDailyChangeUSD >= 0 ? '+' : '';
+                nwEl.innerHTML = `$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span style="font-size:10px; color:${totalDailyChangeUSD >= 0 ? '#00ff00' : '#ff4444'};">(${dailySign}${dailyPct.toFixed(2)}%)</span>`;
                 if (totalValue > lastNetWorth && lastNetWorth !== 0) { nwEl.className = 'val-green'; }
                 else if (totalValue < lastNetWorth) { nwEl.className = 'val-red'; }
                 lastNetWorth = totalValue;

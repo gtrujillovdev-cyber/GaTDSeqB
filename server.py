@@ -26,7 +26,7 @@ def index(): return render_template('index.html')
 @app.route('/lite')
 def lite(): return render_template('lite.html')
 
-MSTR_CACHE = {'price': 160.24, 'time': 0}
+MSTR_CACHE = {'price': 160.24, 'change': 0.0, 'time': 0}
 
 def update_mstr_price_loop():
     global MSTR_CACHE
@@ -36,6 +36,8 @@ def update_mstr_price_loop():
             with urllib.request.urlopen(req, timeout=10) as response:
                 res_data = json.loads(response.read())
                 MSTR_CACHE['price'] = res_data['chart']['result'][0]['meta']['regularMarketPrice']
+                MSTR_CACHE['prev_close'] = res_data['chart']['result'][0]['meta']['chartPreviousClose']
+                MSTR_CACHE['change'] = MSTR_CACHE['price'] - MSTR_CACHE['prev_close']
                 MSTR_CACHE['time'] = time.time()
         except:
             pass
@@ -49,6 +51,7 @@ def api_portfolio():
         with open("portfolio.json", "r") as f:
             data = json.load(f)
         data['prices'] = {'MSTR': MSTR_CACHE['price']}
+        data['changes'] = {'MSTR': MSTR_CACHE.get('change', 0.0)}
         return jsonify(data)
     except:
         return jsonify({"activos": {}, "prices": {}})
