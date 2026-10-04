@@ -353,8 +353,19 @@
                             pct = Math.max(0, Math.min(100, pct));
                             let isWin = (isLong && assetPrice > state.entry_price) || (!isLong && assetPrice < state.entry_price);
                             let cursorColor = isWin ? '#00ff00' : '#ff4444';
+                            
+                            let diff = isLong ? (assetPrice - parseFloat(state.entry_price)) : (parseFloat(state.entry_price) - assetPrice);
+                            let unPnl = diff * (state.size_btc || 0);
+                            globalUnrealizedPnl += unPnl;
+                            activeTradesCount += 1;
+                            
+                            let unPnlPct = state.size_usd ? (unPnl / state.size_usd) * 100 : 0;
+                            let unPnlStr = (unPnl >= 0 ? '+' : '') + '$' + Math.abs(unPnl).toFixed(2) + ' (' + (unPnl >= 0 ? '+' : '') + unPnlPct.toFixed(2) + '%)';
+                            let unPnlColor = unPnl >= 0 ? '#00ff00' : '#ff0000';
+
                             assetGrid += `
-                            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #333;">
+                            <div class="row" style="margin-top:10px; padding-top:10px; border-top: 1px solid #333;"><span class="label">U/PNL</span><span class="value" style="color:${unPnlColor}; font-size:13px;">${unPnlStr}</span></div>
+                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #333;">
                                 <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 4px; color: #ffb200;">
                                     <span style="color:#ff4444;">SL: $${sl.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
                                     <span style="color:#00ff00;">TP: $${tp.toLocaleString(undefined, {maximumFractionDigits:0})}</span>
@@ -386,6 +397,28 @@
                 
                 document.getElementById('main-grid').innerHTML = htmlGrid;
                 document.getElementById('global-equity').innerText = `$${globalEquity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                
+                let pnlSumStr = (globalUnrealizedPnl >= 0 ? '+' : '') + '$' + Math.abs(globalUnrealizedPnl).toFixed(2);
+                let pnlSumColor = globalUnrealizedPnl >= 0 ? '#00ff00' : '#ff0000';
+                
+                let pnlEl = document.getElementById('global-pnl');
+                if (!pnlEl) {
+                    let headerInfo = document.querySelector('.top-bar').nextElementSibling;
+                    let newEl = document.createElement('div');
+                    newEl.id = 'global-pnl';
+                    newEl.style.textAlign = 'center';
+                    newEl.style.marginBottom = '15px';
+                    newEl.style.fontWeight = 'bold';
+                    newEl.style.fontSize = '14px';
+                    headerInfo.parentNode.insertBefore(newEl, headerInfo.nextSibling);
+                    pnlEl = newEl;
+                }
+                if (activeTradesCount > 0) {
+                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#00ffff">${activeTradesCount}</span> &nbsp;|&nbsp; U/PNL: <span style="color:${pnlSumColor}">${pnlSumStr}</span>`;
+                } else {
+                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#00ffff">0</span>`;
+                }
+
                 
             } catch (e) { document.getElementById('macro-context').innerHTML = '<span style="color:red">' + e.message + '</span>';  document.getElementById('macro-context').innerHTML = '<span style="color:red">' + e.message + '</span>'; }
         }
