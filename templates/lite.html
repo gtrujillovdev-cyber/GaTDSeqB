@@ -291,6 +291,8 @@
             try {
                 let htmlGrid = '';
                 let globalEquity = 0.0;
+                let globalUnrealizedPnl = 0;
+                let activeTradesCount = 0;
                 
                 for (const asset of ['BTC', 'ETH', 'HYPE']) {
                     let assetGrid = `<div class="bot-column"><h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; text-align: center;">${asset}</h2>`;
