@@ -83,7 +83,12 @@
             .trade-header { font-size: 16px; margin-bottom: 15px; }
             .trade-row { font-size: 14px; padding: 10px 0; }
         }
-    </style>
+    
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; color: #ffb200; }
+        .history-table th { border-bottom: 1px solid #ffb200; padding: 5px; text-align: left; color: #ffffff;}
+        .history-table td { padding: 5px; border-bottom: 1px dashed #333; }
+        .history-panel { border: 1px solid #ffb200; padding: 15px; margin-top: 20px; background: #000000; }
+</style>
 </head>
 <body>
     <div class="top-bar">
@@ -107,7 +112,13 @@
         <span>FEAR & GREED: <span id="fng-index" style="color: #ffb200;">LOADING...</span></span>
     </div>
 
-    <div class="main-grid" id="main-grid"></div>
+    <div class="main-grid" id="main-grid">
+    </div>
+    
+    <div class="history-panel" id="trade-history-panel">
+        <h2 style="color:#ffb200; margin-top:0; border-bottom: 1px solid #ffb200; padding-bottom:5px; text-align:center;">GLOBAL TRADE HISTORY LOG</h2>
+        <div id="history-content">LOADING...</div>
+    </div>
 
     <script>
         async function fetchSystem() {
@@ -427,6 +438,42 @@
                 </div>`;
                 
                 document.getElementById('main-grid').innerHTML = htmlGrid;
+
+                let allTrades = [];
+                for (let asset in fleet) {
+                    for (let tf in fleet[asset]) {
+                        if (fleet[asset][tf].history) {
+                            fleet[asset][tf].history.forEach(t => {
+                                allTrades.push({ asset, tf, ...t });
+                            });
+                        }
+                    }
+                }
+                
+                // Sort by time descending
+                allTrades.sort((a, b) => new Date(b.time) - new Date(a.time));
+                
+                let histHtml = '<table class="history-table"><tr><th>TIME</th><th>PAIR</th><th>TYPE</th><th>PRICE</th><th>PNL</th><th>REASON</th></tr>';
+                
+                allTrades.slice(0, 20).forEach(t => {
+                    let pnlColor = t.pnl > 0 ? '#00ff00' : (t.pnl < 0 ? '#ff0000' : '#ffb200');
+                    let pnlStr = t.pnl !== 0 ? (t.pnl > 0 ? '+' : '') + '$' + Math.abs(t.pnl).toFixed(2) : '--';
+                    let typeColor = t.type.includes('COMPRA') ? '#00ff00' : '#ff0000';
+                    
+                    histHtml += `<tr>
+                        <td>${t.time}</td>
+                        <td style="font-weight:bold; color:#ffffff;">${t.asset} [${t.tf}]</td>
+                        <td style="color:${typeColor};">${t.type}</td>
+                        <td>$${t.price.toLocaleString(undefined, {maximumFractionDigits:8})}</td>
+                        <td style="color:${pnlColor}; font-weight:bold;">${pnlStr}</td>
+                        <td>${t.reason}</td>
+                    </tr>`;
+                });
+                histHtml += '</table>';
+                
+                let histEl = document.getElementById('history-content');
+                if (histEl) histEl.innerHTML = histHtml;
+
                 let totalEquity = globalEquity + globalUnrealizedPnl;
                 let baseEquity = 150000; // 15 bots * $10,000
                 let roiPct = ((totalEquity - baseEquity) / baseEquity) * 100;
