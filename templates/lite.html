@@ -353,11 +353,19 @@
                         let tdColor = state.td_count > 0 ? 'val-red' : (state.td_count < 0 ? 'val-green' : '');
                         
                         if (state.status !== 'IN_TRADE') {
+                            let roi = state.bank ? ((state.bank - 10000) / 10000) * 100 : 0;
+                            let rColor = roi >= 0 ? '#00ff00' : '#ff0000';
+                            let rSign = roi > 0 ? '+' : '';
+                            let roiStr = state.bank ? `<span style="color:${rColor}; font-size:11px;">$${state.bank.toLocaleString(undefined, {maximumFractionDigits:0})} (${rSign}${roi.toFixed(2)}%)</span>` : '';
+                            
                             assetGrid += `
                                 <div class="bot-card" style="margin-bottom: 5px; padding: 8px;">
                                     <div class="bot-header" style="border: none; padding: 0;">
-                                        <span>[ ${tf} ]</span>
-                                        <div style="display:flex; gap:10px;">
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <span>[ ${tf} ]</span>
+                                            ${roiStr}
+                                        </div>
+                                        <div style="display:flex; gap:10px; align-items:center;">
                                             <span style="font-size: 11px;">TD: <span class="${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></span>
                                             <span class="status-badge ${badgeClass}">${badgeText}</span>
                                         </div>
