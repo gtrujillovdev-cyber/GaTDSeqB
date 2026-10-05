@@ -55,3 +55,12 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Hotfixes Críticos en Entorno de Producción:**
   - Corrección de ámbito local en variable `global TIMEFRAME` que silenciaba el bot multi-moneda.
   - Solución del *Gatling Bug* en el módulo *Counter-Trend Scalp* (renombrado de `current_price` a `current_live_price` e inyección de la variable `trigger_time` perdida en refactorizaciones pasadas).
+
+## [2026-10-05] - Migración a Futuros, Ledger Global y Kiosko Responsivo
+### Añadido
+- **Apalancamiento Dinámico (Dynamic Leverage):** Se ha modificado el motor de gestión de riesgo (`bot.py`) para eliminar la restricción de límite de cuenta Spot. Ahora el sistema calcula el apalancamiento necesario (hasta un límite de seguridad de 50x) para igualar el tamaño nominal (Notional) a las métricas de riesgo exigidas por el ATR.
+- **Comisiones de Futuros Perpetuos:** Se ha sustituido el coste por operación del 0.1% de Binance Spot por un **0.04%** (Taker standard en futuros), logrando que el scalping de alta frecuencia en temporalidades de 5m y 15m vuelva a ser cuantitativamente rentable.
+- **ROE% en Kiosko:** El porcentaje de Unrealized PNL visible en el dashboard refleja ahora el "Return on Equity" de Futuros (PNL / Margen real retenido) en lugar de medir el rendimiento Spot.
+- **Libro Mayor (Trade History Ledger):** Inyectada una tabla global en `lite.html` que agrupa el historial de los 15 bots (hasta 30 eventos recientes). El UI se ha optimizado para dispositivos móviles, condensando "Razón/PNL", truncando decimales e identificando de un vistazo eventos `OPN` (Apertura) y `CLS` (Cierre).
+- **Métricas de Rendimiento:** En la cabecera principal se agregó el contador global `TOTAL TRADES`, que consolida toda la actividad del fondo, y cada caja de bot (incluso en estado `IDLE`) muestra ahora el `Bankroll` fusionado con su `ROI%` dinámico, permitiendo auditar la rentabilidad neta de cada temporalidad con un solo vistazo.
+- **Estricta Estética Bloomberg:** Purgado cualquier rastro de color cian (`#00ffff`) y unificado a blanco puro (`#ffffff`) para métricas de alto contraste frente a etiquetas Ámbar (`#FFCC00`), cumpliendo rigurosamente la regla del proyecto.
