@@ -291,7 +291,8 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
            f"💰 Precio: ${price:,.2f}\n"
            f"🛡 Stop Loss: ${sl:,.2f}\n"
            f"🎯 Take Profit: ${tp:,.2f}\n"
-           f"💵 Inversión: ${position_size_usd:,.2f} ({position_size_btc:.4f} BTC)\n"
+           f"💵 Inversión: ${position_size_usd:,.2f} ({position_size_btc:.4f} BTC)\n" \
+           f"⚡ Apalancamiento: x{required_leverage:.2f}\n"
            f"⚠️ Riesgo Máximo: ${actual_risk_amount:,.2f} ({(actual_risk_amount/current_bank)*100:.2f}%)\n"
            f"🏦 Bankroll: ${current_bank:,.2f}\n"
            f"🧠 Estrategia: {reason}")
