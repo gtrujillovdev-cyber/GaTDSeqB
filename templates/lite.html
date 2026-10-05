@@ -368,7 +368,7 @@
                                     <div class="row"><span class="label">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
                                     <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString() : '--'}</span></div>
                                     <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString() : '--'}</span></div>
-                                    <div class="row"><span class="label">Invest</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString() : '--'}</span></div>
+                                    <div class="row"><span class="label">Invest / Lev</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) + (state.leverage ? ' (<span style="color:#00ffff">x'+state.leverage.toFixed(1)+'</span>)' : '') : '--'}</span></div>
                                     <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>`;
                                     
                         if (state.status === 'IN_TRADE' && state.entry_price && state.stop_loss && state.take_profit) {

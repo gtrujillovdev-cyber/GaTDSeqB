@@ -232,14 +232,22 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
     # 4. Valor total de la posicion (Notional Value)
     position_size_usd = position_size_btc * price
     
-    # 5. Spot Market Limit: No usar margen / apalancamiento (Capping al saldo disponible)
-    if position_size_usd > current_bank:
-        position_size_usd = current_bank
+    # 5. Dynamic Futures Leverage Calculation
+    required_leverage = position_size_usd / current_bank
+    if required_leverage < 1.0: required_leverage = 1.0
+    
+    # Cap Leverage at 50x (Safety Guard for Paper Trading)
+    MAX_LEVERAGE = 50.0
+    if required_leverage > MAX_LEVERAGE:
+        print(f"⚠️ Alerta: Apalancamiento ({required_leverage:.1f}x) supera el máximo de {MAX_LEVERAGE}x. Capping a {MAX_LEVERAGE}x.")
+        required_leverage = MAX_LEVERAGE
+        position_size_usd = current_bank * MAX_LEVERAGE
         position_size_btc = position_size_usd / price
         actual_risk_amount = position_size_btc * sl_dist_price
-        print(f"Alerta: Capital insuficiente para riesgo completo. Operando sin apalancamiento. Riesgo ajustado a ${actual_risk_amount:.2f}")
     else:
         actual_risk_amount = risk_amount
+        
+    print(f"🚀 Apalancamiento Dinámico Aplicado: {required_leverage:.2f}x")
 
     # Institutional Guard: Binance Spot Minimum Order Size ($10)
     if position_size_usd < 10.0:
@@ -261,6 +269,7 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
         "size_btc": position_size_btc,
         "size_usd": position_size_usd,
         "risk_usd": actual_risk_amount,
+        "leverage": required_leverage,
         "last_trigger_time": trigger_time
     }
     with open(STATE_FILE, "w") as f:
