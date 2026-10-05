@@ -291,9 +291,10 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
 
 def check_exit_conditions(live_candle, closed_candle, atr, state):
     action = state["position"]
-    current_live_price = last_candle['close']
-    low_price = last_candle['low']
-    high_price = last_candle['high']
+    current_live_price = live_candle['close']
+    current_closed_price = closed_candle['close']
+    low_price = live_candle['low']
+    high_price = live_candle['high']
 
     sl = state["stop_loss"]
     tp = state["take_profit"]
