@@ -246,8 +246,8 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
         print(f"⚠️ Operación abortada: Tamaño de posición (${position_size_usd:.2f}) inferior al mínimo de Binance ($10).")
         return
     
-    # Deduct 0.1% Binance Spot Fee on Entry Notional
-    entry_fee_usd = position_size_usd * 0.001
+    # Deduct 0.04% Binance Futures Fee on Entry Notional
+    entry_fee_usd = position_size_usd * 0.0004
     
     state = {
         "status": "IN_TRADE",
@@ -321,7 +321,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if low_price <= updated_sl:
             print("❌ Stop Loss impactado en la mecha inferior.")
             pnl_dollars = (updated_sl - entry) * size_btc
-            exit_fee = (updated_sl * size_btc) * 0.001
+            exit_fee = (updated_sl * size_btc) * 0.0004
             pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Stop Loss"
@@ -329,7 +329,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         elif high_price >= tp:
             print("✅ Take Profit alcanzado en la mecha superior.")
             pnl_dollars = (tp - entry) * size_btc
-            exit_fee = (tp * size_btc) * 0.001
+            exit_fee = (tp * size_btc) * 0.0004
             pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Take Profit"
@@ -347,7 +347,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if high_price >= updated_sl:
             print("❌ Stop Loss impactado en la mecha superior.")
             pnl_dollars = (entry - updated_sl) * size_btc
-            exit_fee = (updated_sl * size_btc) * 0.001
+            exit_fee = (updated_sl * size_btc) * 0.0004
             pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Stop Loss"
@@ -355,7 +355,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         elif low_price <= tp:
             print("✅ Take Profit alcanzado en la mecha inferior.")
             pnl_dollars = (entry - tp) * size_btc
-            exit_fee = (tp * size_btc) * 0.001
+            exit_fee = (tp * size_btc) * 0.0004
             pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
             close_reason = "Take Profit"
