@@ -453,20 +453,29 @@
                 // Sort by time descending
                 allTrades.sort((a, b) => new Date(b.time) - new Date(a.time));
                 
-                let histHtml = '<table class="history-table"><tr><th>TIME</th><th>PAIR</th><th>TYPE</th><th>PRICE</th><th>PNL</th><th>REASON</th></tr>';
+                let histHtml = '<table class="history-table"><tr><th>TIME</th><th>PAIR</th><th>TYPE</th><th>PRICE</th><th>PNL & REASON</th></tr>';
                 
-                allTrades.slice(0, 20).forEach(t => {
+                allTrades.slice(0, 30).forEach(t => {
                     let pnlColor = t.pnl > 0 ? '#00ff00' : (t.pnl < 0 ? '#ff0000' : '#ffb200');
                     let pnlStr = t.pnl !== 0 ? (t.pnl > 0 ? '+' : '') + '$' + Math.abs(t.pnl).toFixed(2) : '--';
+                    
+                    let typeStr = t.type.includes('COMPRA') ? 'LONG' : 'SHRT';
                     let typeColor = t.type.includes('COMPRA') ? '#00ff00' : '#ff0000';
+                    let action = t.type.includes('Apertura') ? 'OPN' : 'CLS';
+                    
+                    let timeParts = t.time.split(' ');
+                    let timeStr = timeParts.length > 1 ? timeParts[1].substring(0,5) : t.time;
+                    
+                    let priceStr = '$' + t.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2});
+                    
+                    let reasonStr = t.reason.replace(' (Trend)', '').replace(' (Counter-Trend)', '').replace(' (Justicia Histórica)', '');
                     
                     histHtml += `<tr>
-                        <td>${t.time}</td>
-                        <td style="font-weight:bold; color:#ffffff;">${t.asset} [${t.tf}]</td>
-                        <td style="color:${typeColor};">${t.type}</td>
-                        <td>$${t.price.toLocaleString(undefined, {maximumFractionDigits:8})}</td>
-                        <td style="color:${pnlColor}; font-weight:bold;">${pnlStr}</td>
-                        <td>${t.reason}</td>
+                        <td>${timeStr}</td>
+                        <td style="font-weight:bold; color:#ffffff;">${t.asset}<br><span style="font-size:9px; color:#aaa;">${t.tf}</span></td>
+                        <td style="color:${typeColor};">${typeStr}<br><span style="font-size:9px; color:#aaa;">${action}</span></td>
+                        <td>${priceStr}</td>
+                        <td style="color:${pnlColor}; font-weight:bold;">${pnlStr}<br><span style="font-size:9px; color:#ffb200; font-weight:normal;">${reasonStr}</span></td>
                     </tr>`;
                 });
                 histHtml += '</table>';
