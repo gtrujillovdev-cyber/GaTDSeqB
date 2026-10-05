@@ -442,8 +442,8 @@
                 let allTrades = [];
                 for (let asset in fleet) {
                     for (let tf in fleet[asset]) {
-                        if (fleet[asset][tf].history) {
-                            fleet[asset][tf].history.forEach(t => {
+                        if (fleet[asset][tf].recent_trades) {
+                            fleet[asset][tf].recent_trades.forEach(t => {
                                 allTrades.push({ asset, tf, ...t });
                             });
                         }
