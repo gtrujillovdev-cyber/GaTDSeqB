@@ -374,7 +374,19 @@
                                     <span class="status-badge ${badgeClass}">${badgeText}</span>
                                 </div>
                                 <div class="bot-body">
-                                    <div class="row"><span class="label">Bankroll</span><span class="value val-green">$${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2}) : '--'}</span></div>
+                                    
+                                    <div class="row">
+                                        <span class="label">Bank / ROI</span>
+                                        <span class="value val-green">
+                                            $${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2}) : '--'}
+                                            ${state.bank ? (function(){
+                                                let roi = ((state.bank - 10000) / 10000) * 100;
+                                                let rColor = roi >= 0 ? '#00ff00' : '#ff0000';
+                                                let rSign = roi >= 0 ? '+' : '';
+                                                return `<span style="font-size:10px; color:${rColor};">(${rSign}${roi.toFixed(2)}%)</span>`;
+                                            })() : ''}
+                                        </span>
+                                    </div>
                                     <div class="row"><span class="label">TD Count</span><span class="value ${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></div>
                                     <div class="row"><span class="label">Win Rate</span><span class="value">${state.win_rate ? state.win_rate.toFixed(1) : '0.0'}%</span></div>
                                     <div class="row"><span class="label">Max DD</span><span class="value val-red">-${state.drawdown ? state.drawdown.toFixed(2) : '0.00'}%</span></div>
