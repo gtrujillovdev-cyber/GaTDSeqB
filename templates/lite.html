@@ -120,18 +120,46 @@
             } catch(e) {}
         }
         
-        let lastPrice = 0;
-        async function fetchBTC() {
+        let globalPrices = { 'BTC': 0, 'ETH': 0, 'HYPE': 0 };
+        let currentFleet = null;
+
+        async function fetchPrices() {
             try {
-                let res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-                let data = await res.json();
-                let price = parseFloat(data.price);
-                let priceEl = document.getElementById('btc-price');
-                priceEl.innerText = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                if (price > lastPrice && lastPrice !== 0) { priceEl.style.color = '#00ff00'; priceEl.style.textShadow = '0 0 25px rgba(0,255,0,0.4)'; }
-                else if (price < lastPrice) { priceEl.style.color = '#ff3333'; priceEl.style.textShadow = '0 0 25px rgba(255,51,51,0.4)'; }
-                lastPrice = price;
+                let res = await fetch('https://api.binance.com/api/v3/ticker/price?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22HYPEUSDT%22%5D');
+                if (!res.ok) {
+                    // Fallback just for BTC if HYPE fails
+                    res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+                    let data = await res.json();
+                    let p = parseFloat(data.price);
+                    globalPrices['BTC'] = p;
+                    updateBtcHeader(p);
+                } else {
+                    let data = await res.json();
+                    for (let d of data) {
+                        if (d.symbol === 'BTCUSDT') {
+                            globalPrices['BTC'] = parseFloat(d.price);
+                            updateBtcHeader(globalPrices['BTC']);
+                        } else if (d.symbol === 'ETHUSDT') {
+                            globalPrices['ETH'] = parseFloat(d.price);
+                        } else if (d.symbol === 'HYPEUSDT') {
+                            globalPrices['HYPE'] = parseFloat(d.price);
+                        }
+                    }
+                }
+                
+                if (currentFleet) {
+                    renderFleet(currentFleet, false); // false means do not update UI completely? Actually just re-render is fine.
+                }
             } catch(e) {}
+        }
+        
+        let lastBtcHeaderPrice = 0;
+        function updateBtcHeader(price) {
+            let priceEl = document.getElementById('btc-price');
+            priceEl.innerText = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            if (price > lastBtcHeaderPrice && lastBtcHeaderPrice !== 0) { priceEl.style.color = '#00ff00'; }
+            else if (price < lastBtcHeaderPrice) { priceEl.style.color = '#ff0000'; }
+            lastBtcHeaderPrice = price;
         }
         
         async function fetchFnG() {
@@ -348,7 +376,7 @@
                             let tp = parseFloat(state.take_profit);
                             let isLong = state.position === 'BUY';
                             let range = Math.abs(tp - sl);
-                            let assetPrice = asset === 'BTC' ? lastPrice : parseFloat(state.entry_price);
+                            let assetPrice = globalPrices[asset] && globalPrices[asset] !== 0 ? globalPrices[asset] : parseFloat(state.entry_price);
                             let currentDist = isLong ? (assetPrice - sl) : (sl - assetPrice);
                             let pct = 0;
                             if (range !== 0) { pct = (currentDist / range) * 100; }
@@ -426,18 +454,19 @@
         }
 
         setInterval(fetchSystem, 5000);
-        setInterval(fetchBTC, 2000);
+        setInterval(fetchPrices, 2000);
         setInterval(fetchPortfolio, 30000); // 30 segundos
         setInterval(fetchFnG, 600000); // 10 minutes for F&G
         
         fetchSystem();
-        fetchBTC();
+        fetchPrices();
         fetchPortfolio();
         fetchFnG();
         
         // --- WebSockets ---
         const socket = io();
         socket.on('fleet_update', function(data) {
+            currentFleet = data;
             renderFleet(data);
         });
     </script>
