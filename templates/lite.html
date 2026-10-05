@@ -389,7 +389,8 @@
                             globalUnrealizedPnl += unPnl;
                             activeTradesCount += 1;
                             
-                            let unPnlPct = state.size_usd ? (unPnl / state.size_usd) * 100 : 0;
+                            let margin = state.size_usd / (state.leverage || 1);
+                            let unPnlPct = margin ? (unPnl / margin) * 100 : 0;
                             let unPnlStr = (unPnl >= 0 ? '+' : '') + '$' + Math.abs(unPnl).toFixed(2) + ' (' + (unPnl >= 0 ? '+' : '') + unPnlPct.toFixed(2) + '%)';
                             let unPnlColor = unPnl >= 0 ? '#00ff00' : '#ff0000';
 
