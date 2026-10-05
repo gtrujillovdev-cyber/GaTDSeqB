@@ -427,7 +427,13 @@
                 </div>`;
                 
                 document.getElementById('main-grid').innerHTML = htmlGrid;
-                document.getElementById('global-equity').innerText = `$${globalEquity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                let totalEquity = globalEquity + globalUnrealizedPnl;
+                let baseEquity = 150000; // 15 bots * $10,000
+                let roiPct = ((totalEquity - baseEquity) / baseEquity) * 100;
+                let roiColor = roiPct >= 0 ? '#00ff00' : '#ff0000';
+                let roiStr = (roiPct >= 0 ? '+' : '') + roiPct.toFixed(2) + '%';
+                
+                document.getElementById('global-equity').innerHTML = `$${totalEquity.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} <span style="color:${roiColor}; font-size:12px;">(${roiStr})</span>`;
                 
                 let pnlSumStr = (globalUnrealizedPnl >= 0 ? '+' : '') + '$' + Math.abs(globalUnrealizedPnl).toFixed(2);
                 let pnlSumColor = globalUnrealizedPnl >= 0 ? '#00ff00' : '#ff0000';
