@@ -42,10 +42,10 @@
         .row { display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid #333; padding-bottom: 4px;}
         .row:last-child { border-bottom: none; }
         .label { color: #ffb200; font-size: 12px; font-weight: bold;}
-        .value { font-weight: bold; color: #00ffff; font-size: 12px;}
+        .value { font-weight: bold; color: #ffffff; font-size: 12px;}
         .val-green { color: #00ff00 !important; }
         .val-red { color: #ff0000 !important; }
-        .val-blue { color: #00ffff !important; }
+        .val-blue { color: #ffffff !important; }
         
         .trade-card { border: 1px dashed #ffb200; background: #000000; padding: 12px; display: flex; flex-direction: column; flex: 1;}
         .trade-header { font-size: 13px; color: #ffb200; border-bottom: 1px solid #ffb200; margin-bottom: 10px; text-align: center; padding-bottom: 6px; font-weight: bold;}
@@ -242,7 +242,7 @@
                                 </div>
                             `;
                         } else {
-                            pnlStr = `<span style="color:#00ffff;">Spot</span>`;
+                            pnlStr = `<span style="color:#ffffff;">Spot</span>`;
                         }
                         
                         pfHtml += `
@@ -368,7 +368,7 @@
                                     <div class="row"><span class="label">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
                                     <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString() : '--'}</span></div>
                                     <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString() : '--'}</span></div>
-                                    <div class="row"><span class="label">Invest / Lev</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) + (state.leverage ? ' (<span style="color:#00ffff">x'+state.leverage.toFixed(1)+'</span>)' : '') : '--'}</span></div>
+                                    <div class="row"><span class="label">Invest / Lev</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) + (state.leverage ? ' (<span style="color:#ffffff">x'+state.leverage.toFixed(1)+'</span>)' : '') : '--'}</span></div>
                                     <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>`;
                                     
                         if (state.status === 'IN_TRADE' && state.entry_price && state.stop_loss && state.take_profit) {
@@ -444,9 +444,9 @@
                     pnlEl = newEl;
                 }
                 if (activeTradesCount > 0) {
-                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#00ffff">${activeTradesCount}</span> &nbsp;|&nbsp; U/PNL: <span style="color:${pnlSumColor}">${pnlSumStr}</span>`;
+                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#ffffff">${activeTradesCount}</span> &nbsp;|&nbsp; U/PNL: <span style="color:${pnlSumColor}">${pnlSumStr}</span>`;
                 } else {
-                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#00ffff">0</span>`;
+                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#ffffff">0</span>`;
                 }
 
                 

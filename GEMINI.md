@@ -11,7 +11,7 @@ Antes de ejecutar CUALQUIER comando `git push`, DEBES actualizar obligatoriament
 
 ### 3. Idioma y Tono Institucional (Bloomberg Aesthetic)
 - **Front-End / UI:** Todo el texto visible para el usuario (Kiosko) debe estar en inglés financiero profesional (Holdings, Unrealized PNL, Risk Exp., etc).
-- **Diseño:** Mantén siempre y sin excepciones la estética "Terminal Bloomberg": tipografía monospace (Courier New), cero bordes redondeados, fondo negro puro, y la paleta estricta Ámbar/Cian/Verde/Rojo.
+- **Diseño:** Mantén siempre y sin excepciones la estética "Terminal Bloomberg": tipografía monospace (Courier New), cero bordes redondeados, fondo negro puro, y la paleta estricta Ámbar/Blanco/Verde/Rojo (PROHIBIDO el color azul o cian).
 
 ### 4. Optimización de Hardware (Raspberry Pi Edge Device)
 - Ten en cuenta en todo momento que el backend en Python corre en una máquina con recursos muy limitados.
