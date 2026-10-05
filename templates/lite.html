@@ -84,7 +84,7 @@
             .trade-row { font-size: 14px; padding: 10px 0; }
         }
     
-        .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; color: #ffb200; }
+        .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; color: #FFCC00; font-weight: bold; }
         .history-table th { border-bottom: 1px solid #ffb200; padding: 5px; text-align: left; color: #ffffff;}
         .history-table td { padding: 5px; border-bottom: 1px dashed #333; }
         .history-panel { border: 1px solid #ffb200; padding: 15px; margin-top: 20px; background: #000000; }
@@ -116,7 +116,7 @@
     </div>
     
     <div class="history-panel" id="trade-history-panel">
-        <h2 style="color:#ffb200; margin-top:0; border-bottom: 1px solid #ffb200; padding-bottom:5px; text-align:center;">GLOBAL TRADE HISTORY LOG</h2>
+        <h2 style="color:#FFCC00; margin-top:0; border-bottom: 1px solid #ffb200; padding-bottom:5px; text-align:center;">GLOBAL TRADE HISTORY LOG</h2>
         <div id="history-content">LOADING...</div>
     </div>
 
@@ -187,7 +187,7 @@
         }
 
         let lastNetWorth = 0;
-        let lastPortfolioHtml = '<div style="text-align:center; color:#ffb200; margin-top:20px; font-size:11px;">CARGANDO DATOS...</div>';
+        let lastPortfolioHtml = '<div style="text-align:center; color:#FFCC00; margin-top:20px; font-size:11px;">CARGANDO DATOS...</div>';
         let priceFallbackCache = {};
         
         async function fetchPortfolio() {
@@ -262,7 +262,7 @@
                                 <span style="font-weight:bold;">${symbol}</span>
                                 <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
                             </div>
-                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#ffb200; align-items:center;">
+                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#FFCC00; align-items:center;">
                                 ${extraInfo}
                                 <div>${pnlStr}</div>
                             </div>
@@ -288,7 +288,7 @@
                                 <span style="font-weight:bold; color:#00ff00;">${symbol} LONG</span>
                                 <span>$${currentPrice.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 8})}</span>
                             </div>
-                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#ffb200; align-items:center;">
+                            <div style="display:flex; justify-content:space-between; width:100%; font-size:12px; color:#FFCC00; align-items:center;">
                                 ${extraInfo}
                                 <div>${pnlStr}</div>
                             </div>
@@ -309,7 +309,7 @@
                 
                 pfHtml += `
                 <div style="margin-top: 15px; text-align: center;">
-                    <div style="font-size:11px; color:#ffb200; margin-bottom:5px;">NET WORTH EST.</div>
+                    <div style="font-size:11px; color:#FFCC00; margin-bottom:5px;">NET WORTH EST.</div>
                     <div style="font-size:22px; font-weight:bold; color:#00ff00; margin-bottom:5px;">$${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     <div class="${tpnlColor}" style="font-size:14px; font-weight:bold; background-color: rgba(0,0,0,0.2); padding: 4px 8px; border-radius: 4px; display: inline-block;">
                         ${tpnlStr}$${Math.abs(totalPnl).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
@@ -472,10 +472,10 @@
                     
                     histHtml += `<tr>
                         <td>${timeStr}</td>
-                        <td style="font-weight:bold; color:#ffffff;">${t.asset}<br><span style="font-size:9px; color:#aaa;">${t.tf}</span></td>
-                        <td style="color:${typeColor};">${typeStr}<br><span style="font-size:9px; color:#aaa;">${action}</span></td>
+                        <td style="font-weight:bold; color:#ffffff;">${t.asset}<br><span style="font-size:11px; color:#ffffff; font-weight:normal;">${t.tf}</span></td>
+                        <td style="color:${typeColor};">${typeStr}<br><span style="font-size:11px; color:#ffffff; font-weight:normal;">${action}</span></td>
                         <td>${priceStr}</td>
-                        <td style="color:${pnlColor}; font-weight:bold;">${pnlStr}<br><span style="font-size:9px; color:#ffb200; font-weight:normal;">${reasonStr}</span></td>
+                        <td style="color:${pnlColor}; font-weight:bold;">${pnlStr}<br><span style="font-size:11px; color:#FFCC00; font-weight:bold;">${reasonStr}</span></td>
                     </tr>`;
                 });
                 histHtml += '</table>';
