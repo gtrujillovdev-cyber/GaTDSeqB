@@ -24,3 +24,10 @@ Antes de ejecutar CUALQUIER comando `git push`, DEBES actualizar obligatoriament
 
 ### 6. Gestión de Procesos en Segundo Plano
 - **Prohibido dejar procesos SSH o tareas de monitoreo (`tail -f`, etc.) abiertos en segundo plano.** Tras inspeccionar logs o realizar diagnósticos, SIEMPRE debes matar o detener esos procesos antes de finalizar tu intervención para no dejar conexiones zombis drenando recursos.
+
+### 7. Protocolo de "Auditoría" (Macro Command)
+Cuando el usuario introduzca la palabra clave **"auditoria"** o solicite una auditoría, DEBES ejecutar automáticamente la siguiente cadena de acciones sin necesidad de que te lo pida paso a paso:
+1. **Limpieza:** Buscar y eliminar todos los scripts locales temporales (e.g. `patch_*.py`).
+2. **Escaneo:** Revisar los logs en producción (`bot_unified.log`, `server.log`), uso de RAM/CPU y buscar posibles cuelgues o bugs silenciosos.
+3. **Diario:** Actualizar obligatoriamente el archivo `DIARIO_DE_DESARROLLO.md` con todos los cambios técnicos recientes.
+4. **Git:** Hacer `git add`, `git commit` (con estándar Conventional Commits) y `git push` al repositorio.
