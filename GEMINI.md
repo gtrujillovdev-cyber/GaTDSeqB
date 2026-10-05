@@ -21,3 +21,6 @@ Antes de ejecutar CUALQUIER comando `git push`, DEBES actualizar obligatoriament
 ### 5. Control de Versiones
 - Usa *Conventional Commits* en el repositorio (`feat:`, `fix:`, `docs:`, `refactor:`).
 - Realiza siempre las subidas a producción a la Raspberry mediante `rsync` y aplica reinicios por `systemctl` cuando toques Python.
+
+### 6. Gestión de Procesos en Segundo Plano
+- **Prohibido dejar procesos SSH o tareas de monitoreo (`tail -f`, etc.) abiertos en segundo plano.** Tras inspeccionar logs o realizar diagnósticos, SIEMPRE debes matar o detener esos procesos antes de finalizar tu intervención para no dejar conexiones zombis drenando recursos.
