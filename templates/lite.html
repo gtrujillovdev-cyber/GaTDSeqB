@@ -345,6 +345,7 @@
                         
                         let badgeClass = 'status-offline';
                         let badgeText = 'OFFLINE';
+                        if (state.trades_count) totalHistoricalTrades += state.trades_count / 2;
                         if (state.status === 'IN_TRADE') { badgeClass = 'status-active'; badgeText = 'IN TRADE'; }
                         else if (state.status === 'IDLE') { badgeClass = 'status-idle'; badgeText = 'IDLE'; }
                         
@@ -507,9 +508,9 @@
                     pnlEl = newEl;
                 }
                 if (activeTradesCount > 0) {
-                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#ffffff">${activeTradesCount}</span> &nbsp;|&nbsp; U/PNL: <span style="color:${pnlSumColor}">${pnlSumStr}</span>`;
+                    pnlEl.innerHTML = `ACTIVE: <span style="color:#ffffff">${activeTradesCount}</span> &nbsp;|&nbsp; TOTAL: <span style="color:#ffffff">${Math.floor(totalHistoricalTrades)}</span> &nbsp;|&nbsp; U/PNL: <span style="color:${pnlSumColor}">${pnlSumStr}</span>`;
                 } else {
-                    pnlEl.innerHTML = `ACTIVE TRADES: <span style="color:#ffffff">0</span>`;
+                    pnlEl.innerHTML = `ACTIVE: <span style="color:#ffffff">0</span> &nbsp;|&nbsp; TOTAL: <span style="color:#ffffff">${Math.floor(totalHistoricalTrades)}</span>`;
                 }
 
                 
