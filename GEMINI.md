@@ -31,3 +31,9 @@ Cuando el usuario introduzca la palabra clave **"auditoria"** o solicite una aud
 2. **Escaneo:** Revisar los logs en producción (`bot_unified.log`, `server.log`), uso de RAM/CPU y buscar posibles cuelgues o bugs silenciosos.
 3. **Diario:** Actualizar obligatoriamente el archivo `DIARIO_DE_DESARROLLO.md` con todos los cambios técnicos recientes.
 4. **Git:** Hacer `git add`, `git commit` (con estándar Conventional Commits) y `git push` al repositorio.
+
+### 8. Protocolo de "Evaluación" (Macro Command)
+Cuando el usuario introduzca la palabra clave **"evalua"**, DEBES ejecutar automáticamente un análisis táctico del mercado sin necesidad de que te lo pida paso a paso:
+1. **Rendimiento:** Leer los estados de los bots (`state_*.json`) para calcular el ROI individual y global.
+2. **Proximidad a Trade:** Leer las últimas líneas del `bot_unified.log` para extraer el "TD Count" y el RSI actual de cada bot. Identificar cuáles tienen un TD cercano a 9 o -9, y reportar cuáles están más cerca de "apretar el gatillo".
+3. **Reporte:** Escribir un resumen ejecutivo con tono institucional al usuario, destacando las métricas más relevantes y las oportunidades inminentes.
