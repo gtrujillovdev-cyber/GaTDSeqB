@@ -69,19 +69,63 @@
             .bot-column { height: auto; }
         }
 
-        /* RESPONSIVE ULTRA-WIDE (LG UltraGear) */
+        /* RESPONSIVE ULTRA-WIDE (LG UltraGear / Bloomberg Terminal Mode) */
         @media (min-width: 1600px) {
-            body { padding: 25px 40px; }
-            .top-bar h1 { font-size: 32px; }
-            #btc-price { font-size: 82px !important; margin: 30px 0; }
-            #macro-context { font-size: 18px; margin-bottom: 40px; }
-            .main-grid { gap: 30px; max-width: 2400px; margin: 0 auto; }
-            .bot-header { font-size: 18px; padding: 15px; }
-            .bot-body { padding: 20px; }
-            .row { margin-bottom: 10px; padding-bottom: 8px; }
-            .label, .value { font-size: 15px; }
-            .trade-header { font-size: 16px; margin-bottom: 15px; }
-            .trade-row { font-size: 14px; padding: 10px 0; }
+            body { padding: 15px; height: 100vh; overflow: hidden; }
+            
+            .bloomberg-terminal {
+                display: grid;
+                grid-template-columns: 75% 25%;
+                grid-template-rows: auto 1fr;
+                grid-template-areas: 
+                    "header header"
+                    "bots history";
+                gap: 20px;
+                height: 100%;
+                width: 100%;
+                max-width: none;
+            }
+            
+            .header-container { grid-area: header; }
+            
+            .main-grid { 
+                grid-area: bots; 
+                display: grid; 
+                grid-template-columns: repeat(5, 1fr); 
+                gap: 15px; 
+                overflow-y: auto; 
+                align-content: start;
+                padding-right: 10px;
+            }
+            
+            .history-panel { 
+                grid-area: history; 
+                margin-top: 0; 
+                display: flex; 
+                flex-direction: column; 
+                overflow: hidden; 
+                border: 1px solid #FFCC00; 
+                background: #000000;
+                height: 100%;
+            }
+            
+            #history-content { 
+                flex: 1; 
+                overflow-y: auto; 
+                padding-right: 5px;
+            }
+            
+            .history-table th { 
+                position: sticky; 
+                top: 0; 
+                background: #000000; 
+                z-index: 10; 
+                border-bottom: 2px solid #FFCC00;
+            }
+
+            .top-bar h1 { font-size: 28px; }
+            #btc-price { font-size: 64px !important; margin: 15px 0; }
+            #macro-context { font-size: 16px; margin-bottom: 20px; }
         }
     
         .history-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; color: #FFCC00; font-weight: bold; }
@@ -91,7 +135,9 @@
 </style>
 </head>
 <body>
-    <div class="top-bar">
+<div class="bloomberg-terminal">
+    <div class="header-container">
+        <div class="top-bar">
         <h1>GaTDSEQ <span style="color: #666; font-size: 13px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase;">// Raspberry Pi 3 Model B Rev 1.2</span></h1>
         <div class="hw-stats">
             <div>CPU: <span id="sys-cpu">--%</span></div>
@@ -111,6 +157,7 @@
         <span class="desktop-only">&nbsp;&nbsp;|&nbsp;&nbsp;</span>
         <span>FEAR & GREED: <span id="fng-index" style="color: #ffb200;">LOADING...</span></span>
     </div>
+    </div> <!-- end header-container -->
 
     <div class="main-grid" id="main-grid">
     </div>
@@ -119,6 +166,7 @@
         <h2 style="color:#FFCC00; margin-top:0; border-bottom: 1px solid #ffb200; padding-bottom:5px; text-align:center;">GLOBAL TRADE HISTORY LOG</h2>
         <div id="history-content">LOADING...</div>
     </div>
+</div> <!-- end bloomberg-terminal -->
 
     <script>
         async function fetchSystem() {
