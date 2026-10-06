@@ -70,3 +70,8 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Kiosko UI:** Se detectó un colapso del grid en monitores Ultra-Wide (LG UltraGear) causado por la restricción `100vh` chocando contra el crecimiento vertical del historial. Parcheado liberando el scroll (`overflow-y: auto`).
 - **Telegram:** Modificada la plantilla de notificaciones de entrada de `bot.py` para reportar transparentemente el apalancamiento exacto usado en la posición.
 - **Rendimiento PI:** Ejecución de auditoría confirmando 0 errores en los logs, RAM estable (~274MB libres), CPU en descanso del 65% y ninguna fuga de memoria detectada tras el último despliegue.
+
+## [2026-10-06] (Auditoría Matutina) - Chequeo de Salud del Sistema
+### Revisión
+- **Rendimiento PI:** Ejecución rutinaria de auditoría. Se confirman 0 errores en los logs (`bot_unified.log`). El bot ha permanecido estable durante la noche. 
+- **Recursos del Sistema:** RAM estable con 263MB libres. CPU operando holgadamente con un 66% de inactividad a pesar de mantener el Kiosko cargado ininterrumpidamente. Sin pérdidas de memoria en 22 horas de *uptime*.
