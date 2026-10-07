@@ -151,9 +151,9 @@
                 height: 180px;
             }
             
-            .bot-card { margin-bottom: 18px !important; padding: 12px !important; }
+            
             .bot-header { font-size: 18px; padding: 12px; }
-            .bot-body { padding: 15px; }
+            
             .row { margin-bottom: 8px; padding-bottom: 6px; }
             .label { font-size: 15px; }
             .value { font-size: 15px; }
@@ -166,6 +166,30 @@
                 padding: 12px 5px;
             }
             .history-table td { padding: 12px 5px; border-bottom: 1px dotted #333; }
+            .bot-card { 
+                margin-bottom: 18px !important; 
+                padding: 12px !important; 
+                height: 60px !important; /* EXACT height to force horizontal alignment */
+                box-sizing: border-box;
+                display: flex;
+                align-items: center;
+                overflow: hidden;
+            }
+            .bot-body { 
+                padding: 0 !important; 
+                width: 100%;
+                white-space: nowrap;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            /* Make sure inner spans can shrink if needed */
+            .bot-body span {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
 
             .top-bar { display: flex; justify-content: space-between; align-items: baseline; width: 100%; padding-right: 40px; box-sizing: border-box; }
             .top-bar h1 { font-size: 32px; margin: 0; }
