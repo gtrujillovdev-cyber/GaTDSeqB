@@ -78,7 +78,7 @@
             
             .bloomberg-terminal {
                 display: grid;
-                grid-template-columns: 72% 28%;
+                grid-template-columns: 2.5fr 1fr;
                 grid-template-rows: auto 1fr auto;
                 grid-template-areas: 
                     "header header"
@@ -658,6 +658,18 @@
         
         // --- WebSockets ---
         const socket = io();
+        socket.on('terminal_log', function(data) {
+            let tc = document.getElementById('terminal-content');
+            if(tc) {
+                // Clear the default text on first load
+                if(tc.innerHTML.includes('SYSTEM INITIALIZATION')) { tc.innerHTML = ''; }
+                let lines = tc.innerHTML.split('<br>').filter(l => l.trim() !== '');
+                lines.push('> ' + data.msg);
+                if(lines.length > 9) lines.shift();
+                tc.innerHTML = lines.join('<br>');
+            }
+        });
+
         socket.on('fleet_update', function(data) {
             currentFleet = data;
             renderFleet(data);
