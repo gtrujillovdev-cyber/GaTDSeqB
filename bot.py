@@ -287,11 +287,11 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
     with open(TRADES_FILE, "w") as f:
         json.dump(trades, f)
         
-    msg = (f"🟢 <b>NUEVA OPERACIÓN ({action})</b>\n\n"
+    msg = (f"🟢 <b>NUEVA OPERACIÓN {SYMBOL} [{TIMEFRAME}] ({action})</b>\n\n"
            f"💰 Precio: ${price:,.2f}\n"
            f"🛡 Stop Loss: ${sl:,.2f}\n"
            f"🎯 Take Profit: ${tp:,.2f}\n"
-           f"💵 Inversión: ${position_size_usd:,.2f} ({position_size_btc:.4f} BTC)\n" \
+           f"💵 Inversión: ${position_size_usd:,.2f} ({position_size_btc:.4f} {SYMBOL})\n" \
            f"⚡ Apalancamiento: x{required_leverage:.2f}\n"
            f"⚠️ Riesgo Máximo: ${actual_risk_amount:,.2f} ({(actual_risk_amount/current_bank)*100:.2f}%)\n"
            f"🏦 Bankroll: ${current_bank:,.2f}\n"
@@ -325,7 +325,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if new_sl > sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
-            send_telegram(f"📈 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
+            send_telegram(f"📈 <b>Trailing Stop Movido a tu favor {SYMBOL} [{TIMEFRAME}]</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
             
         # Evaluate against the candle wicks (low/high) for realism
         if low_price <= updated_sl:
@@ -351,7 +351,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if new_sl < sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
-            send_telegram(f"📉 <b>Trailing Stop Movido a tu favor</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
+            send_telegram(f"📉 <b>Trailing Stop Movido a tu favor {SYMBOL} [{TIMEFRAME}]</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
             
         # Evaluate against the candle wicks (low/high) for realism
         if high_price >= updated_sl:
@@ -404,7 +404,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             json.dump(state, f)
             
         emoji = "✅" if pnl_dollars > 0 else "❌"
-        msg = (f"{emoji} <b>OPERACIÓN CERRADA ({close_reason})</b>\n\n"
+        msg = (f"{emoji} <b>OPERACIÓN CERRADA {SYMBOL} [{TIMEFRAME}] ({close_reason})</b>\n\n"
                f"💰 Precio Cierre: ${current_live_price:,.2f}\n"
                f"💵 Beneficio/Pérdida: ${pnl_dollars:,.2f}\n"
                f"🏦 Nuevo Bankroll: ${new_bank:,.2f}")
