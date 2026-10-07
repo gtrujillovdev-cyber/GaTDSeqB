@@ -42,7 +42,7 @@
         
         .bot-body { padding: 12px 15px; }
         .row { display: flex; justify-content: space-between; margin-bottom: 6px; border-bottom: 1px solid #333; padding-bottom: 4px;}
-        .row:last-child { border-bottom: none; }
+        .row:last-child {  }
         .label { color: #ffb200; font-size: 12px; font-weight: bold;}
         .value { font-weight: bold; color: #ffffff; font-size: 12px;}
         .val-green { color: #00ff00 !important; }
@@ -53,7 +53,7 @@
                 min-height: 0; padding: 12px; display: flex; flex-direction: column; flex: 1;}
         .trade-header { font-size: 13px; color: #ffb200; border-bottom: 1px solid #ffb200; margin-bottom: 10px; margin-top: 0; text-align: center; padding-bottom: 6px; font-weight: bold;}
         .trade-row { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 1px dotted #333; padding: 6px 0; font-weight: bold;}
-        .trade-row:last-child { border-bottom: none; }
+        .trade-row:last-child {  }
 
         /* RESPONSIVE MOBILE (iPhone) */
         @media (max-width: 900px) {
@@ -61,7 +61,7 @@
                 height: auto; overflow-y: auto; 
                 padding: max(15px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
             }
-            .top-bar { flex-direction: column; align-items: baseline; gap: 8px; border-bottom: none;}
+            .top-bar { flex-direction: column; align-items: baseline; gap: 8px; }
             .hw-stats { justify-content: center; width: 100%; flex-wrap: wrap; margin-bottom: 10px; margin-top: 0;}
             
             #btc-price { font-size: 42px !important; }
@@ -126,7 +126,7 @@
             }
             
             /* Remove old inline borders so they don't clash */
-            .history-panel h2 { border-bottom: none; }
+            .history-panel h2 {  }
             
             .history-panel { 
                 grid-area: history; 
@@ -518,7 +518,7 @@
                             let roiStr = state.bank ? `<span style="color:${rColor}; font-size:14px; font-weight:bold;">$${state.bank.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="font-size:11px; font-weight:normal;">(${rSign}${roi.toFixed(2)}%)</span></span>` : '';
                             
                             assetGrid += `
-                                <div class="bot-card tf-card" style="margin-bottom: 0px; padding: 0px 10px; height: 45px; display: grid; grid-template-columns: 35px 1fr auto; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap; border-bottom: none; flex-direction: row;">
+                                <div class="bot-card tf-card" style="margin-bottom: 0px; padding: 0px 10px; height: 45px; display: grid; grid-template-columns: 35px 1fr auto; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap;  flex-direction: row;">
                                         <span style="font-size: 10px; font-weight: bold; color: #ffb200; text-align: left; display: block;">[${tf}]</span>
                                         <div style="white-space: nowrap; text-align: left; display: block;">${roiStr}</div>
                                         <div style="display:flex; gap:10px; align-items:center; justify-content: flex-end;">
