@@ -70,6 +70,14 @@
             
             .main-grid { grid-template-columns: 1fr; gap: 25px; }
             .bot-column { height: auto; }
+
+            .tf-card {
+                height: 45px !important;
+                max-height: 45px !important;
+                min-height: 45px !important;
+                overflow: hidden !important;
+            }
+
         }
 
         /* RESPONSIVE ULTRA-WIDE (LG UltraGear / Bloomberg Terminal Mode) */
@@ -96,7 +104,7 @@
                 display: grid; 
                 grid-template-columns: repeat(4, 1fr); 
                 gap: 30px; 
-                overflow: hidden; 
+                overflow: visible; 
                 align-content: start;
             }
             
