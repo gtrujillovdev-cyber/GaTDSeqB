@@ -186,13 +186,20 @@
             }
             
             /* Target ONLY the grid bot bodies */
+            .tf-card {
+                height: 45px !important; /* GUARANTEE ALL CARDS ARE EXACTLY SAME SIZE */
+            }
             .tf-card .bot-body {
                 padding: 0 !important;
                 width: 100%;
-                white-space: nowrap;
                 display: flex;
+                flex-wrap: nowrap !important; /* NEVER WRAP SPANS TO NEW LINE */
                 align-items: center;
                 justify-content: space-between;
+                gap: 5px;
+            }
+            .tf-card .bot-body span {
+                white-space: nowrap !important; /* TEXT ITSELF CANNOT WRAP */
             }
             
             .tf-card .bot-body span {
