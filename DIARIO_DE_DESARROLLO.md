@@ -75,3 +75,9 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 ### Revisión
 - **Rendimiento PI:** Ejecución rutinaria de auditoría. Se confirman 0 errores en los logs (`bot_unified.log`). El bot ha permanecido estable durante la noche. 
 - **Recursos del Sistema:** RAM estable con 263MB libres. CPU operando holgadamente con un 66% de inactividad a pesar de mantener el Kiosko cargado ininterrumpidamente. Sin pérdidas de memoria en 22 horas de *uptime*.
+
+## [2026-10-07] - Mantenimiento del Repositorio y Publicaciones
+### Refactor \& Limpieza
+- **Limpieza del Workspace:** Eliminación masiva de archivos temporales de diseño (`.png`), borradores markdown inútiles y scripts de parcheo provisionales (`patch_topbar.py`) para mantener la limpieza del proyecto.
+- **Control de Versiones:** Actualización estricta del `.gitignore` para garantizar que los nuevos archivos de estado dinámicos (`portfolio.json`) y el registro centralizado (`bot_unified.log`) no contaminen el repositorio remoto, asegurando que estos archivos vivan exclusivamente en producción (Raspberry Pi).
+- **Documentación Externa:** Generación de resúmenes de arquitectura y exportación de esquemas (TikZ/LaTeX) en el directorio `/linkedin post` para divulgar los retos de infraestructura abordados (memoria en ARM, WebSockets, etc.).

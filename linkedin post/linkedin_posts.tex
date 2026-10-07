@@ -1,0 +1,128 @@
+\documentclass[11pt, a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-noshorthands,es-noquoting]{babel}
+\usepackage{lmodern}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, shapes.geometric, calc}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{parskip}
+\usepackage{graphicx}
+
+% Colors
+\definecolor{accentBlue}{HTML}{0055A4}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=accentBlue,
+    filecolor=magenta,      
+    urlcolor=accentBlue,
+}
+
+\titleformat{\section}{\Large\bfseries\color{accentBlue}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\large\bfseries}{}{0em}{}
+
+\begin{document}
+
+\begin{center}
+    {\Huge \textbf{Publicaciones de LinkedIn}} \\[0.5cm]
+    {\large \textit{Proyectos en Raspberry Pi - Perfil Junior (DAM)}} \\[0.5cm]
+    {\small Gabriel Trujillo}
+\end{center}
+
+\vspace{1cm}
+
+\section*{Post 1: Telemetría Industrial en Raspberry Pi (Mi Primer Proyecto Real)}
+
+Como recién titulado en Desarrollo de Aplicaciones Multiplataforma (DAM), hacer una práctica en clase es una cosa, pero pelearte con el \textit{hardware} para que tu código funcione 24/7 sin colgarse es otra historia totalmente distinta. 
+
+Para poner a prueba lo aprendido, me propuse montar un sistema de \textbf{mantenimiento predictivo} (telemetría) que analiza datos de sensores simulados (vibración y temperatura) y alerta sobre posibles anomalías. El verdadero reto: hacer que todo el \textit{backend} corriera de forma estable en una humilde \textbf{Raspberry Pi}.
+
+Durante el desarrollo me di cuenta de lo rápido que un script en Python (usando \texttt{Pandas}) puede comerse toda la memoria de la placa. Así que me tocó investigar y aplicar algunas soluciones más "de trinchera":
+
+\begin{itemize}
+    \item \textbf{Dejar de saturar la red:} Al principio hacía peticiones REST constantes (polling), lo cual ahogaba la placa. Lo cambié por un túnel de \textbf{WebSockets} (\texttt{Flask-SocketIO}). Aprendí muchísimo sobre conexiones en tiempo real y logré que el dashboard de la web se actualizara sin latencia.
+    \item \textbf{Pelear contra la memoria RAM:} Para evitar que la Raspberry Pi colapsara, tuve que indagar en el \textit{Garbage Collector} de Python. Como capa extra de seguridad, aprendí a programar un \textbf{Cron Job en Linux} que purga los cachés a las 4:00 AM. ¡Mano de santo!
+    \item \textbf{Control de procesos:} Descubrí la librería \texttt{psutil} para monitorear el sistema y matar procesos \textit{zombies} que se quedaban colgados en segundo plano.
+\end{itemize}
+
+El resultado es un panel web donde delegué todo el trabajo visual a JavaScript, dejando a la Raspberry Pi solo con el procesamiento de datos. Es increíble lo que te enseña trabajar con recursos limitados en un dispositivo del tamaño de una tarjeta de crédito.
+
+\vspace{0.5cm}
+\textbf{\#DAM \#JuniorDeveloper \#Python \#RaspberryPi \#IoT \#WebSockets \#LearningByDoing}
+
+\vspace{1cm}
+
+\subsection*{Esquema de la Arquitectura}
+
+\vspace{0.5cm}
+
+\begin{center}
+\begin{tikzpicture}[>=stealth, thick,
+  box/.style={draw, fill=blue!5, rounded corners, text width=3.8cm, align=center, inner sep=2ex},
+  arrow/.style={->, shorten >=2pt, shorten <=2pt, color=gray!80!black}
+]
+  
+  \node[box, fill=orange!10] (sensors) at (0, 0) {\textbf{Sensores Industriales}\\(Vibración y Temp.)};
+  \node[box] (quant) at (6, 0) {\textbf{Servidor Python}\\(Análisis y \texttt{psutil})};
+  \node[box, fill=green!10] (dashboard) at (12, 0) {\textbf{Dashboard Web}\\(Panel interactivo JS)};
+  \node[box] (gc) at (6, -3) {\textbf{Mantenimiento OS}\\(Limpieza RAM 4:00 AM)};
+
+  \draw[arrow, <->] (sensors) -- node[above, font=\footnotesize] {Datos JSON} (quant);
+  \draw[arrow] (gc) -- node[right, font=\footnotesize] {Libera memoria} (quant);
+  \draw[arrow, <->] (quant) -- node[above, font=\footnotesize] {WebSockets} (dashboard);
+
+\end{tikzpicture}
+\end{center}
+
+\newpage
+
+\section*{Post 2: Recuperando el control de mi red doméstica con Pi-Hole}
+
+Durante la FP de DAM damos muchas bases de redes, pero quería aplicar esos conocimientos a algo útil en mi día a día. Así que este fin de semana he rescatado una vieja Raspberry Pi que tenía en un cajón para montarme un proyecto de infraestructura muy chulo: un \textbf{Pi-Hole}.
+
+Vivimos rodeados de dispositivos (Smart TVs, móviles, altavoces inteligentes) que envían telemetría constante a servidores externos, consumiendo ancho de banda. Un Pi-Hole funciona como un "agujero negro" DNS: intercepta y bloquea todas esas peticiones indeseadas a nivel de red.
+
+\textbf{¿Qué he conseguido tras configurarlo?}
+\begin{enumerate}
+    \item He asignado la Raspberry Pi como el \textbf{servidor DNS principal} del router, de forma que protege automáticamente a cualquier dispositivo que se conecte por Wi-Fi, sin tener que instalar nada en ellos.
+    \item \textbf{Mejora de rendimiento:} Las webs cargan mucho más rápido porque el tráfico de los anuncios y rastreadores se bloquea de raíz antes de descargarse.
+    \item \textbf{Monitorización:} Me ha encantado trastear con el panel de administración local para ver exactamente qué dispositivo intenta conectarse a qué dominio en tiempo real. 
+\end{enumerate}
+
+Ha sido un proyecto genial para asentar conceptos de enrutamiento DNS, asignaciones DHCP y \textit{self-hosting}. Si te gusta el desarrollo y el "cacharreo", te animo a probarlo. ¡Ver los \textit{logs} de tu Smart TV cuando está "apagada" te abre los ojos!
+
+\vspace{0.5cm}
+\textbf{\#Redes \#DAM \#PiHole \#RaspberryPi \#JuniorDeveloper \#SelfHosting \#Ciberseguridad}
+
+\vspace{1cm}
+
+\subsection*{Cómo funciona la Red Local ahora}
+
+\vspace{0.5cm}
+
+\begin{center}
+\begin{tikzpicture}[>=stealth, thick,
+  box/.style={draw, fill=blue!5, rounded corners, text width=3.5cm, align=center, inner sep=2ex},
+  alertbox/.style={draw=red, fill=red!5, rounded corners, text width=3.5cm, align=center, inner sep=2ex},
+  successbox/.style={draw=green, fill=green!5, rounded corners, text width=3.5cm, align=center, inner sep=2ex},
+  arrow/.style={->, shorten >=2pt, shorten <=2pt, color=gray!80!black}
+]
+  \node[box] (devices) at (0, 0) {\textbf{Red Doméstica}\\(Móvil, PC, Smart TV)};
+  \node[box, fill=yellow!10, draw=orange] (pihole) at (6, 0) {\textbf{Raspberry Pi}\\(Servidor DNS Pi-Hole)};
+  
+  \node[successbox] (web) at (12, 2.5) {\textbf{Internet}\\(Contenido Web Útil)};
+  \node[alertbox] (ads) at (12, -2.5) {\textbf{Servidores Externos}\\(Rastreadores y Anuncios)};
+
+  \draw[arrow] (devices) -- node[above, font=\footnotesize] {Petición DNS} (pihole);
+  \draw[arrow] (pihole) |- node[above, near start, font=\footnotesize] {Petición Válida} (web);
+  \draw[arrow, dashed, draw=red] (pihole) |- node[above, near start, font=\footnotesize, color=red] {Petición Bloqueada} (ads);
+\end{tikzpicture}
+\end{center}
+
+\end{document}
