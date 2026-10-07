@@ -173,12 +173,16 @@
                 box-sizing: border-box;
             }
             
-            /* Target ONLY the grid bot cards by class to fix 60px height */
+            /* Target ONLY the grid bot cards by class */
             .tf-card {
-                height: 60px !important;
+                height: auto !important;
+                margin-bottom: 0 !important; /* Remove margin so we don't double up with gap */
                 display: flex;
                 align-items: center;
                 overflow: hidden;
+            }
+            .bot-column {
+                gap: 12px; /* Control vertical spacing tightly */
             }
             
             /* Target ONLY the grid bot bodies */
