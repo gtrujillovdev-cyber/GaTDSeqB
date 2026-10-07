@@ -156,24 +156,42 @@ terminal_buffer = []
 def log_tailer_loop():
     global terminal_buffer
     import subprocess
+    import time as time_mod
+    
     log_file = "/home/raspberry/GaTDSEQ/bot_unified.log"
     if not os.path.exists(log_file): open(log_file, 'a').close()
     proc = subprocess.Popen(['tail', '-F', '-n', '8', log_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    
+    last_log_time = time_mod.time()
+    
     while True:
-        line = proc.stdout.readline()
-        if not line:
-            time.sleep(0.1)
-            continue
-        try:
-            line_str = line.decode('utf-8').strip()
-            if line_str:
-                terminal_buffer.append(line_str)
-                if len(terminal_buffer) > 8:
-                    terminal_buffer.pop(0)
+        import select
+        reads, _, _ = select.select([proc.stdout], [], [], 1.0)
+        
+        if reads:
+            line = proc.stdout.readline()
+            if line:
+                try:
+                    line_str = line.decode('utf-8').strip()
+                    if line_str:
+                        terminal_buffer.append(line_str)
+                        if len(terminal_buffer) > 8:
+                            terminal_buffer.pop(0)
+                        if clients > 0:
+                            socketio.emit('terminal_log', {'msg': line_str})
+                        last_log_time = time_mod.time()
+                except:
+                    pass
+        else:
+            # 1 second passed with no new logs
+            now = time_mod.time()
+            if now - last_log_time > 15: # Every 15 seconds of silence
+                sleep_sec = 300 - (int(now) % 300)
+                hb_msg = f"AWAITING NEXT CANDLE CLOSE... T-MINUS {sleep_sec} SECONDS"
+                # Don't add to buffer so it doesn't clutter history on reload, just emit
                 if clients > 0:
-                    socketio.emit('terminal_log', {'msg': line_str})
-        except:
-            pass
+                    socketio.emit('terminal_log', {'msg': hb_msg})
+                last_log_time = now
 
 threading.Thread(target=log_tailer_loop, daemon=True).start()
 
