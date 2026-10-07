@@ -155,43 +155,49 @@ terminal_buffer = []
 
 def log_tailer_loop():
     global terminal_buffer
-    import subprocess
-    import time as time_mod
+    import time
+    import os
     
     log_file = "/home/raspberry/GaTDSEQ/bot_unified.log"
     if not os.path.exists(log_file): open(log_file, 'a').close()
-    proc = subprocess.Popen(['tail', '-F', '-n', '8', log_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     
-    last_log_time = time_mod.time()
+    # Initialize with last 8 lines if possible
+    try:
+        with open(log_file, 'r') as f:
+            lines = f.readlines()
+            terminal_buffer = [line.strip() for line in lines[-8:] if line.strip()]
+    except:
+        pass
+
+    last_log_time = time.time()
     
-    while True:
-        import select
-        reads, _, _ = select.select([proc.stdout], [], [], 1.0)
+    with open(log_file, 'r') as f:
+        f.seek(0, 2) # Go to end
         
-        if reads:
-            line = proc.stdout.readline()
+        while True:
+            line = f.readline()
             if line:
                 try:
-                    line_str = line.decode('utf-8').strip()
+                    line_str = line.strip()
                     if line_str:
                         terminal_buffer.append(line_str)
                         if len(terminal_buffer) > 8:
                             terminal_buffer.pop(0)
                         if clients > 0:
                             socketio.emit('terminal_log', {'msg': line_str})
-                        last_log_time = time_mod.time()
+                        last_log_time = time.time()
                 except:
                     pass
-        else:
-            # 1 second passed with no new logs
-            now = time_mod.time()
-            if now - last_log_time > 15: # Every 15 seconds of silence
-                sleep_sec = 300 - (int(now) % 300)
-                hb_msg = f"AWAITING NEXT CANDLE CLOSE... T-MINUS {sleep_sec} SECONDS"
-                # Don't add to buffer so it doesn't clutter history on reload, just emit
-                if clients > 0:
-                    socketio.emit('terminal_log', {'msg': hb_msg})
-                last_log_time = now
+            else:
+                # No new line, check heartbeat
+                now = time.time()
+                if now - last_log_time > 15:
+                    sleep_sec = 300 - (int(now) % 300)
+                    hb_msg = f"AWAITING NEXT CANDLE CLOSE... T-MINUS {sleep_sec} SECONDS"
+                    if clients > 0:
+                        socketio.emit('terminal_log', {'msg': hb_msg})
+                    last_log_time = now
+                time.sleep(0.5)
 
 threading.Thread(target=log_tailer_loop, daemon=True).start()
 
