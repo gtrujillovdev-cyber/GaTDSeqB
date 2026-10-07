@@ -166,25 +166,32 @@
                 padding: 12px 5px;
             }
             .history-table td { padding: 12px 5px; border-bottom: 1px dotted #333; }
+            /* General bot cards (like HOLDINGS) */
             .bot-card { 
                 margin-bottom: 18px !important; 
                 padding: 12px !important; 
-                height: 60px !important; /* EXACT height to force horizontal alignment */
                 box-sizing: border-box;
+            }
+            
+            /* Target ONLY the grid bot cards by class to fix 60px height */
+            .tf-card {
+                height: 60px !important;
                 display: flex;
                 align-items: center;
                 overflow: hidden;
             }
-            .bot-body { 
-                padding: 0 !important; 
+            
+            /* Target ONLY the grid bot bodies */
+            .tf-card .bot-body {
+                padding: 0 !important;
                 width: 100%;
                 white-space: nowrap;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
             }
-            /* Make sure inner spans can shrink if needed */
-            .bot-body span {
+            
+            .tf-card .bot-body span {
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
