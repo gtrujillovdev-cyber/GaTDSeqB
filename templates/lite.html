@@ -507,7 +507,7 @@
                             let roi = state.bank ? ((state.bank - 10000) / 10000) * 100 : 0;
                             let rColor = roi >= 0 ? '#00ff00' : '#ff0000';
                             let rSign = roi > 0 ? '+' : '';
-                            let roiStr = state.bank ? `<span style="color:${rColor}; font-size:14px; font-weight:bold;">$${state.bank.toLocaleString(undefined, {maximumFractionDigits:0})} <span style="font-size:11px; font-weight:normal;">(${rSign}${roi.toFixed(2)}%)</span></span>` : '';
+                            let roiStr = state.bank ? `<span style="color:${rColor}; font-size:14px; font-weight:bold;">$${state.bank.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="font-size:11px; font-weight:normal;">(${rSign}${roi.toFixed(2)}%)</span></span>` : '';
                             
                             assetGrid += `
                                 <div class="bot-card tf-card" style="margin-bottom: 0px; padding: 8px; height: 42px; display: flex; align-items: center; justify-content: space-between; overflow: hidden; white-space: nowrap;">
