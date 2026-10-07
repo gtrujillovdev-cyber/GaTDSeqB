@@ -34,7 +34,7 @@
         .bot-card { border: 1px solid #ffb200; background: #000000;
                 min-height: 0; display: flex; flex-direction: column;}
         .bot-header { font-size: 15px; font-weight: bold; background: #000000;
-                min-height: 0; padding: 10px 12px; border-bottom: 1px solid #ffb200; display: flex; justify-content: space-between; align-items: center; color: #ffb200;}
+                min-height: 0; padding: 10px 12px; border-bottom: 1px solid #ffb200; display: flex; justify-content: space-between; align-items: baseline; color: #ffb200;}
         .status-badge { padding: 3px 6px; font-size: 11px; color: #000; font-weight: bold; border-radius: 0px;}
         .status-active { background-color: #00ff00; }
         .status-idle { background-color: #ffb200; }
@@ -61,7 +61,7 @@
                 height: auto; overflow-y: auto; 
                 padding: max(15px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
             }
-            .top-bar { flex-direction: column; align-items: center; gap: 8px; border-bottom: none;}
+            .top-bar { flex-direction: column; align-items: baseline; gap: 8px; border-bottom: none;}
             .hw-stats { justify-content: center; width: 100%; flex-wrap: wrap; margin-bottom: 10px; margin-top: 0;}
             
             #btc-price { font-size: 42px !important; }
@@ -102,14 +102,19 @@
             
             /* FORCE ALL HEADERS TO ALIGN PERFECTLY */
             .bot-column h2, .history-panel h2 { 
-                font-size: 24px !important; 
+                font-size: 20px !important; /* Slightly smaller to fit GLOBAL TRADE HISTORY LOG in 1 line */
                 margin: 0 0 20px 0 !important; 
                 padding: 0 0 10px 0 !important;
                 border-bottom: 2px solid #ffb200 !important; 
-                line-height: 1 !important;
+                line-height: 1.2 !important;
                 text-transform: uppercase;
-                height: 30px; /* Fixed height to guarantee alignment */
+                height: 35px; /* Fixed height */
                 box-sizing: border-box;
+                text-align: center;
+                color: #ffb84d;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             
             /* Remove old inline borders so they don't clash */
@@ -162,7 +167,7 @@
             }
             .history-table td { padding: 12px 5px; border-bottom: 1px dotted #333; }
 
-            .top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+            .top-bar { display: flex; justify-content: space-between; align-items: baseline; width: 100%; padding-right: 40px; box-sizing: border-box; }
             .top-bar h1 { font-size: 32px; margin: 0; }
             .hw-stats { display: flex; gap: 20px; white-space: nowrap; margin: 0; }
             
@@ -210,15 +215,13 @@
     <div id="terminal-log" class="desktop-only" style="grid-area: terminal; border: 1px solid #333; background: #050505; color: #00ff00; padding: 15px; font-size: 13px; font-family: monospace; overflow: hidden; margin-top: 20px;">
         <div style="color: #666; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px;">> SYSTEM LOG (LIVE)</div>
         <div id="terminal-content">
-            > SYSTEM INITIALIZATION SECURE...<br>
-            > CONNECTING TO GaTDSEQ FLEET...<br>
-            > AWAITING QUANTITATIVE DATA...
+            
         </div>
     </div>
 
     
     <div class="history-panel" id="trade-history-panel">
-        <h2 style="color:#FFCC00; margin-top:0; border-bottom: 1px solid #ffb200; padding-bottom:5px; text-align:center;">GLOBAL TRADE HISTORY LOG</h2>
+        <h2>GLOBAL TRADE HISTORY LOG</h2>
         <div id="history-content">LOADING...</div>
     </div>
 </div> <!-- end bloomberg-terminal -->
@@ -438,7 +441,7 @@
                 let totalHistoricalTrades = 0;
                 
                 for (const asset of ['BTC', 'ETH', 'HYPE']) {
-                    let assetGrid = `<div class="bot-column"><h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; margin-top: 0; text-align: center;">${asset}</h2>`;
+                    let assetGrid = `<div class="bot-column"><h2>${asset}</h2>`;
                     
                     if (!fleet[asset]) continue;
                     
@@ -551,7 +554,7 @@
                 
                 // HOLDINGS
                 htmlGrid += `<div class="bot-column">
-                    <h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 20px; text-align: center;">HOLDINGS</h2>
+                    <h2>HOLDINGS</h2>
                     <div class="bot-card" style="border: 1px solid #00ff00; background: rgba(0,255,0,0.02);">
                         <div class="bot-header" style="color: #00ff00; border-bottom: 1px solid #00ff00;">
                             <span>[ HOLDINGS ]</span>

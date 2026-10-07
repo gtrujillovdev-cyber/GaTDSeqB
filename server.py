@@ -150,7 +150,35 @@ def api_fleet():
     return jsonify(get_fleet_data())
 
 
+
+terminal_buffer = []
+
+def log_tailer_loop():
+    global terminal_buffer
+    import subprocess
+    log_file = "/home/raspberry/GaTDSEQ/bot_unified.log"
+    if not os.path.exists(log_file): open(log_file, 'a').close()
+    proc = subprocess.Popen(['tail', '-F', '-n', '8', log_file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    while True:
+        line = proc.stdout.readline()
+        if not line:
+            time.sleep(0.1)
+            continue
+        try:
+            line_str = line.decode('utf-8').strip()
+            if line_str:
+                terminal_buffer.append(line_str)
+                if len(terminal_buffer) > 8:
+                    terminal_buffer.pop(0)
+                if clients > 0:
+                    socketio.emit('terminal_log', {'msg': line_str})
+        except:
+            pass
+
+threading.Thread(target=log_tailer_loop, daemon=True).start()
+
 # --- WEBSOCKETS LOGIC ---
+
 clients = 0
 
 @socketio.on('connect')
@@ -159,6 +187,8 @@ def handle_connect():
     clients += 1
     # Emit initial data on connect
     emit('fleet_update', get_fleet_data())
+    for line in terminal_buffer:
+        emit('terminal_log', {'msg': line})
 
 @socketio.on('disconnect')
 def handle_disconnect():
