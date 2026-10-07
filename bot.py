@@ -287,15 +287,18 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
     with open(TRADES_FILE, "w") as f:
         json.dump(trades, f)
         
-    msg = (f"🟢 <b>NUEVA OPERACIÓN {SYMBOL} [{TIMEFRAME}] ({action})</b>\n\n"
-           f"💰 Precio: ${price:,.2f}\n"
-           f"🛡 Stop Loss: ${sl:,.2f}\n"
-           f"🎯 Take Profit: ${tp:,.2f}\n"
-           f"💵 Inversión: ${position_size_usd:,.2f} ({position_size_btc:.4f} {SYMBOL})\n" \
-           f"⚡ Apalancamiento: x{required_leverage:.2f}\n"
-           f"⚠️ Riesgo Máximo: ${actual_risk_amount:,.2f} ({(actual_risk_amount/current_bank)*100:.2f}%)\n"
-           f"🏦 Bankroll: ${current_bank:,.2f}\n"
-           f"🧠 Estrategia: {reason}")
+    direction = "LONG" if action == "BUY" else "SHORT"
+    icon = "🟩" if action == "BUY" else "🟥"
+    msg = (f"{icon} <b>ORDER EXECUTED | {SYMBOL} [{TIMEFRAME}]</b>\n\n"
+           f"<b>Type:</b> MARKET {direction}\n"
+           f"<b>Entry Price:</b> ${price:,.2f}\n"
+           f"<b>Stop Loss:</b> ${sl:,.2f}\n"
+           f"<b>Take Profit:</b> ${tp:,.2f}\n"
+           f"<b>Position Size:</b> ${position_size_usd:,.2f} ({position_size_btc:.4f} {SYMBOL})\n"
+           f"<b>Leverage:</b> {required_leverage:.2f}x\n"
+           f"<b>Risk Exposure:</b> ${actual_risk_amount:,.2f} ({(actual_risk_amount/current_bank)*100:.2f}%)\n"
+           f"<b>Current Bank:</b> ${current_bank:,.2f}\n"
+           f"<b>Model:</b> {reason}")
     send_telegram(msg)
     print(f"Trade {action} Ejecutado a ${price:.2f} | Inversión: ${position_size_usd:.2f} | Riesgo: ${actual_risk_amount:.2f}")
 
@@ -325,7 +328,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if new_sl > sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
-            send_telegram(f"📈 <b>Trailing Stop Movido a tu favor {SYMBOL} [{TIMEFRAME}]</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
+            send_telegram(f"🛡 <b>RISK MITIGATION | {SYMBOL} [{TIMEFRAME}]</b>\nTrailing Stop advanced to lock in favorable delta.\n\n<b>New Stop Loss:</b> ${updated_sl:,.2f}\n<b>Current Price:</b> ${current_live_price:,.2f}")
             
         # Evaluate against the candle wicks (low/high) for realism
         if low_price <= updated_sl:
@@ -351,7 +354,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         if new_sl < sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
-            send_telegram(f"📉 <b>Trailing Stop Movido a tu favor {SYMBOL} [{TIMEFRAME}]</b>\n\n🛡 Nuevo Stop Loss: ${updated_sl:,.2f}\n💵 Precio actual: ${current_live_price:,.2f}")
+            send_telegram(f"🛡 <b>RISK MITIGATION | {SYMBOL} [{TIMEFRAME}]</b>\nTrailing Stop advanced to lock in favorable delta.\n\n<b>New Stop Loss:</b> ${updated_sl:,.2f}\n<b>Current Price:</b> ${current_live_price:,.2f}")
             
         # Evaluate against the candle wicks (low/high) for realism
         if high_price >= updated_sl:
@@ -403,11 +406,14 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
         with open(STATE_FILE, "w") as f:
             json.dump(state, f)
             
-        emoji = "✅" if pnl_dollars > 0 else "❌"
-        msg = (f"{emoji} <b>OPERACIÓN CERRADA {SYMBOL} [{TIMEFRAME}] ({close_reason})</b>\n\n"
-               f"💰 Precio Cierre: ${current_live_price:,.2f}\n"
-               f"💵 Beneficio/Pérdida: ${pnl_dollars:,.2f}\n"
-               f"🏦 Nuevo Bankroll: ${new_bank:,.2f}")
+        emoji = "🟩" if pnl_dollars > 0 else "🟥"
+        result_str = "PROFIT" if pnl_dollars > 0 else "LOSS"
+        sign = "+" if pnl_dollars > 0 else ""
+        msg = (f"{emoji} <b>POSITION CLOSED | {SYMBOL} [{TIMEFRAME}]</b>\n\n"
+               f"<b>Trigger:</b> {close_reason}\n"
+               f"<b>Exit Price:</b> ${current_live_price:,.2f}\n"
+               f"<b>Net {result_str}:</b> {sign}${pnl_dollars:,.2f}\n"
+               f"<b>Updated Bank:</b> ${new_bank:,.2f}")
         send_telegram(msg)
 
 def load_state():
@@ -438,7 +444,7 @@ if __name__ == "__main__":
 
     INITIAL_BANK = args.bank
     print(f"Iniciando GaTDSEQ Bot UNIFICADO | Bank: ${INITIAL_BANK}...")
-    send_telegram("🤖 <b>Bot UNIFICADO Iniciado</b>\n\nControlando 5 timeframes simultáneamente para ahorrar RAM.")
+    send_telegram("🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking multi-asset pipeline (5 Timeframes).")
     
     timeframes = ['5m', '15m', '1h', '4h', '1d']
     assets = ['BTC', 'ETH', 'HYPE']
