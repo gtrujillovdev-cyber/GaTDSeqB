@@ -507,20 +507,18 @@
                             let roi = state.bank ? ((state.bank - 10000) / 10000) * 100 : 0;
                             let rColor = roi >= 0 ? '#00ff00' : '#ff0000';
                             let rSign = roi > 0 ? '+' : '';
-                            let roiStr = state.bank ? `<span style="color:${rColor}; font-size:11px;">$${state.bank.toLocaleString(undefined, {maximumFractionDigits:0})} (${rSign}${roi.toFixed(2)}%)</span>` : '';
+                            let roiStr = state.bank ? `<span style="color:${rColor}; font-size:14px; font-weight:bold;">$${state.bank.toLocaleString(undefined, {maximumFractionDigits:0})} <span style="font-size:11px; font-weight:normal;">(${rSign}${roi.toFixed(2)}%)</span></span>` : '';
                             
                             assetGrid += `
-                                <div class="bot-card" style="margin-bottom: 5px; padding: 8px;">
-                                    <div class="bot-header" style="border: none; padding: 0;">
-                                        <div style="display:flex; align-items:center; gap:8px;">
-                                            <span>[ ${tf} ]</span>
-                                            ${roiStr}
+                                <div class="bot-card tf-card" style="margin-bottom: 0px; padding: 8px; height: 42px; display: flex; align-items: center; justify-content: space-between; overflow: hidden; white-space: nowrap;">
+                                        <div style="display:flex; align-items:center; gap:5px; flex: 1; min-width: 0;">
+                                            <span style="font-size: 9px; font-weight: normal; color: #ffb200; flex-shrink: 0;">[${tf}]</span>
+                                            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">${roiStr}</div>
                                         </div>
-                                        <div style="display:flex; gap:10px; align-items:center;">
-                                            <span style="font-size: 11px;">TD: <span class="${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></span>
+                                        <div style="display:flex; gap:8px; align-items:center; flex-shrink: 0; margin-left: 5px;">
+                                            <span style="font-size: 11px; color: #fff;">TD: <span class="${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></span>
                                             <span class="status-badge ${badgeClass}">${badgeText}</span>
                                         </div>
-                                    </div>
                                 </div>
                             `;
                             continue;
