@@ -51,7 +51,7 @@
         
         .trade-card { border: 1px dashed #ffb200; background: #000000;
                 min-height: 0; padding: 12px; display: flex; flex-direction: column; flex: 1;}
-        .trade-header { font-size: 13px; color: #ffb200; border-bottom: 1px solid #ffb200; margin-bottom: 10px; text-align: center; padding-bottom: 6px; font-weight: bold;}
+        .trade-header { font-size: 13px; color: #ffb200; border-bottom: 1px solid #ffb200; margin-bottom: 10px; margin-top: 0; text-align: center; padding-bottom: 6px; font-weight: bold;}
         .trade-row { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 1px dotted #333; padding: 6px 0; font-weight: bold;}
         .trade-row:last-child { border-bottom: none; }
 
@@ -62,7 +62,7 @@
                 padding: max(15px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
             }
             .top-bar { flex-direction: column; align-items: center; gap: 8px; border-bottom: none;}
-            .hw-stats { justify-content: center; width: 100%; flex-wrap: wrap; margin-bottom: 10px;}
+            .hw-stats { justify-content: center; width: 100%; flex-wrap: wrap; margin-bottom: 10px; margin-top: 0;}
             
             #btc-price { font-size: 42px !important; }
             #macro-context { font-size: 13px; display: flex; flex-direction: column; gap: 5px; }
@@ -118,7 +118,7 @@
             }
             
             /* SCALING UP FONTS AND PADDINGS TO FILL THE VOID */
-            .bot-column h2 { font-size: 24px !important; margin-bottom: 20px !important; }
+            .bot-column h2 { font-size: 24px !important; margin-bottom: 20px !important; margin-top: 0 !important; }
             .bot-card { margin-bottom: 18px !important; padding: 12px !important; }
             .bot-header { font-size: 18px; padding: 12px; }
             .bot-body { padding: 15px; }
@@ -400,7 +400,7 @@
                 let totalHistoricalTrades = 0;
                 
                 for (const asset of ['BTC', 'ETH', 'HYPE']) {
-                    let assetGrid = `<div class="bot-column"><h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; text-align: center;">${asset}</h2>`;
+                    let assetGrid = `<div class="bot-column"><h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; margin-top: 0; text-align: center;">${asset}</h2>`;
                     
                     if (!fleet[asset]) continue;
                     
@@ -513,7 +513,7 @@
                 
                 // HOLDINGS
                 htmlGrid += `<div class="bot-column">
-                    <h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 20px; margin-top:0; text-align: center;">HOLDINGS</h2>
+                    <h2 style="color: #ffb84d; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 20px; text-align: center;">HOLDINGS</h2>
                     <div class="bot-card" style="border: 1px solid #00ff00; background: rgba(0,255,0,0.02);">
                         <div class="bot-header" style="color: #00ff00; border-bottom: 1px solid #00ff00;">
                             <span>[ HOLDINGS ]</span>
