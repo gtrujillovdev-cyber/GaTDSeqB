@@ -380,7 +380,7 @@
                             extraInfo = `
                                 <div style="display:flex; flex-direction:column; line-height:1.4;">
                                     <span>${amount} u.</span>
-                                    <span>Compra: $${asset.entry_price.toLocaleString(undefined, {maximumFractionDigits: 8})}</span>
+                                    <span>Entry: $${asset.entry_price.toLocaleString(undefined, {maximumFractionDigits: 8})}</span>
                                 </div>
                             `;
                         } else {
@@ -408,8 +408,8 @@
                         
                         let extraInfo = `
                             <div style="display:flex; flex-direction:column; line-height:1.4;">
-                                <span>Margen: $${asset.margin.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
-                                <span>C: $${asset.entry_price.toLocaleString(undefined, {maximumFractionDigits: 8})}${asset.liq_price ? ' <span style="margin:0 4px;">|</span> <span style="color:#ff6b6b">Liq: $'+asset.liq_price.toLocaleString(undefined, {maximumFractionDigits: 8})+'</span>' : ''}</span>
+                                <span>Margin: $${asset.margin.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
+                                <span>E: $${asset.entry_price.toLocaleString(undefined, {maximumFractionDigits: 8})}${asset.liq_price ? ' <span style="margin:0 4px;">|</span> <span style="color:#ff6b6b">Liq: $'+asset.liq_price.toLocaleString(undefined, {maximumFractionDigits: 8})+'</span>' : ''}</span>
                             </div>
                         `;
                         
@@ -688,7 +688,12 @@
                 // Clear the default text on first load
                 if(tc.innerHTML.includes('SYSTEM INITIALIZATION')) { tc.innerHTML = ''; }
                 let lines = tc.innerHTML.split('<br>').filter(l => l.trim() !== '');
-                lines.push('> ' + data.msg);
+                let msg = data.msg;
+                msg = msg.replace(/Analizando/g, 'Analyzing');
+                msg = msg.replace(/con Inteligencia Cuantitativa/g, 'via Quantitative Core');
+                msg = msg.replace(/Precio:/g, 'Price:');
+                msg = msg.replace(/en/g, 'on'); // 'Analizando BTC en 5m' -> 'Analyzing BTC on 5m'
+                lines.push('> ' + msg);
                 if(lines.length > 9) lines.shift();
                 tc.innerHTML = lines.join('<br>');
             }
