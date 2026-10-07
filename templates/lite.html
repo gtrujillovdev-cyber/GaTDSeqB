@@ -74,19 +74,19 @@
 
         /* RESPONSIVE ULTRA-WIDE (LG UltraGear / Bloomberg Terminal Mode) */
         @media (min-width: 1600px) {
-            body { padding: 25px; height: 100vh; overflow: hidden; }
+            body { padding: 30px; height: 100vh; overflow: hidden; box-sizing: border-box; }
             
             .bloomberg-terminal {
                 display: grid;
-                grid-template-columns: 70% 30%;
-                grid-template-rows: auto 1fr;
+                grid-template-columns: 72% 28%;
+                grid-template-rows: auto 1fr auto;
                 grid-template-areas: 
                     "header header"
-                    "bots history";
-                gap: 40px;
+                    "bots history"
+                    "terminal history";
+                gap: 20px 40px;
                 height: 100%;
                 width: 100%;
-                max-width: none;
             }
             
             .header-container { grid-area: header; }
@@ -96,29 +96,56 @@
                 display: grid; 
                 grid-template-columns: repeat(4, 1fr); 
                 gap: 30px; 
-                overflow: hidden; /* No scrolling */
+                overflow: hidden; 
                 align-content: start;
             }
+            
+            /* FORCE ALL HEADERS TO ALIGN PERFECTLY */
+            .bot-column h2, .history-panel h2 { 
+                font-size: 24px !important; 
+                margin: 0 0 20px 0 !important; 
+                padding: 0 0 10px 0 !important;
+                border-bottom: 2px solid #ffb200 !important; 
+                line-height: 1 !important;
+                text-transform: uppercase;
+                height: 30px; /* Fixed height to guarantee alignment */
+                box-sizing: border-box;
+            }
+            
+            /* Remove old inline borders so they don't clash */
+            .history-panel h2 { border-bottom: none; }
             
             .history-panel { 
                 grid-area: history; 
                 margin-top: 0; 
                 display: flex; 
                 flex-direction: column; 
-                overflow: hidden; /* No scrolling */
-                border: 2px solid #FFCC00; 
+                overflow: hidden; 
+                border: 1px solid #333; 
                 background: #000000;
                 min-height: 0; 
+                padding: 20px; /* Add padding here so the h2 aligns with the bots which have no outer wrapper padding */
+            }
+            
+            /* Actually, if history-panel has padding, its h2 will be lower! 
+               Let's make history-panel have NO padding at the top, just like bot-column! */
+            .history-panel {
+                padding: 0;
+                border: none; /* We will put the border on the content instead */
             }
             
             #history-content { 
                 flex: 1; 
-                overflow: hidden; /* No scrolling */
-                padding: 10px;
+                overflow: hidden; 
+                padding: 15px;
+                border: 1px solid #FFCC00;
             }
             
-            /* SCALING UP FONTS AND PADDINGS TO FILL THE VOID */
-            .bot-column h2 { font-size: 24px !important; margin-bottom: 20px !important; margin-top: 0 !important; }
+            #terminal-log {
+                display: block !important;
+                height: 180px;
+            }
+            
             .bot-card { margin-bottom: 18px !important; padding: 12px !important; }
             .bot-header { font-size: 18px; padding: 12px; }
             .bot-body { padding: 15px; }
@@ -126,21 +153,22 @@
             .label { font-size: 15px; }
             .value { font-size: 15px; }
             
-            .history-table { font-size: 16px; }
+            .history-table { font-size: 16px; width: 100%; }
             .history-table th { 
                 background: #000000; 
                 z-index: 10; 
                 border-bottom: 2px solid #FFCC00;
                 padding: 12px 5px;
-                font-size: 16px;
             }
             .history-table td { padding: 12px 5px; border-bottom: 1px dotted #333; }
 
-            .top-bar h1 { font-size: 36px; }
+            .top-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+            .top-bar h1 { font-size: 32px; margin: 0; }
+            .hw-stats { display: flex; gap: 20px; white-space: nowrap; margin: 0; }
+            
             #btc-price { font-size: 72px !important; margin: 20px 0; }
             #macro-context { font-size: 20px; margin-bottom: 30px; }
             
-            /* Hide the ugly scrollbars completely */
             ::-webkit-scrollbar { display: none; }
         }
     
@@ -178,6 +206,16 @@
 
     <div class="main-grid" id="main-grid">
     </div>
+
+    <div id="terminal-log" class="desktop-only" style="grid-area: terminal; border: 1px solid #333; background: #050505; color: #00ff00; padding: 15px; font-size: 13px; font-family: monospace; overflow: hidden; margin-top: 20px;">
+        <div style="color: #666; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px;">> SYSTEM LOG (LIVE)</div>
+        <div id="terminal-content">
+            > SYSTEM INITIALIZATION SECURE...<br>
+            > CONNECTING TO GaTDSEQ FLEET...<br>
+            > AWAITING QUANTITATIVE DATA...
+        </div>
+    </div>
+
     
     <div class="history-panel" id="trade-history-panel">
         <h2 style="color:#FFCC00; margin-top:0; border-bottom: 1px solid #ffb200; padding-bottom:5px; text-align:center;">GLOBAL TRADE HISTORY LOG</h2>
