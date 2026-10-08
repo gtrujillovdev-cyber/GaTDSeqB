@@ -165,3 +165,13 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - `ETH_4H`: TD -13.
   - `HYPE_4H`: TD -14.
 - El algoritmo está diseñado para aguantar la respiración hasta la capitulación final (TD 13). Las condiciones están dadas para que la nueva lógica de *Scale-Out* (asegurar el 50% al 1.0 ATR) brille cuando ocurra el rebote.
+
+## [08-10-2026] - Operación: Integración de Lógica Wyckoff (Volumen vs Esfuerzo)
+### 1. Estado del Acoplamiento Cuantitativo
+- La nueva validación extrema (Filtro de Volumen SMA + Bandas de Bollinger) se ha acoplado sin errores de compilación ni caídas del servicio en la Raspberry Pi. 
+- Conceptualmente, el bot ahora opera con principios del *Método Wyckoff*: Valida las fases de Acumulación/Distribución buscando la convergencia entre el Esfuerzo (Volumen Institucional) y el Resultado (Extensión de precio en las Bandas de Bollinger), filtrando las falsas roturas (Springs/Upthrusts).
+
+### 2. Evaluación de Mercado Actual
+- El mercado se encuentra en fase de consolidación severa (Lateralización de 4H tras la caída).
+- `BTC_4H` sigue en TD -11, acumulando energía.
+- Los nuevos filtros están armados y evaluando silenciosamente en el *background*. Se espera que la volatilidad regrese con el cierre de la vela de 4H o diaria.
