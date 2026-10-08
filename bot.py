@@ -483,13 +483,21 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             close_reason = "Stop Loss"
             current_live_price = updated_sl # For closing log
         elif high_price >= tp:
-            print("✅ Take Profit alcanzado en la mecha superior.")
-            pnl_dollars = (tp - entry) * size_btc
-            exit_fee = (tp * size_btc) * 0.0004
-            pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
-            closed = True
-            close_reason = "Take Profit"
-            current_live_price = tp # For closing log
+            if live_candle.get('rsi', 50) >= 65:
+                # Dynamic TP Extension (Let winners run)
+                print(f"🔥 Take Profit alcanzado pero mercado eufórico (RSI >= 65). Extendiendo TP.")
+                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp + (atr * 2.0):,.2f}\n<b>Locked SL:</b> ${max(updated_sl, tp - (atr * 0.5)):,.2f}")
+                state["take_profit"] = tp + (atr * 2.0)
+                if (tp - (atr * 0.5)) > updated_sl:
+                    updated_sl = tp - (atr * 0.5)
+            else:
+                print("✅ Take Profit alcanzado en la mecha superior.")
+                pnl_dollars = (tp - entry) * size_btc
+                exit_fee = (tp * size_btc) * 0.0004
+                pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
+                closed = True
+                close_reason = "Take Profit"
+                current_live_price = tp # For closing log
             
     elif action == "SELL":
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
@@ -509,13 +517,21 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             close_reason = "Stop Loss"
             current_live_price = updated_sl # For closing log
         elif low_price <= tp:
-            print("✅ Take Profit alcanzado en la mecha inferior.")
-            pnl_dollars = (entry - tp) * size_btc
-            exit_fee = (tp * size_btc) * 0.0004
-            pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
-            closed = True
-            close_reason = "Take Profit"
-            current_live_price = tp # For closing log
+            if live_candle.get('rsi', 50) <= 35:
+                # Dynamic TP Extension (Let winners run)
+                print(f"🔥 Take Profit alcanzado pero mercado eufórico (RSI <= 35). Extendiendo TP.")
+                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp - (atr * 2.0):,.2f}\n<b>Locked SL:</b> ${min(updated_sl, tp + (atr * 0.5)):,.2f}")
+                state["take_profit"] = tp - (atr * 2.0)
+                if (tp + (atr * 0.5)) < updated_sl:
+                    updated_sl = tp + (atr * 0.5)
+            else:
+                print("✅ Take Profit alcanzado en la mecha inferior.")
+                pnl_dollars = (entry - tp) * size_btc
+                exit_fee = (tp * size_btc) * 0.0004
+                pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
+                closed = True
+                close_reason = "Take Profit"
+                current_live_price = tp # For closing log
 
     # Save state if trailing stop moved
     if updated_sl != sl and not closed:
