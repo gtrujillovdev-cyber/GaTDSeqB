@@ -9,6 +9,38 @@ from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
+
+TICKER_CACHE = {'BTC': [0,0], 'ETH': [0,0], 'HYPE': [0,0], 'SP500': [0,0], 'NASDAQ': [0,0]}
+import threading, requests
+
+def ticker_fetch_loop():
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    while True:
+        try:
+            # 1. Fetch Crypto from Binance
+            r = requests.get('https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22HYPEUSDT%22%5D', timeout=5)
+            if r.status_code == 200:
+                for d in r.json():
+                    sym = d['symbol'].replace('USDT', '')
+                    TICKER_CACHE[sym] = [float(d['lastPrice']), float(d['priceChangePercent'])]
+                    
+            # 2. Fetch TradFi from Yahoo
+            for ticker, sym in [('^GSPC', 'SP500'), ('^IXIC', 'NASDAQ')]:
+                r = requests.get(f'https://query2.finance.yahoo.com/v8/finance/chart/{ticker}', headers=headers, timeout=5)
+                if r.status_code == 200:
+                    data = r.json()['chart']['result'][0]['meta']
+                    price = data['regularMarketPrice']
+                    prev = data.get('chartPreviousClose', price)
+                    pct = ((price - prev) / prev) * 100 if prev else 0
+                    TICKER_CACHE[sym] = [price, pct]
+        except Exception as e:
+            print(f"Error fetching ticker: {e}")
+            
+        time.sleep(30)
+
+threading.Thread(target=ticker_fetch_loop, daemon=True).start()
+
+
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -82,7 +114,7 @@ def get_fleet_data():
         
     for asset in ['BTC', 'ETH', 'HYPE']:
         fleet[asset] = {}
-        for tf in ['5m', '15m', '1h', '4h', '1d']:
+        for tf in ['1h', '4h', '1d']:
             state_file = f"state_{asset}_{tf}.json"
             if os.path.exists(state_file):
                 with open(state_file, "r") as f:
@@ -225,7 +257,7 @@ def websocket_monitor_loop():
         if clients > 0:
             changed = False
             for asset in ['BTC', 'ETH', 'HYPE']:
-                for tf in ['5m', '15m', '1h', '4h', '1d']:
+                for tf in ['1h', '4h', '1d']:
                     state_file = f"state_{asset}_{tf}.json"
                     if os.path.exists(state_file):
                         m = os.path.getmtime(state_file)
