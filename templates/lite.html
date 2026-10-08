@@ -538,8 +538,9 @@
                 let globalUnrealizedPnl = 0;
                 let activeTradesCount = 0;
                 let totalHistoricalTrades = 0;
+                let activeBotsCount = 0;
                 
-                for (const asset of ['BTC', 'ETH', 'HYPE']) {
+                for (const asset of ['BTC', 'ETH', 'HYPE', 'WYCKOFF']) {
                     let assetGrid = `<div class="bot-column"><h2>${asset}</h2>`;
                     
                     if (!fleet[asset]) continue;
@@ -548,6 +549,7 @@
                         const state = fleet[asset][tf];
                         if (!state) continue;
                         globalEquity += state.bank || 10000.0;
+                        activeBotsCount++;
                         
                         let badgeClass = 'status-offline';
                         let badgeText = 'OFFLINE';
@@ -568,7 +570,10 @@
                                         <span style="font-size: 10px; font-weight: bold; color: #ffb200; text-align: left; display: block;">[${tf}]</span>
                                         <div style="white-space: nowrap; text-align: left; display: block;">${roiStr}</div>
                                         <div style="display:flex; gap:10px; align-items:center; justify-content: flex-end;">
-                                            <span style="font-size: 11px; color: #fff;">TD: <span class="${tdColor}" style="display: inline-block; width: 22px; text-align: right;">${state.td_count !== undefined ? state.td_count : '--'}</span></span>
+                                            ${asset === 'WYCKOFF' ? 
+    `<span style="font-size: 11px; color: #fff;">VP: <span style="display: inline-block; text-align: right; color:#aaa;">POC ${state.poc ? Math.round(state.poc) : '--'}</span></span>` : 
+    `<span style="font-size: 11px; color: #fff;">TD: <span class="${tdColor}" style="display: inline-block; width: 22px; text-align: right;">${state.td_count !== undefined ? state.td_count : '--'}</span></span>`
+}
                                             <span class="status-badge ${badgeClass}" style="width: 35px; text-align: center;">${badgeText}</span>
                                         </div>
                                 </div>
