@@ -96,6 +96,12 @@ def get_data(symbol="BTC/USDT", timeframe="4h", limit=1000):
         # Filtro de Volumen (Institucional)
         df['volume_sma'] = df['volume'].rolling(window=20).mean()
         
+        # Bandas de Bollinger (SMA 20, 2 StdDev)
+        df['sma_20'] = df['close'].rolling(window=20).mean()
+        df['std_20'] = df['close'].rolling(window=20).std()
+        df['bb_upper'] = df['sma_20'] + (df['std_20'] * 2)
+        df['bb_lower'] = df['sma_20'] - (df['std_20'] * 2)
+        
         return df
     except Exception as e:
         print(f"Error fetching data: {e}")
@@ -192,6 +198,8 @@ def analyze_market():
     ema200 = closed_candle['ema_200']
     rsi = closed_candle['rsi']
     raw_atr = closed_candle['atr']
+    bb_upper = closed_candle.get('bb_upper', 0)
+    bb_lower = closed_candle.get('bb_lower', float('inf'))
     
     # --- ATR DYNAMIC SCALING (Volatility Adjustment) ---
     if TIMEFRAME == '5m': tf_mult = 2.0
@@ -244,15 +252,25 @@ def analyze_market():
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     if is_counter_trend: base_risk *= 0.5 # Mitad de riesgo contra tendencia
                     
-                    conviction_multiplier = 1.5 if rsi < 30 else 1.0
+                    conviction_multiplier = 1.0
+                    if rsi < 30: conviction_multiplier += 0.5
+                    bb_bypass = False
+                    if current_live_price <= bb_lower:
+                        print("🔥 COMPRESIÓN BOLLINGER: Precio perforando la Banda Inferior. Multiplicador aumentado.")
+                        conviction_multiplier += 0.5
+                        bb_bypass = True
+                        
                     final_risk = base_risk * conviction_multiplier
                     
                     # 1. VOLUME FILTER
                     volume = closed_candle.get('volume', 0)
                     volume_sma = closed_candle.get('volume_sma', 0)
                     if volume < volume_sma * 0.8:
-                        print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
-                        return
+                        if bb_bypass:
+                            print("🔥 EXCEPCIÓN BOLLINGER: Falta volumen, pero la extrema dilatación salva el trade.")
+                        else:
+                            print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
+                            return
                         
                     # 2. VANGUARD SCALING (35% Riesgo Inicial)
                     state["full_target_risk_usd"] = final_risk
@@ -285,15 +303,25 @@ def analyze_market():
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     if is_counter_trend: base_risk *= 0.5 # Mitad de riesgo contra tendencia
                     
-                    conviction_multiplier = 1.5 if rsi > 70 else 1.0
+                    conviction_multiplier = 1.0
+                    if rsi > 70: conviction_multiplier += 0.5
+                    bb_bypass = False
+                    if current_live_price >= bb_upper:
+                        print("🔥 COMPRESIÓN BOLLINGER: Precio perforando la Banda Superior. Multiplicador aumentado.")
+                        conviction_multiplier += 0.5
+                        bb_bypass = True
+                        
                     final_risk = base_risk * conviction_multiplier
                     
                     # 1. VOLUME FILTER
                     volume = closed_candle.get('volume', 0)
                     volume_sma = closed_candle.get('volume_sma', 0)
                     if volume < volume_sma * 0.8:
-                        print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
-                        return
+                        if bb_bypass:
+                            print("🔥 EXCEPCIÓN BOLLINGER: Falta volumen, pero la extrema dilatación salva el trade.")
+                        else:
+                            print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
+                            return
                         
                     # 2. VANGUARD SCALING (35% Riesgo Inicial)
                     state["full_target_risk_usd"] = final_risk
