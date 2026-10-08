@@ -259,6 +259,7 @@ def analyze_market():
                         print("🔥 COMPRESIÓN BOLLINGER: Precio perforando la Banda Inferior. Multiplicador aumentado.")
                         conviction_multiplier += 0.5
                         bb_bypass = True
+                        reason += " [🔥BB]"
                         
                     final_risk = base_risk * conviction_multiplier
                     
@@ -310,6 +311,7 @@ def analyze_market():
                         print("🔥 COMPRESIÓN BOLLINGER: Precio perforando la Banda Superior. Multiplicador aumentado.")
                         conviction_multiplier += 0.5
                         bb_bypass = True
+                        reason += " [🔥BB]"
                         
                     final_risk = base_risk * conviction_multiplier
                     
