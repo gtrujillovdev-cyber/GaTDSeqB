@@ -81,3 +81,25 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Limpieza del Workspace:** Eliminación masiva de archivos temporales de diseño (`.png`), borradores markdown inútiles y scripts de parcheo provisionales (`patch_topbar.py`) para mantener la limpieza del proyecto.
 - **Control de Versiones:** Actualización estricta del `.gitignore` para garantizar que los nuevos archivos de estado dinámicos (`portfolio.json`) y el registro centralizado (`bot_unified.log`) no contaminen el repositorio remoto, asegurando que estos archivos vivan exclusivamente en producción (Raspberry Pi).
 - **Documentación Externa:** Generación de resúmenes de arquitectura y exportación de esquemas (TikZ/LaTeX) en el directorio `/linkedin post` para divulgar los retos de infraestructura abordados (memoria en ARM, WebSockets, etc.).
+
+## [2026-10-08] - Implementación de Refuerzos DCA y Fix Anti-Bucle
+- **Fix (Gatling Bug):** Se corrigió la lógica de prevención de múltiples entradas en la misma vela. El bot estaba leyendo el índice `998` del DataFrame en lugar del Timestamp UNIX real, lo que causaba que tras un trade, el bot quedara bloqueado permanentemente para ese activo. Ahora evalúa el timestamp de la vela cerrada.
+- **Feat (Tactical DCA):** Se implementó un sistema de promediación de coste (Dollar Cost Averaging) al alcanzar el TD Countdown 13.
+  - El sistema detecta cuando un trade activo (`IN_TRADE`) sufre una caída continuada hasta alcanzar el TD 13 (o -13).
+  - En lugar de asumir el Stop Loss, inyecta un bloque de capital idéntico al riesgo original.
+  - Recalcula automáticamente el **Precio Promedio de Entrada**, el nuevo **Stop Loss** y el nuevo **Take Profit**.
+  - Se añadió la bandera `reinforced_13` al estado JSON para evitar compras repetitivas en la vela 13.
+- **Refactor (UI & Telegram):** 
+  - Se eliminaron las reglas Flexbox residuales que rompían el grid de la interfaz web, aplicando anchos absolutos con `max-height`.
+  - Se tradujeron todas las notificaciones de Telegram al formato institucional (Bloomberg Aesthetic), añadiendo el símbolo del activo, el timeframe y eliminando emojis coloquiales.
+
+## [2026-10-08] - Implementación de Refuerzos DCA y Fix Anti-Bucle
+- **Fix (Gatling Bug):** Se corrigió la lógica de prevención de múltiples entradas en la misma vela. El bot estaba leyendo el índice `998` del DataFrame en lugar del Timestamp UNIX real, lo que causaba que tras un trade, el bot quedara bloqueado permanentemente para ese activo. Ahora evalúa el timestamp de la vela cerrada.
+- **Feat (Tactical DCA):** Se implementó un sistema de promediación de coste (Dollar Cost Averaging) al alcanzar el TD Countdown 13.
+  - El sistema detecta cuando un trade activo (`IN_TRADE`) sufre una caída continuada hasta alcanzar el TD 13 (o -13).
+  - En lugar de asumir el Stop Loss, inyecta un bloque de capital idéntico al riesgo original.
+  - Recalcula automáticamente el **Precio Promedio de Entrada**, el nuevo **Stop Loss** y el nuevo **Take Profit**.
+  - Se añadió la bandera `reinforced_13` al estado JSON para evitar compras repetitivas en la vela 13.
+- **Refactor (UI & Telegram):** 
+  - Se eliminaron las reglas Flexbox residuales que rompían el grid de la interfaz web, aplicando anchos absolutos con `max-height`.
+  - Se tradujeron todas las notificaciones de Telegram al formato institucional (Bloomberg Aesthetic), añadiendo el símbolo del activo, el timeframe y eliminando emojis coloquiales.
