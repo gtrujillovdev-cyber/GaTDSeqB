@@ -198,18 +198,14 @@ def analyze_market():
 
     
     if state.get("status") == "IDLE":
-        if abs(count) == 9 and get_global_open_trades() >= 3:
-            print("🛡 Risk Manager: Flota al máximo (3 trades simultáneos). Se ignora señal cruzada para proteger el bankroll.")
-            return
-
         # CONDICIÓN DE COMPRA LONG (Agotamiento bajista)
         if count == -9:
             if rsi < 45: # Permitir compras si no está extremadamente sobrecomprado
                 is_counter_trend = current_live_price < ema200 # Comprar bajo la EMA200 es contra tendencia principal
                 if is_counter_trend:
                     print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
-                    stop_loss = current_live_price - (atr * 1.5)
-                    take_profit = current_live_price + (atr * 2.0)
+                    stop_loss = current_live_price - (atr * 1.0)
+                    take_profit = current_live_price + (atr * 1.5)
                     reason = "TD9 Buy (Counter-Trend)"
                 else:
                     print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
@@ -236,8 +232,8 @@ def analyze_market():
                 is_counter_trend = current_live_price > ema200 # Vender sobre la EMA200 es contra tendencia principal
                 if is_counter_trend:
                     print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
-                    stop_loss = current_live_price + (atr * 1.5)
-                    take_profit = current_live_price - (atr * 2.0)
+                    stop_loss = current_live_price + (atr * 1.0)
+                    take_profit = current_live_price - (atr * 1.5)
                     reason = "TD9 Sell (Counter-Trend)"
                 else:
                     print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
