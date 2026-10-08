@@ -71,6 +71,22 @@
             .main-grid { grid-template-columns: 1fr; gap: 25px; }
             .bot-column { height: auto; }
 
+            .trade-stats-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 4px 15px;
+            }
+            .trade-stats-grid .row {
+                margin-bottom: 4px !important;
+                padding-bottom: 2px !important;
+                border-bottom: 1px dotted #333;
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+            }
+            .bot-body { padding: 8px !important; }
+
+
             .tf-card {
                 height: 45px !important;
                 max-height: 45px !important;
@@ -538,26 +554,27 @@
                                 </div>
                                 <div class="bot-body">
                                     
+                                    <div class="trade-stats-grid">
                                     <div class="row">
-                                        <span class="label">Bank / ROI</span>
-                                        <span class="value val-green">
-                                            $${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2}) : '--'}
+                                        <span class="label">Bank/ROI</span>
+                                        <span class="value val-green" style="font-size: 13px;">
+                                            $${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '--'}
                                             ${state.bank ? (function(){
                                                 let roi = ((state.bank - 10000) / 10000) * 100;
                                                 let rColor = roi >= 0 ? '#00ff00' : '#ff0000';
                                                 let rSign = roi >= 0 ? '+' : '';
-                                                return `<span style="font-size:10px; color:${rColor};">(${rSign}${roi.toFixed(2)}%)</span>`;
+                                                return `<span style="font-size:10px; color:${rColor};">(${rSign}${roi.toFixed(1)}%)</span>`;
                                             })() : ''}
                                         </span>
                                     </div>
                                     <div class="row"><span class="label">TD Count</span><span class="value ${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></div>
-                                    <div class="row"><span class="label">Win Rate</span><span class="value">${state.win_rate ? state.win_rate.toFixed(1) : '0.0'}%</span></div>
-                                    <div class="row"><span class="label">Max DD</span><span class="value val-red">-${state.drawdown ? state.drawdown.toFixed(2) : '0.00'}%</span></div>
                                     <div class="row"><span class="label">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
-                                    <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString() : '--'}</span></div>
-                                    <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString() : '--'}</span></div>
-                                    <div class="row"><span class="label">Invest / Lev</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) + (state.leverage ? ' (<span style="color:#ffffff">x'+state.leverage.toFixed(1)+'</span>)' : '') : '--'}</span></div>
-                                    <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString() : '--'}</span></div>`;
+                                    <div class="row"><span class="label">Invest/Lev</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) + (state.leverage ? ' (<span style="color:#ffffff">x'+state.leverage.toFixed(1)+'</span>)' : '') : '--'}</span></div>
+                                    <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                    <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                    <div class="row"><span class="label">Take Pr.</span><span class="value">${state.take_profit ? '$'+state.take_profit.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                    <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                </div>`;
                                     
                         if (state.status === 'IN_TRADE' && state.entry_price && state.stop_loss && state.take_profit) {
                             let sl = parseFloat(state.stop_loss);
