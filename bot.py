@@ -166,7 +166,7 @@ def get_global_open_trades():
 
 def analyze_market():
     global TIMEFRAME, SYMBOL
-    print(f"Analizando {SYMBOL} en {TIMEFRAME} con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
+    
     df = get_data(f"{SYMBOL}/USDT", TIMEFRAME)
     if df is None: return
     
@@ -198,7 +198,9 @@ def analyze_market():
     
     state = load_state()
     
-    print(f"{SYMBOL} | Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
+    if abs(count) >= 7 or state.get("status") == "IN_TRADE":
+        print(f"Analizando {SYMBOL} en {TIMEFRAME} con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
+        print(f"{SYMBOL} | Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
     
     # Save the current TD Count to state so the dashboard can display it
     # UI Trick: Show Countdown if active, else Setup
