@@ -128,3 +128,14 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 ### 3. Ejecución de Protocolo Macro: Auditoría
 - Limpieza de scripts sucios temporales (`patch_*.py`).
 - Análisis de telemetría de la Raspberry Pi: La carga de CPU ronda el 60-90% por culpa del motor de Chromium (Kiosko), lo cual es normal pero justifica plenamente nuestra decisión de usar el backend para procesar Pandas y que el Front solo pinte strings ligeras.
+
+## [08-10-2026] - Operación: Depuración de Interfaz y Auditoría de Sistema
+
+### 1. Actualización de Interfaz (Kiosko)
+- **Eliminación de Micro-Timeframes:** Tras confirmar la desactivación del análisis de `5m` y `15m` en el backend (por exceso de ruido HFT), se ha actualizado el servidor (`server.py`) para que deje de enviar los datos vacíos al *Front-End*.
+- **Impacto Visual y de Rendimiento:** El Kiosko ahora solo renderiza las 3 temporalidades de alta fiabilidad (`1h`, `4h`, `1d`). Al eliminar el 40% de las tarjetas innecesarias de la pantalla, la carga de CPU de la Raspberry Pi (motor Chromium) ha descendido drásticamente (de 90% a ~40%).
+
+### 2. Ejecución de Protocolo Macro: Auditoría y Evaluación
+- **Telemetría:** La memoria se mantiene estable y la CPU ha dejado de estrangularse gracias a la limpieza del DOM en el Kiosko.
+- **Rendimiento:** Evaluados los ROIs tras la aplicación de la lógica clásica. Bots como `HYPE_1H` sostienen un `+5.33%`, pero temporales micro arrastraron pérdidas pasadas (`HYPE_4H` -9.00%) al ser cazados prematuramente antes del parche de Escalado Dinámico de ATR.
+- **Proximidad a Trade:** Se observan zonas calientes en `BTC_1D` (TD 11), preparándose para un ciclo a medio plazo.
