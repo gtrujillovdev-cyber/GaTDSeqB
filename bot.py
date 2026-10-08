@@ -93,31 +93,76 @@ def get_data(symbol="BTC/USDT", timeframe="4h", limit=1000):
 def calculate_td_sequential(df):
     setup_up = 0
     setup_down = 0
+    countdown_up = 0
+    countdown_down = 0
+    setup_up_active = False
+    setup_down_active = False
+    
     td_counts = []
+    td_countdowns = []
     
     for i in range(len(df)):
         if i < 4:
             td_counts.append(0)
+            td_countdowns.append(0)
             continue
             
         close = df['close'].iloc[i]
         close_4_ago = df['close'].iloc[i-4]
         
+        # 1. SETUP PHASE
         if close > close_4_ago:
             setup_up += 1
             setup_down = 0
             td_counts.append(setup_up)
+            if setup_up == 9:
+                setup_up_active = True
+                setup_down_active = False
+                countdown_up = 0
         elif close < close_4_ago:
             setup_down += 1
             setup_up = 0
             td_counts.append(-setup_down)
+            if setup_down == 9:
+                setup_down_active = True
+                setup_up_active = False
+                countdown_down = 0
         else:
             setup_up = 0
             setup_down = 0
             td_counts.append(0)
             
+        # 2. COUNTDOWN PHASE
+        if i >= 2:
+            high_2_ago = df['high'].iloc[i-2]
+            low_2_ago = df['low'].iloc[i-2]
+            
+            if setup_up_active and close > high_2_ago:
+                countdown_up += 1
+                if countdown_up == 13: setup_up_active = False
+            
+            if setup_down_active and close < low_2_ago:
+                countdown_down += 1
+                if countdown_down == 13: setup_down_active = False
+        
+        if setup_up_active and countdown_up > 0: td_countdowns.append(countdown_up)
+        elif setup_down_active and countdown_down > 0: td_countdowns.append(-countdown_down)
+        else: td_countdowns.append(0)
+            
     df['td_count'] = td_counts
+    df['td_countdown'] = td_countdowns
     return df
+
+
+def get_global_open_trades():
+    import glob, json
+    open_count = 0
+    for file in glob.glob("state_*.json"):
+        try:
+            with open(file, "r") as f:
+                if json.load(f).get("status") == "IN_TRADE": open_count += 1
+        except: pass
+    return open_count
 
 def analyze_market():
     global TIMEFRAME, SYMBOL
@@ -137,6 +182,7 @@ def analyze_market():
     rsi = closed_candle['rsi']
     atr = closed_candle['atr']
     count = closed_candle['td_count']
+    countdown = closed_candle['td_countdown']
     trigger_time = str(closed_candle['timestamp'])
     
     state = load_state()
@@ -144,21 +190,26 @@ def analyze_market():
     print(f"{SYMBOL} | Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
     
     # Save the current TD Count to state so the dashboard can display it
-    state["td_count"] = int(count)
+    # UI Trick: Show Countdown if active, else Setup
+    state["td_count"] = int(countdown) if countdown != 0 else int(count)
     import json
     with open(STATE_FILE, "w") as f:
         json.dump(state, f)
 
     
     if state.get("status") == "IDLE":
+        if abs(count) == 9 and get_global_open_trades() >= 3:
+            print("🛡 Risk Manager: Flota al máximo (3 trades simultáneos). Se ignora señal cruzada para proteger el bankroll.")
+            return
+
         # CONDICIÓN DE COMPRA LONG (Agotamiento bajista)
         if count == -9:
             if rsi < 45: # Permitir compras si no está extremadamente sobrecomprado
                 is_counter_trend = current_live_price < ema200 # Comprar bajo la EMA200 es contra tendencia principal
                 if is_counter_trend:
                     print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
-                    stop_loss = current_live_price - (atr * 1.0)
-                    take_profit = current_live_price + (atr * 1.5)
+                    stop_loss = current_live_price - (atr * 1.5)
+                    take_profit = current_live_price + (atr * 2.0)
                     reason = "TD9 Buy (Counter-Trend)"
                 else:
                     print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
@@ -185,8 +236,8 @@ def analyze_market():
                 is_counter_trend = current_live_price > ema200 # Vender sobre la EMA200 es contra tendencia principal
                 if is_counter_trend:
                     print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
-                    stop_loss = current_live_price + (atr * 1.0)
-                    take_profit = current_live_price - (atr * 1.5)
+                    stop_loss = current_live_price + (atr * 1.5)
+                    take_profit = current_live_price - (atr * 2.0)
                     reason = "TD9 Sell (Counter-Trend)"
                 else:
                     print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
@@ -209,10 +260,10 @@ def analyze_market():
                 
     elif state.get("status") == "IN_TRADE":
         pos = state.get("position")
-        if pos == "BUY" and count == -13 and not state.get("reinforced_13"):
+        if pos == "BUY" and countdown == -13 and not state.get("reinforced_13"):
             print(">>> ALERTA DE REFUERZO (DCA) TD-13 (LONG) <<<")
             execute_reinforcement(current_live_price, atr, state, "BUY")
-        elif pos == "SELL" and count == 13 and not state.get("reinforced_13"):
+        elif pos == "SELL" and countdown == 13 and not state.get("reinforced_13"):
             print(">>> ALERTA DE REFUERZO (DCA) TD-13 (SHORT) <<<")
             execute_reinforcement(current_live_price, atr, state, "SELL")
             
