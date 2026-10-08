@@ -207,9 +207,33 @@
                 align-items: center;
                 overflow: hidden;
             }
-            .bot-column {
-                gap: 8px;
+            
+            .bot-column { gap: 6px; }
+
+            .active-trade-card {
+                padding: 6px !important;
+                margin-bottom: 0px !important;
+                border: 1px solid #333;
             }
+            .active-trade-card .bot-header {
+                font-size: 13px;
+                padding: 2px 4px;
+                border-bottom: 1px solid #333;
+                margin-bottom: 4px;
+            }
+            .active-trade-card .bot-body {
+                padding: 2px 4px !important;
+            }
+            .active-trade-card .label, 
+            .active-trade-card .value {
+                font-size: 11px !important;
+            }
+            .active-trade-card .trade-stats-grid .row {
+                margin-bottom: 2px !important;
+                padding-bottom: 1px !important;
+            }
+            /* Add progress-container class dynamically below */
+
             
             /* Target ONLY the grid bot bodies */
             .tf-card {
@@ -549,7 +573,7 @@
                         }
                         
                         assetGrid += `
-                            <div class="bot-card">
+                            <div class="bot-card active-trade-card">
                                 <div class="bot-header">
                                     <span>[ ${tf} ]</span>
                                     <span class="status-badge ${badgeClass}">${badgeText}</span>
@@ -558,7 +582,7 @@
                                     
                                     <div class="trade-stats-grid">
                                     <div class="row">
-                                        <span class="label">Bank/ROI</span>
+                                        <span class="label" style="font-size:11px;">Bank/ROI</span>
                                         <span class="value val-green" style="font-size: 13px;">
                                             $${state.bank ? state.bank.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '--'}
                                             ${state.bank ? (function(){
@@ -569,13 +593,13 @@
                                             })() : ''}
                                         </span>
                                     </div>
-                                    <div class="row"><span class="label">TD Count</span><span class="value ${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></div>
-                                    <div class="row"><span class="label">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
-                                    <div class="row"><span class="label">Invest/Lev</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) + (state.leverage ? ' (<span style="color:#ffffff">x'+state.leverage.toFixed(1)+'</span>)' : '') : '--'}</span></div>
-                                    <div class="row"><span class="label">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
-                                    <div class="row"><span class="label">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
-                                    <div class="row"><span class="label">Take Pr.</span><span class="value">${state.take_profit ? '$'+state.take_profit.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
-                                    <div class="row"><span class="label">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                    <div class="row"><span class="label" style="font-size:11px;">TD Count</span><span class="value ${tdColor}">${state.td_count !== undefined ? state.td_count : '--'}</span></div>
+                                    <div class="row"><span class="label" style="font-size:11px;">Position</span><span class="value ${state.position==='BUY'?'val-green':(state.position==='SELL'?'val-red':'')}">${state.position || 'NONE'}</span></div>
+                                    <div class="row"><span class="label" style="font-size:11px;">Invest/Lev</span><span class="value">${state.size_usd ? '$'+state.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) + (state.leverage ? ' (<span style="color:#ffffff">x'+state.leverage.toFixed(1)+'</span>)' : '') : '--'}</span></div>
+                                    <div class="row"><span class="label" style="font-size:11px;">Entry</span><span class="value">${state.entry_price ? '$'+state.entry_price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                    <div class="row"><span class="label" style="font-size:11px;">Stop</span><span class="value">${state.stop_loss ? '$'+state.stop_loss.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                    <div class="row"><span class="label" style="font-size:11px;">Take Pr.</span><span class="value">${state.take_profit ? '$'+state.take_profit.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
+                                    <div class="row"><span class="label" style="font-size:11px;">Risk Exp.</span><span class="value">${state.risk_usd ? '$'+state.risk_usd.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) : '--'}</span></div>
                                 </div>`;
                                     
                         if (state.status === 'IN_TRADE' && state.entry_price && state.stop_loss && state.take_profit) {
