@@ -3,6 +3,14 @@ import ccxt
 import pandas as pd
 import json
 import os
+import builtins
+from datetime import datetime
+
+_old_print = builtins.print
+def _timestamped_print(*args, **kwargs):
+    _old_print(f"[{datetime.now().strftime('%H:%M:%S')}]", *args, **kwargs)
+builtins.print = _timestamped_print
+
 import requests
 import datetime
 import math
