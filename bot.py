@@ -137,7 +137,7 @@ def analyze_market():
     rsi = closed_candle['rsi']
     atr = closed_candle['atr']
     count = closed_candle['td_count']
-    trigger_time = str(closed_candle.name)
+    trigger_time = str(closed_candle['timestamp'])
     
     state = load_state()
     
