@@ -705,7 +705,7 @@
                 if (histEl) histEl.innerHTML = histHtml;
 
                 let totalEquity = globalEquity + globalUnrealizedPnl;
-                let baseEquity = 150000; // 15 bots * $10,000
+                let baseEquity = activeBotsCount * 10000; // Dynamic based on active bots (e.g. 9 bots * 10k)
                 let roiPct = ((totalEquity - baseEquity) / baseEquity) * 100;
                 let roiColor = roiPct >= 0 ? '#00ff00' : '#ff0000';
                 let roiStr = (roiPct >= 0 ? '+' : '') + roiPct.toFixed(2) + '%';
