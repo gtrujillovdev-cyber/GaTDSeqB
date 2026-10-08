@@ -56,6 +56,22 @@
         .trade-row:last-child {  }
 
         /* RESPONSIVE MOBILE (iPhone) */
+
+        .trade-stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 15px;
+        }
+        .trade-stats-grid .row {
+            margin-bottom: 4px !important;
+            padding-bottom: 2px !important;
+            border-bottom: 1px dotted #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .bot-body { padding: 8px !important; }
+
         @media (max-width: 900px) {
             body { 
                 height: auto; overflow-y: auto; 
@@ -71,20 +87,6 @@
             .main-grid { grid-template-columns: 1fr; gap: 25px; }
             .bot-column { height: auto; }
 
-            .trade-stats-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 4px 15px;
-            }
-            .trade-stats-grid .row {
-                margin-bottom: 4px !important;
-                padding-bottom: 2px !important;
-                border-bottom: 1px dotted #333;
-                display: flex;
-                justify-content: space-between;
-                align-items: baseline;
-            }
-            .bot-body { padding: 8px !important; }
 
 
             .tf-card {
