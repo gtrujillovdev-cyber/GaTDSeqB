@@ -208,7 +208,82 @@ def analyze_market():
                 print("TD9 ignorado: El RSI no permite el short.")
                 
     elif state.get("status") == "IN_TRADE":
+        pos = state.get("position")
+        if pos == "BUY" and count == -13 and not state.get("reinforced_13"):
+            print(">>> ALERTA DE REFUERZO (DCA) TD-13 (LONG) <<<")
+            execute_reinforcement(current_live_price, atr, state, "BUY")
+        elif pos == "SELL" and count == 13 and not state.get("reinforced_13"):
+            print(">>> ALERTA DE REFUERZO (DCA) TD-13 (SHORT) <<<")
+            execute_reinforcement(current_live_price, atr, state, "SELL")
+            
         check_exit_conditions(live_candle, closed_candle, atr, state)
+
+def execute_reinforcement(price, atr, state, action):
+    import time, json
+    
+    trades = []
+    import os
+    if os.path.exists(TRADES_FILE):
+        with open(TRADES_FILE, "r") as f:
+            try: trades = json.load(f)
+            except: pass
+            
+    current_bank = INITIAL_BANK + sum(t.get('pnl', 0.0) for t in trades)
+    
+    # Calculate Risk (Matching execute_trade's standard risk)
+    # Since we can't easily fetch conviction multiplier here, we use a standard flat risk
+    # Wait, execute_trade defaults risk_pct=0.01 but analyze_market computes it based on TF.
+    # Let's just mirror the actual_risk_amount or risk_usd from the state!
+    # state["risk_usd"] already has the dollar amount we risked on the first bullet!
+    base_risk_usd = state.get("risk_usd", current_bank * 0.05)
+    
+    if action == "BUY":
+        new_sl = price - (atr * 1.5)
+        new_tp_offset = atr * 2.0
+    else:
+        new_sl = price + (atr * 1.5)
+        new_tp_offset = - (atr * 2.0)
+        
+    sl_pct = abs(price - new_sl) / price
+    if sl_pct < 0.001: sl_pct = 0.001
+    
+    added_usd = base_risk_usd / sl_pct
+    max_allowed = current_bank * 10
+    if added_usd > max_allowed: added_usd = max_allowed
+    added_btc = added_usd / price
+    
+    old_entry = state["entry_price"]
+    old_usd = state["size_usd"]
+    old_btc = state["size_btc"]
+    
+    new_btc = old_btc + added_btc
+    new_usd = old_usd + added_usd
+    avg_entry = new_usd / new_btc
+    
+    if action == "BUY": new_tp = avg_entry + new_tp_offset
+    else: new_tp = avg_entry + new_tp_offset
+    
+    state["size_btc"] = new_btc
+    state["size_usd"] = new_usd
+    state["entry_price"] = avg_entry
+    state["stop_loss"] = new_sl
+    state["take_profit"] = new_tp
+    state["reinforced_13"] = True
+    
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+        
+    icon = "🟩" if action == "BUY" else "🟥"
+    msg = (f"🚀 <b>DCA DEPLOYED | {SYMBOL} [{TIMEFRAME}]</b>\n\n"
+           f"<b>Trigger:</b> TD-13 Exhaustion (Averaging Down)\n"
+           f"<b>Type:</b> MARKET {action} (Reinforcement)\n"
+           f"<b>New Avg Entry:</b> ${avg_entry:,.2f} (Was ${old_entry:,.2f})\n"
+           f"<b>Capital Added:</b> ${added_usd:,.2f} ({added_btc:.4f} {SYMBOL})\n"
+           f"<b>Total Position:</b> ${new_usd:,.2f} ({new_btc:.4f} {SYMBOL})\n"
+           f"<b>New Stop Loss:</b> ${new_sl:,.2f}\n"
+           f"<b>New Take Profit:</b> ${new_tp:,.2f}")
+    send_telegram(msg)
+    print(f"Refuerzo DCA Ejecutado a ${price:.2f} | Nuevo Avg: ${avg_entry:.2f}")
 
 def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.01):
     time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
