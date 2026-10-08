@@ -180,7 +180,18 @@ def analyze_market():
     current_live_price = closed_candle['close']
     ema200 = closed_candle['ema_200']
     rsi = closed_candle['rsi']
-    atr = closed_candle['atr']
+    raw_atr = closed_candle['atr']
+    
+    # --- ATR DYNAMIC SCALING (Volatility Adjustment) ---
+    if TIMEFRAME == '5m': tf_mult = 2.0
+    elif TIMEFRAME == '15m': tf_mult = 1.8
+    elif TIMEFRAME == '1h': tf_mult = 1.5
+    elif TIMEFRAME == '4h': tf_mult = 1.2
+    else: tf_mult = 1.0 # 1d
+    
+    atr = raw_atr * tf_mult
+    # ---------------------------------------------------
+    
     count = closed_candle['td_count']
     countdown = closed_candle['td_countdown']
     trigger_time = str(closed_candle['timestamp'])
