@@ -103,3 +103,28 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Refactor (UI & Telegram):** 
   - Se eliminaron las reglas Flexbox residuales que rompían el grid de la interfaz web, aplicando anchos absolutos con `max-height`.
   - Se tradujeron todas las notificaciones de Telegram al formato institucional (Bloomberg Aesthetic), añadiendo el símbolo del activo, el timeframe y eliminando emojis coloquiales.
+
+## [08-10-2026] - Operación: Cirugía de Interfaz y Lógica Quant
+
+### 1. Reingeniería del Kiosko (Frontend UI)
+- **Problema Crítico:** Las tarjetas `IN_TRADE` estaban sufriendo un *overflow* vertical masivo (llegando a >300px), lo que empujaba el timeframe de 1 día fuera del área visible de la pantalla 1080p y decapitaba la interfaz. Además, la regla de CSS Grid no se estaba aplicando al monitor Ultra-Wide LG porque estaba atrapada en el `@media` de móviles.
+- **Solución Aplicada:** 
+  - Extracción de la regla `.trade-stats-grid` al entorno global.
+  - Creación de la clase `.active-trade-card` con compresión extrema (font-size 11px, paddings a 4px).
+  - Limitación algorítmica de decimales financieros (ej: `$81,823.25` en vez de `.249`).
+  - **Resultado Matemático:** Una tarjeta activa ahora ocupa exactamente 120px de alto. Si los 15 bots (5 timeframes x 3 activos) abrieran trade a la vez, ocuparían 624px, encajando a la perfección en los 750px libres de la pantalla sin scroll.
+
+### 2. Actualización Cuantitativa y Escalado Dinámico (Backend)
+- **Rollback de Risk Manager Global:** Retirado el límite de 3 trades simultáneos. En fase de *Forward Testing* competitivo, cada timeframe y activo opera como un fondo independiente con 10K USD para recopilar datos sin estar capado por sus compañeros.
+- **Implementación del TD Countdown Real:** El DCA (TD 13) ahora se basa estrictamente en la matemática de Tom DeMark (cálculo sobre las últimas 2 velas post-setup 9), abandonando el modelo "capitulación infinita".
+- **Escalado Dinámico del Rango Verdadero (ATR):** Para evitar la "cacería de stops" por culpa del ruido de mercado en bajas temporalidades, se inyectó un multiplicador dinámico al recibir el `raw_atr`:
+  - `5m -> 2.0x ATR`
+  - `15m -> 1.8x ATR`
+  - `1h -> 1.5x ATR`
+  - `4h -> 1.2x ATR`
+  - `1d -> 1.0x ATR`
+  - Como efecto dominó matemático positivo, el motor de gestión de riesgo detecta que el Stop Loss está más lejos, por lo que **reduce el apalancamiento automáticamente** para mantener la misma exposición en dólares.
+
+### 3. Ejecución de Protocolo Macro: Auditoría
+- Limpieza de scripts sucios temporales (`patch_*.py`).
+- Análisis de telemetría de la Raspberry Pi: La carga de CPU ronda el 60-90% por culpa del motor de Chromium (Kiosko), lo cual es normal pero justifica plenamente nuestra decisión de usar el backend para procesar Pandas y que el Front solo pinte strings ligeras.
