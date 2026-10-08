@@ -93,6 +93,9 @@ def get_data(symbol="BTC/USDT", timeframe="4h", limit=1000):
         # Volatilidad para Stop Loss Dinámico (ATR)
         df['atr'] = calculate_atr(df, 14)
         
+        # Filtro de Volumen (Institucional)
+        df['volume_sma'] = df['volume'].rolling(window=20).mean()
+        
         return df
     except Exception as e:
         print(f"Error fetching data: {e}")
@@ -243,6 +246,19 @@ def analyze_market():
                     
                     conviction_multiplier = 1.5 if rsi < 30 else 1.0
                     final_risk = base_risk * conviction_multiplier
+                    
+                    # 1. VOLUME FILTER
+                    volume = closed_candle.get('volume', 0)
+                    volume_sma = closed_candle.get('volume_sma', 0)
+                    if volume < volume_sma * 0.8:
+                        print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
+                        return
+                        
+                    # 2. VANGUARD SCALING (35% Riesgo Inicial)
+                    state["full_target_risk_usd"] = final_risk
+                    final_risk = final_risk * 0.35
+                    print(f"🎯 VANGUARDIA SCALING: Entrando con solo 35% del riesgo normal (${final_risk:.2f}).")
+                    
                     execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
             else:
                 print("TD9 ignorado: El RSI no permite la compra.")
@@ -271,6 +287,19 @@ def analyze_market():
                     
                     conviction_multiplier = 1.5 if rsi > 70 else 1.0
                     final_risk = base_risk * conviction_multiplier
+                    
+                    # 1. VOLUME FILTER
+                    volume = closed_candle.get('volume', 0)
+                    volume_sma = closed_candle.get('volume_sma', 0)
+                    if volume < volume_sma * 0.8:
+                        print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
+                        return
+                        
+                    # 2. VANGUARD SCALING (35% Riesgo Inicial)
+                    state["full_target_risk_usd"] = final_risk
+                    final_risk = final_risk * 0.35
+                    print(f"🎯 VANGUARDIA SCALING: Entrando con solo 35% del riesgo normal (${final_risk:.2f}).")
+                    
                     execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
             else:
                 print("TD9 ignorado: El RSI no permite el short.")
@@ -303,7 +332,10 @@ def execute_reinforcement(price, atr, state, action):
     # Wait, execute_trade defaults risk_pct=0.01 but analyze_market computes it based on TF.
     # Let's just mirror the actual_risk_amount or risk_usd from the state!
     # state["risk_usd"] already has the dollar amount we risked on the first bullet!
-    base_risk_usd = state.get("risk_usd", current_bank * 0.05)
+    # Recuperar el riesgo objetivo total y aplicar el 65% restante (El Batallón)
+    full_target = state.get("full_target_risk_usd", state.get("risk_usd", current_bank * 0.05) / 0.35)
+    base_risk_usd = full_target * 0.65
+    print(f"🛡 EL BATALLÓN (TD13): Inyectando el 65% de riesgo restante (${base_risk_usd:.2f}) para promediar a la baja.")
     
     if action == "BUY":
         new_sl = price - (atr * 1.5)
@@ -466,6 +498,13 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
     close_reason = ""
     
     if action == "BUY":
+        # Escudo Breakeven (0.75 ATR a favor -> Stop a precio de entrada)
+        if current_live_price >= entry + (atr * 0.75) and updated_sl < entry:
+            updated_sl = entry
+            state["stop_loss"] = updated_sl
+            print(f"🛡 BREAKEVEN SHIELD ACTIVO: SL subido a precio de entrada (${entry:.2f})")
+            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 0.75 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
+            
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
         new_sl = current_closed_price - (atr * 1.5)
         if new_sl > sl:
@@ -605,7 +644,7 @@ if __name__ == "__main__":
     print(f"Iniciando GaTDSEQ Bot UNIFICADO | Bank: ${INITIAL_BANK}...")
     send_telegram("🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking multi-asset pipeline (5 Timeframes).")
     
-    timeframes = ['5m', '15m', '1h', '4h', '1d']
+    timeframes = ['1h', '4h', '1d']
     assets = ['BTC', 'ETH', 'HYPE']
     
     while True:
