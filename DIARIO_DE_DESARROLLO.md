@@ -139,3 +139,15 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Telemetría:** La memoria se mantiene estable y la CPU ha dejado de estrangularse gracias a la limpieza del DOM en el Kiosko.
 - **Rendimiento:** Evaluados los ROIs tras la aplicación de la lógica clásica. Bots como `HYPE_1H` sostienen un `+5.33%`, pero temporales micro arrastraron pérdidas pasadas (`HYPE_4H` -9.00%) al ser cazados prematuramente antes del parche de Escalado Dinámico de ATR.
 - **Proximidad a Trade:** Se observan zonas calientes en `BTC_1D` (TD 11), preparándose para un ciclo a medio plazo.
+
+## [08-10-2026] - Operación: Auditoría y Confirmación de Filtros Tácticos
+
+### 1. Desempeño de Filtros (Volume Filter en Acción)
+- **Bloqueo Exitoso en ETH:** El bot de `ETH 1H` alcanzó el conteo `TD -9`, lo cual normalmente habría desencadenado una compra ciega. Sin embargo, gracias al nuevo *Filtro de Volumen Institucional* (Volume SMA), el algoritmo detectó que el movimiento carecía de fuerza y bloqueó la entrada, manteniéndose en estado `IDLE`. Una bala esquivada.
+
+### 2. Resultados de Forward Testing
+- **Cierre por Stop Loss (HYPE_1H):** El bot HYPE_1H, que estaba `IN_TRADE`, no logró avanzar el `0.75 ATR` necesario para activar el *Breakeven Shield*, sufriendo un reverso y cerrando con una pérdida de -$416.07 (Stop Loss original de 1.0 ATR). El ROI del bot baja del +5.33% al +1.16%. Sigue en verde, pero esto confirma la agresividad de usar multiplicadores tan bajos en criptomonedas.
+- **Proximidad Táctica:** `BTC_1D` sigue madurando su ciclo alcista llegando a `TD 11`. Se monitorea de cerca para posible entrada de vanguardia.
+
+### 3. Protocolo de Limpieza
+- Se han eliminado todos los *scripts* intermedios (Yahoo Finance API testers, inyectores de UI) del servidor local para mantener el repositorio prístino.
