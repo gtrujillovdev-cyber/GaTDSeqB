@@ -175,3 +175,14 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - El mercado se encuentra en fase de consolidación severa (Lateralización de 4H tras la caída).
 - `BTC_4H` sigue en TD -11, acumulando energía.
 - Los nuevos filtros están armados y evaluando silenciosamente en el *background*. Se espera que la volatilidad regrese con el cierre de la vela de 4H o diaria.
+
+## [08-10-2026] - Operación: Auditoría y Limpieza (Post-UI Fix)
+### 1. Limpieza de Infraestructura
+- Se ha ejecutado el protocolo de purga local: todos los *scripts* intermedios (parches de renderizado, pruebas de CORS, scripts de Python puente) han sido borrados de la estación de trabajo para mantener el repositorio enfocado estrictamente en producción.
+- **Rendimiento de Hardware:** La Raspberry Pi mantiene un perfil bajo y estable (`Load Average: 1.74`). Chromium consume los recursos esperados tras estabilizar los WebSockets de la interfaz.
+
+### 2. Estado del Kiosko y Safari
+- Se confirmó que el problema de visualización `Can't find variable` en dispositivos iOS era un vestigio del caché agresivo de WebKit/Safari, solventado tras inyectar dinámicamente el `activeBotsCount` en la memoria del renderizador.
+
+### 3. Vigilancia Táctica (Market Watch)
+- `BTC_4H` ha evolucionado al **TD -12**. Estamos al borde absoluto de la capitulación algorítmica (TD13). Los filtros avanzados están armados y listos para interceptar la caída y activar los escudos matemáticos.
