@@ -151,3 +151,17 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 
 ### 3. Protocolo de Limpieza
 - Se han eliminado todos los *scripts* intermedios (Yahoo Finance API testers, inyectores de UI) del servidor local para mantener el repositorio prístino.
+
+## [08-10-2026] - Operación: Monitoreo Táctico y Ejecución de Macro Evalua
+
+### 1. Auditoría del Cuartel General
+- **Telemetría y Hardware:** La memoria se mantiene firme (~680MB de uso total en la Pi, sin fugas en Python tras los recolectores de basura `gc.collect()`). La carga de CPU sigue relajada (alrededor de 1.79), demostrando que la poda de *timeframes* micro fue una decisión crítica de ingeniería.
+- **Sincronización:** Los precios en tiempo real del nuevo *Ticker Tape* (Crypto + TradFi) están funcionando sin saturar la red ni incurrir en bloqueos CORS gracias al puente en `server.py`.
+
+### 2. Evaluación Táctica del Mercado (Oportunidad de Swing)
+- Confirmada la observación de campo: Estamos ante un escenario de alta probabilidad para un **Swing en Largo** generalizado en el mercado cripto.
+- Las temporalidades de 4H muestran señales de sobreventa extrema (Agotamiento Bajista):
+  - `BTC_4H`: TD -11 (A dos velas del despliegue del Batallón DCA).
+  - `ETH_4H`: TD -13.
+  - `HYPE_4H`: TD -14.
+- El algoritmo está diseñado para aguantar la respiración hasta la capitulación final (TD 13). Las condiciones están dadas para que la nueva lógica de *Scale-Out* (asegurar el 50% al 1.0 ATR) brille cuando ocurra el rebote.
