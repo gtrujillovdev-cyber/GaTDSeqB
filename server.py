@@ -112,10 +112,20 @@ def get_fleet_data():
     except:
         is_running = False
         
-    for asset in ['BTC', 'ETH', 'HYPE']:
+    for asset in ['BTC', 'ETH', 'HYPE', 'WYCKOFF']:
         fleet[asset] = {}
-        for tf in ['1h', '4h', '1d']:
-            state_file = f"state_{asset}_{tf}.json"
+        for tf in ['5m', '15m', '1h', '4h', '1d']:
+            import os
+            
+            if asset == 'WYCKOFF':
+                # Path to WycoffBot (handles both Mac testing and Raspberry Pi relative structure)
+                wyckoff_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "WycoffBot")
+                state_file = os.path.join(wyckoff_dir, f"state_{tf}.json")
+                trades_file = os.path.join(wyckoff_dir, f"trades_{tf}.json")
+            else:
+                state_file = f"state_{asset}_{tf}.json"
+                trades_file = f"trades_{asset}_{tf}.json"
+                
             if os.path.exists(state_file):
                 with open(state_file, "r") as f:
                     try: fleet[asset][tf] = json.load(f)
@@ -256,7 +266,7 @@ def websocket_monitor_loop():
     while True:
         if clients > 0:
             changed = False
-            for asset in ['BTC', 'ETH', 'HYPE']:
+            for asset in ['BTC', 'ETH', 'HYPE', 'WYCKOFF']:
                 for tf in ['1h', '4h', '1d']:
                     state_file = f"state_{asset}_{tf}.json"
                     if os.path.exists(state_file):
