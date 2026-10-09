@@ -183,13 +183,12 @@ def get_global_open_trades():
         except: pass
     return open_count
 
-def analyze_market():
-    global TIMEFRAME, SYMBOL
+def analyze_market(df, bot_id, strategy_type):
+    global TIMEFRAME, SYMBOL, STATE_FILE, TRADES_FILE
+    STATE_FILE = f"state_{bot_id}_{TIMEFRAME}.json"
+    TRADES_FILE = f"trades_{bot_id}_{TIMEFRAME}.json"
     
-    df = get_data(f"{SYMBOL}/USDT", TIMEFRAME)
-    if df is None: return
-    
-    df = calculate_td_sequential(df)
+    df = df.copy()
     
     # SEPARACIÓN CRÍTICA: Vela Cerrada (Entradas) vs Vela Viva (Salidas/StopLoss)
     closed_candle = df.iloc[-2]
@@ -255,140 +254,87 @@ def analyze_market():
 
     
     if state.get("status") == "IDLE":
-        # CONDICIÓN DE COMPRA LONG (Agotamiento bajista)
-        if count == -9:
+        td_buy = (count == -9)
+        td_sell = (count == 9)
+        
+        trigger_buy = False
+        trigger_sell = False
+        reason_buy = ""
+        reason_sell = ""
+        
+        if strategy_type in ["TD9", "HYB"]:
+            if td_buy:
+                trigger_buy = True
+                reason_buy = "TD9 Buy"
+            if td_sell:
+                trigger_sell = True
+                reason_sell = "TD9 Sell"
+                
+        if strategy_type in ["WYK", "HYB"]:
+            if wyckoff_spring and not trigger_buy:
+                trigger_buy = True
+                reason_buy = "Wyckoff Spring"
+            if wyckoff_upthrust and not trigger_sell:
+                trigger_sell = True
+                reason_sell = "Wyckoff Upthrust"
+
+        if trigger_buy:
             if rsi < 45: # Permitir compras si no está extremadamente sobrecomprado
-                is_counter_trend = current_live_price < ema200 # Comprar bajo la EMA200 es contra tendencia principal
-                if is_counter_trend:
-                    print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
+                is_counter_trend = current_live_price < ema200
+                if "TD9" in reason_buy:
+                    if is_counter_trend:
+                        print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia)")
+                        stop_loss = current_live_price - (atr * 1.0)
+                        take_profit = current_live_price + (atr * 1.5)
+                        reason = "TD9 Buy (Counter-Trend)"
+                    else:
+                        print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
+                        stop_loss = current_live_price - (atr * 1.5)
+                        take_profit = current_live_price + (atr * 3.0)
+                        reason = "TD9 Buy (Trend)"
+                else:
+                    print(">>> ALERTA DE COMPRA <<< (Wyckoff)")
                     stop_loss = current_live_price - (atr * 1.0)
                     take_profit = current_live_price + (atr * 1.5)
-                    reason = "TD9 Buy (Counter-Trend)"
-                else:
-                    print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
-                    stop_loss = current_live_price - (atr * 1.5)
-                    take_profit = current_live_price + (atr * 3.0)
-                    reason = "TD9 Buy (Trend)"
-                    
+                    reason = f"Wyckoff Spring + RSI {rsi:.1f}"
+
                 if state.get("last_trigger_time") == trigger_time:
-                    print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
+                    print("⚠️ Señal ya operada en esta vela.")
                 else:
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
-                    if is_counter_trend: base_risk *= 0.5 # Mitad de riesgo contra tendencia
-                    
-                    conviction_multiplier = 1.0
-                    if rsi < 30: conviction_multiplier += 0.5
-                    bb_bypass = False
-                    if current_live_price <= bb_lower:
-                        print("🔥 COMPRESIÓN BOLLINGER: Precio perforando la Banda Inferior. Multiplicador aumentado.")
-                        conviction_multiplier += 0.5
-                        bb_bypass = True
-                        reason += " [🔥BB]"
-                        
+                    conviction_multiplier = 1.5 if rsi < 30 else 1.0
                     final_risk = base_risk * conviction_multiplier
-                    
-                    # 1. VOLUME FILTER
-                    volume = closed_candle.get('volume', 0)
-                    volume_sma = closed_candle.get('volume_sma', 0)
-                    if volume < volume_sma * 0.8:
-                        if bb_bypass:
-                            print("🔥 EXCEPCIÓN BOLLINGER: Falta volumen, pero la extrema dilatación salva el trade.")
-                        else:
-                            print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
-                            return
-                        
-                    # 2. VANGUARD SCALING (35% Riesgo Inicial)
-                    state["full_target_risk_usd"] = final_risk
-                    final_risk = final_risk * 0.35
-                    print(f"🎯 VANGUARDIA SCALING: Entrando con solo 35% del riesgo normal (${final_risk:.2f}).")
-                    
                     execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
-            else:
-                print("TD9 ignorado: El RSI no permite la compra.")
-                
-        # CONDICIÓN DE VENTA SHORT (Agotamiento alcista)
-        elif count == 9:
+
+        elif trigger_sell:
             if rsi > 55: # Permitir ventas si no está extremadamente sobrevendido
-                is_counter_trend = current_live_price > ema200 # Vender sobre la EMA200 es contra tendencia principal
-                if is_counter_trend:
-                    print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia - Scalp 1 a 4 Velas)")
+                is_counter_trend = current_live_price > ema200
+                if "TD9" in reason_sell:
+                    if is_counter_trend:
+                        print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia)")
+                        stop_loss = current_live_price + (atr * 1.0)
+                        take_profit = current_live_price - (atr * 1.5)
+                        reason = "TD9 Sell (Counter-Trend)"
+                    else:
+                        print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
+                        stop_loss = current_live_price + (atr * 1.5)
+                        take_profit = current_live_price - (atr * 3.0)
+                        reason = "TD9 Sell (Trend)"
+                else:
+                    print(">>> ALERTA DE VENTA <<< (Wyckoff)")
                     stop_loss = current_live_price + (atr * 1.0)
                     take_profit = current_live_price - (atr * 1.5)
-                    reason = "TD9 Sell (Counter-Trend)"
-                else:
-                    print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
-                    stop_loss = current_live_price + (atr * 1.5)
-                    take_profit = current_live_price - (atr * 3.0)
-                    reason = "TD9 Sell (Trend)"
-                    
+                    reason = f"Wyckoff Upthrust + RSI {rsi:.1f}"
+
                 if state.get("last_trigger_time") == trigger_time:
-                    print("⚠️ Señal ya operada en esta vela. Ignorando para evitar bucle de reentradas (Gatling Bug).")
+                    print("⚠️ Señal ya operada en esta vela.")
                 else:
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
-                    if is_counter_trend: base_risk *= 0.5 # Mitad de riesgo contra tendencia
-                    
-                    conviction_multiplier = 1.0
-                    if rsi > 70: conviction_multiplier += 0.5
-                    bb_bypass = False
-                    if current_live_price >= bb_upper:
-                        print("🔥 COMPRESIÓN BOLLINGER: Precio perforando la Banda Superior. Multiplicador aumentado.")
-                        conviction_multiplier += 0.5
-                        bb_bypass = True
-                        reason += " [🔥BB]"
-                        
+                    conviction_multiplier = 1.5 if rsi > 70 else 1.0
                     final_risk = base_risk * conviction_multiplier
-                    
-                    # 1. VOLUME FILTER
-                    volume = closed_candle.get('volume', 0)
-                    volume_sma = closed_candle.get('volume_sma', 0)
-                    if volume < volume_sma * 0.8:
-                        if bb_bypass:
-                            print("🔥 EXCEPCIÓN BOLLINGER: Falta volumen, pero la extrema dilatación salva el trade.")
-                        else:
-                            print("🛡 Filtro de Volumen: TD9 ignorado por falta de liquidez institucional.")
-                            return
-                        
-                    # 2. VANGUARD SCALING (35% Riesgo Inicial)
-                    state["full_target_risk_usd"] = final_risk
-                    final_risk = final_risk * 0.35
-                    print(f"🎯 VANGUARDIA SCALING: Entrando con solo 35% del riesgo normal (${final_risk:.2f}).")
-                    
                     execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
-            else:
-                print("TD9 ignorado: El RSI no permite el short.")
-                
-
-        # --- WYCKOFF SPRING (LONG) ---
-        elif wyckoff_spring:
-            print(">>> WYCKOFF SPRING DETECTED (LONG) <<<")
-            stop_loss = current_live_price - (atr * 1.0)
-            take_profit = current_live_price + (atr * 1.5)
-            reason = f"Wyckoff Spring + RSI {rsi:.1f}"
-            if state.get("last_trigger_time") == trigger_time:
-                print("⚠️ Señal ya operada en esta vela.")
-            else:
-                risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
-                base_risk = risk_matrix.get(TIMEFRAME, 0.01)
-                conviction_multiplier = 1.5 if rsi < 30 else 1.0
-                final_risk = base_risk * conviction_multiplier
-                execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
-
-        # --- WYCKOFF UPTHRUST (SHORT) ---
-        elif wyckoff_upthrust:
-            print(">>> WYCKOFF UPTHRUST DETECTED (SHORT) <<<")
-            stop_loss = current_live_price + (atr * 1.0)
-            take_profit = current_live_price - (atr * 1.5)
-            reason = f"Wyckoff Upthrust + RSI {rsi:.1f}"
-            if state.get("last_trigger_time") == trigger_time:
-                print("⚠️ Señal ya operada en esta vela.")
-            else:
-                risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
-                base_risk = risk_matrix.get(TIMEFRAME, 0.01)
-                conviction_multiplier = 1.5 if rsi > 70 else 1.0
-                final_risk = base_risk * conviction_multiplier
-                execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
     elif state.get("status") == "IN_TRADE":
         pos = state.get("position")
@@ -760,30 +706,38 @@ if __name__ == "__main__":
     send_telegram("🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking multi-asset pipeline (5 Timeframes).")
     
     timeframes = ['1h', '4h', '1d']
-    assets = ['BTC', 'ETH', 'HYPE']
+    bots = [
+        {'id': 'BTC_TD9', 'symbol': 'BTC', 'strategy': 'TD9'},
+        {'id': 'BTC_WYK', 'symbol': 'BTC', 'strategy': 'WYK'},
+        {'id': 'BTC_HYB', 'symbol': 'BTC', 'strategy': 'HYB'},
+        {'id': 'ETH_HYB', 'symbol': 'ETH', 'strategy': 'HYB'}
+    ]
     
     while True:
-        for symbol in assets:
-            for tf in timeframes:
-                # Reassign globals for the functions to use
-                # No global needed here
+        for tf in timeframes:
+            df_cache = {}
+            for symbol in ['BTC', 'ETH']:
+                try:
+                    raw_df = get_data(f"{symbol}/USDT", tf)
+                    if raw_df is not None:
+                        df_cache[symbol] = calculate_td_sequential(raw_df)
+                except Exception as e:
+                    print(f"Error fetching {symbol}: {e}")
+                    
+            for bot in bots:
+                symbol = bot['symbol']
+                if symbol not in df_cache: continue
+                
                 TIMEFRAME = tf
                 SYMBOL = symbol
-                STATE_FILE = f"state_{symbol}_{tf}.json"
-                TRADES_FILE = f"trades_{symbol}_{tf}.json"
-                
                 try:
-                    analyze_market()
-                    import gc
-                    gc.collect() # Free up dataframe RAM aggressively
+                    analyze_market(df_cache[symbol], bot['id'], bot['strategy'])
                 except Exception as e:
-                    print(f"Error analizando {symbol} {tf}: {e}")
-                    
-        # Sincronización de reloj militar (Evita el drift del sleep)
-        # Despierta siempre exactamente en los minutos: 00, 05, 10, 15, 20...
+                    print(f"Error analizando {bot['id']}: {e}")
+            import gc
+            gc.collect()
+            
         import time as time_mod
         now = time_mod.time()
         sleep_sec = 300 - (now % 300)
-        # Añadimos 3 segundos de gracia para que Binance haya cerrado y publicado la vela
         time_mod.sleep(sleep_sec + 3)
-
