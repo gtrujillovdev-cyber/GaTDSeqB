@@ -1,6 +1,8 @@
 import time
 import ccxt
 import pandas as pd
+from volume_profile import calculate_volume_profile
+from wycoff_logic import detect_divergences
 import json
 import os
 import builtins
@@ -215,7 +217,30 @@ def analyze_market():
     countdown = closed_candle['td_countdown']
     trigger_time = str(closed_candle['timestamp'])
     
+    
+    # --- WYCKOFF CORE ---
+    vp_data = calculate_volume_profile(df.tail(100), bins=20)
+    poc = vp_data['poc']
+    vah = vp_data['vah']
+    val = vp_data['val']
+    divergence = detect_divergences(df.iloc[:-1])
+    
+    avg_vol = df['volume'].iloc[-20:-1].mean()
+    volume = closed_candle.get('volume', 0)
+    climatic_volume = volume > (avg_vol * 1.5)
+    
+    candle_range = closed_candle['high'] - closed_candle['low']
+    if candle_range == 0: candle_range = 1
+    close_pct = (closed_candle['close'] - closed_candle['low']) / candle_range
+    
+    wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5) and (divergence == 'BULLISH' or rsi < 45)
+    wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5) and (divergence == 'BEARISH' or rsi > 55)
+    
+    # Save wyckoff state for UI
     state = load_state()
+    state["poc"] = poc
+    state["wyckoff_div"] = divergence or "NONE"
+
     
     if abs(count) >= 7 or state.get("status") == "IN_TRADE":
         print(f"Analizando {SYMBOL} en {TIMEFRAME} con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
@@ -334,6 +359,37 @@ def analyze_market():
             else:
                 print("TD9 ignorado: El RSI no permite el short.")
                 
+
+        # --- WYCKOFF SPRING (LONG) ---
+        elif wyckoff_spring:
+            print(">>> WYCKOFF SPRING DETECTED (LONG) <<<")
+            stop_loss = current_live_price - (atr * 1.0)
+            take_profit = current_live_price + (atr * 1.5)
+            reason = f"Wyckoff Spring + RSI {rsi:.1f}"
+            if state.get("last_trigger_time") == trigger_time:
+                print("⚠️ Señal ya operada en esta vela.")
+            else:
+                risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
+                base_risk = risk_matrix.get(TIMEFRAME, 0.01)
+                conviction_multiplier = 1.5 if rsi < 30 else 1.0
+                final_risk = base_risk * conviction_multiplier
+                execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
+
+        # --- WYCKOFF UPTHRUST (SHORT) ---
+        elif wyckoff_upthrust:
+            print(">>> WYCKOFF UPTHRUST DETECTED (SHORT) <<<")
+            stop_loss = current_live_price + (atr * 1.0)
+            take_profit = current_live_price - (atr * 1.5)
+            reason = f"Wyckoff Upthrust + RSI {rsi:.1f}"
+            if state.get("last_trigger_time") == trigger_time:
+                print("⚠️ Señal ya operada en esta vela.")
+            else:
+                risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
+                base_risk = risk_matrix.get(TIMEFRAME, 0.01)
+                conviction_multiplier = 1.5 if rsi > 70 else 1.0
+                final_risk = base_risk * conviction_multiplier
+                execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
+
     elif state.get("status") == "IN_TRADE":
         pos = state.get("position")
         if pos == "BUY" and countdown == -13 and not state.get("reinforced_13"):
