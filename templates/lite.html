@@ -540,12 +540,12 @@
                 let totalHistoricalTrades = 0;
                 let activeBotsCount = 0;
                 
-                for (const asset of ['BTC', 'ETH', 'HYPE', 'WYCKOFF']) {
+                for (const asset of ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_HYB']) {
                     let assetGrid = `<div class="bot-column"><h2>${asset}</h2>`;
                     
                     if (!fleet[asset]) continue;
                     
-                    for (const tf of ['5m', '15m', '1h', '4h', '1d']) {
+                    for (const tf of ['1h', '4h', '1d']) {
                         const state = fleet[asset][tf];
                         if (!state) continue;
                         activeBotsCount++;
@@ -613,7 +613,8 @@
                             let tp = parseFloat(state.take_profit);
                             let isLong = state.position === 'BUY';
                             let range = Math.abs(tp - sl);
-                            let assetPrice = globalPrices[asset] && globalPrices[asset] !== 0 ? globalPrices[asset] : parseFloat(state.entry_price);
+                            let baseSymbol = asset.split('_')[0];
+                            let assetPrice = globalPrices[baseSymbol] && globalPrices[baseSymbol] !== 0 ? globalPrices[baseSymbol] : parseFloat(state.entry_price);
                             let currentDist = isLong ? (assetPrice - sl) : (sl - assetPrice);
                             let pct = 0;
                             if (range !== 0) { pct = (currentDist / range) * 100; }
