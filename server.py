@@ -114,7 +114,7 @@ def get_fleet_data():
         
     for asset in ['BTC', 'ETH', 'HYPE', 'WYCKOFF']:
         fleet[asset] = {}
-        for tf in ['5m', '15m', '1h', '4h', '1d']:
+        for tf in ['1h', '4h', '1d']:
             import os
             
             if asset == 'WYCKOFF':
