@@ -71,7 +71,7 @@ def calculate_atr(df, period=14):
     # TradingView EXACT MATCH: Wilder's Smoothing (RMA) instead of Simple Moving Average (SMA)
     return true_range.ewm(alpha=1/period, adjust=False).mean()
 
-def get_data(symbol="BTC/USDT", timeframe="4h", limit=1000):
+def get_data(symbol="BTC/USDT", timeframe="4h", limit=1500):
     for attempt in range(3):
         try:
             ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
@@ -279,7 +279,7 @@ def analyze_market(df, bot_id, strategy_type):
                 reason_sell = "Wyckoff Upthrust"
 
         if trigger_buy:
-            if rsi < 45: # Permitir compras si no está extremadamente sobrecomprado
+            if rsi < 70: # Permitir compras si no está extremadamente sobrecomprado
                 is_counter_trend = current_live_price < ema200
                 if "TD9" in reason_buy:
                     if is_counter_trend:
@@ -308,7 +308,7 @@ def analyze_market(df, bot_id, strategy_type):
                     execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
         elif trigger_sell:
-            if rsi > 55: # Permitir ventas si no está extremadamente sobrevendido
+            if rsi > 30: # Permitir ventas si no está extremadamente sobrevendido
                 is_counter_trend = current_live_price > ema200
                 if "TD9" in reason_sell:
                     if is_counter_trend:
