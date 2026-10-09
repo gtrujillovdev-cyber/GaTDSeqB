@@ -112,7 +112,7 @@ def get_fleet_data():
     except:
         is_running = False
         
-    for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_HYB']:
+    for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
         fleet[asset] = {}
         for tf in ['1h', '4h', '1d']:
             import os
@@ -258,7 +258,7 @@ def websocket_monitor_loop():
     while True:
         if clients > 0:
             changed = False
-            for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_HYB']:
+            for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
                 for tf in ['1h', '4h', '1d']:
                     state_file = f"state_{asset}_{tf}.json"
                     if os.path.exists(state_file):

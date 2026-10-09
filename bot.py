@@ -710,13 +710,18 @@ if __name__ == "__main__":
         {'id': 'BTC_TD9', 'symbol': 'BTC', 'strategy': 'TD9'},
         {'id': 'BTC_WYK', 'symbol': 'BTC', 'strategy': 'WYK'},
         {'id': 'BTC_HYB', 'symbol': 'BTC', 'strategy': 'HYB'},
-        {'id': 'ETH_HYB', 'symbol': 'ETH', 'strategy': 'HYB'}
+        {'id': 'ETH_TD9', 'symbol': 'ETH', 'strategy': 'TD9'},
+        {'id': 'ETH_WYK', 'symbol': 'ETH', 'strategy': 'WYK'},
+        {'id': 'ETH_HYB', 'symbol': 'ETH', 'strategy': 'HYB'},
+        {'id': 'HYPE_TD9', 'symbol': 'HYPE', 'strategy': 'TD9'},
+        {'id': 'HYPE_WYK', 'symbol': 'HYPE', 'strategy': 'WYK'},
+        {'id': 'HYPE_HYB', 'symbol': 'HYPE', 'strategy': 'HYB'}
     ]
     
     while True:
         for tf in timeframes:
             df_cache = {}
-            for symbol in ['BTC', 'ETH']:
+            for symbol in ['BTC', 'ETH', 'HYPE']:
                 try:
                     raw_df = get_data(f"{symbol}/USDT", tf)
                     if raw_df is not None:

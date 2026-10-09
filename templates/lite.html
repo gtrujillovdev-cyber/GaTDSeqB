@@ -28,7 +28,7 @@
         
         #macro-context { text-align: center; margin-bottom: 20px; font-size: 15px; color: #ffb200; font-weight: bold;}
         
-        .main-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; flex: 1; min-height: 0; }
+        .main-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; flex: 1; min-height: 0; }
         .bot-column { display: flex; flex-direction: column; gap: 15px; height: 100%;}
         
         .bot-card { border: 1px solid #ffb200; background: #000000;
@@ -120,7 +120,7 @@
             .main-grid { 
                 grid-area: bots; 
                 display: grid; 
-                grid-template-columns: repeat(4, 1fr); 
+                grid-template-columns: repeat(3, 1fr); 
                 gap: 30px; 
                 overflow: visible; 
                 align-content: start;
@@ -540,7 +540,7 @@
                 let totalHistoricalTrades = 0;
                 let activeBotsCount = 0;
                 
-                for (const asset of ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_HYB']) {
+                for (const asset of ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']) {
                     let assetGrid = `<div class="bot-column"><h2>${asset}</h2>`;
                     
                     if (!fleet[asset]) continue;
