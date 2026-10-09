@@ -243,6 +243,7 @@ clients = 0
 def handle_connect():
     global clients
     clients += 1
+    socketio.emit('fleet_update', get_fleet_data())
     # Emit initial data on connect
     emit('fleet_update', get_fleet_data())
     for line in terminal_buffer:
