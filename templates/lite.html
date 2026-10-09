@@ -327,9 +327,9 @@
             try {
                 let res = await fetch('/api/system');
                 let data = await res.json();
-                document.getElementById('sys-cpu').innerText = `${data.cpu}%`;
-                document.getElementById('sys-ram').innerText = `${data.ram}%`;
-                document.getElementById('sys-temp').innerText = `${data.temp}°C`;
+                document.getElementById('sys-cpu').innerText = `${parseFloat(data.cpu).toFixed(2)}%`;
+                document.getElementById('sys-ram').innerText = `${parseFloat(data.ram).toFixed(2)}%`;
+                document.getElementById('sys-temp').innerText = `${parseFloat(data.temp).toFixed(2)}°C`;
             } catch(e) {}
         }
         
