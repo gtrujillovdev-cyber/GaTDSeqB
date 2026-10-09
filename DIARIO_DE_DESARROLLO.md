@@ -186,3 +186,13 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 
 ### 3. Vigilancia Táctica (Market Watch)
 - `BTC_4H` ha evolucionado al **TD -12**. Estamos al borde absoluto de la capitulación algorítmica (TD13). Los filtros avanzados están armados y listos para interceptar la caída y activar los escudos matemáticos.
+
+## 📅 Día 9: 09 de Octubre de 2026 - Proyecto Wyckoff (Rama) y OOM Crash
+- **Integración Estratégica (Rama `wycoff`):** Se inicia el desarrollo del módulo de Wyckoff combinando Volume Profile (Numpy) y divergencias de RSI.
+- **Incidente de OOM (Out Of Memory):** La ejecución de un segundo `bot.py` independiente para Wyckoff saturó la memoria RAM de la Raspberry Pi, provocando un fallo en cadena que derribó el servidor DHCP/Pi-hole local. 
+- **Resolución Arquitectónica (Regla #4):** Se decreta que cualquier nueva estrategia cuantitativa debe anclarse al *pipeline* de datos principal. Las descargas de Klines desde la API se realizarán una única vez por activo y timeframe. Ese DataFrame resultante se pasará por referencia a los diferentes motores matemáticos (TD Sequential, Wyckoff, etc.) para mantener la huella de memoria al mínimo.
+
+## 📅 Día 9: 09 de Octubre de 2026 - Proyecto Wyckoff (Rama) y OOM Crash
+- **Integración Estratégica (Rama `wycoff`):** Se inicia el desarrollo del módulo de Wyckoff combinando Volume Profile (Numpy) y divergencias de RSI.
+- **Incidente de OOM (Out Of Memory):** La ejecución de un segundo `bot.py` independiente para Wyckoff saturó la memoria RAM de la Raspberry Pi, provocando un fallo en cadena que derribó el servidor DHCP/Pi-hole local. 
+- **Resolución Arquitectónica (Regla #4):** Se decreta que cualquier nueva estrategia cuantitativa debe anclarse al *pipeline* de datos principal. Las descargas de Klines desde la API se realizarán una única vez por activo y timeframe. Ese DataFrame resultante se pasará por referencia a los diferentes motores matemáticos (TD Sequential, Wyckoff, etc.) para mantener la huella de memoria al mínimo.
