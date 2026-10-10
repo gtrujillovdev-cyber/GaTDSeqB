@@ -254,8 +254,8 @@ def analyze_market(df, bot_id, strategy_type):
 
     
     if state.get("status") == "IDLE":
-        td_buy = (count == -9)
-        td_sell = (count == 9)
+        td_buy = (count <= -9) and (closed_candle['close'] > df.iloc[-3]['high']) # Confirmación de reversión
+        td_sell = (count >= 9) and (closed_candle['close'] < df.iloc[-3]['low']) # Confirmación de reversión
         
         trigger_buy = False
         trigger_sell = False
@@ -284,18 +284,18 @@ def analyze_market(df, bot_id, strategy_type):
                 if "TD9" in reason_buy:
                     if is_counter_trend:
                         print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia)")
-                        stop_loss = current_live_price - (atr * 1.0)
-                        take_profit = current_live_price + (atr * 1.5)
+                        stop_loss = current_live_price - (atr * 1.5)
+                        take_profit = current_live_price + (atr * 2.0)
                         reason = "TD9 Buy (Counter-Trend)"
                     else:
                         print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
-                        stop_loss = current_live_price - (atr * 1.5)
-                        take_profit = current_live_price + (atr * 3.0)
+                        stop_loss = current_live_price - (atr * 2.0)
+                        take_profit = current_live_price + (atr * 3.5)
                         reason = "TD9 Buy (Trend)"
                 else:
                     print(">>> ALERTA DE COMPRA <<< (Wyckoff)")
-                    stop_loss = current_live_price - (atr * 1.0)
-                    take_profit = current_live_price + (atr * 1.5)
+                    stop_loss = current_live_price - (atr * 1.5)
+                    take_profit = current_live_price + (atr * 2.0)
                     reason = f"Wyckoff Spring + RSI {rsi:.1f}"
 
                 if state.get("last_trigger_time") == trigger_time:
@@ -313,18 +313,18 @@ def analyze_market(df, bot_id, strategy_type):
                 if "TD9" in reason_sell:
                     if is_counter_trend:
                         print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia)")
-                        stop_loss = current_live_price + (atr * 1.0)
-                        take_profit = current_live_price - (atr * 1.5)
+                        stop_loss = current_live_price + (atr * 1.5)
+                        take_profit = current_live_price - (atr * 2.0)
                         reason = "TD9 Sell (Counter-Trend)"
                     else:
                         print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
-                        stop_loss = current_live_price + (atr * 1.5)
-                        take_profit = current_live_price - (atr * 3.0)
+                        stop_loss = current_live_price + (atr * 2.0)
+                        take_profit = current_live_price - (atr * 3.5)
                         reason = "TD9 Sell (Trend)"
                 else:
                     print(">>> ALERTA DE VENTA <<< (Wyckoff)")
-                    stop_loss = current_live_price + (atr * 1.0)
-                    take_profit = current_live_price - (atr * 1.5)
+                    stop_loss = current_live_price + (atr * 1.5)
+                    take_profit = current_live_price - (atr * 2.0)
                     reason = f"Wyckoff Upthrust + RSI {rsi:.1f}"
 
                 if state.get("last_trigger_time") == trigger_time:
@@ -370,11 +370,11 @@ def execute_reinforcement(price, atr, state, action):
     print(f"🛡 EL BATALLÓN (TD13): Inyectando el 65% de riesgo restante (${base_risk_usd:.2f}) para promediar a la baja.")
     
     if action == "BUY":
-        new_sl = price - (atr * 1.5)
-        new_tp_offset = atr * 2.0
+        new_sl = price - (atr * 2.0)
+        new_tp_offset = atr * 2.5
     else:
-        new_sl = price + (atr * 1.5)
-        new_tp_offset = - (atr * 2.0)
+        new_sl = price + (atr * 2.0)
+        new_tp_offset = - (atr * 2.5)
         
     sl_pct = abs(price - new_sl) / price
     if sl_pct < 0.001: sl_pct = 0.001
@@ -529,9 +529,21 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
     updated_sl = sl
     close_reason = ""
     
+    # --- BREAK EVEN LOGIC ---
+    if action == "BUY" and live_candle['high'] > (entry + atr):
+        if sl < entry:
+            updated_sl = entry
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss subido a ${updated_sl:.2f}")
+    elif action == "SELL" and live_candle['low'] < (entry - atr):
+        if sl > entry:
+            updated_sl = entry
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss bajado a ${updated_sl:.2f}")
+    # ------------------------
+
+    
     if action == "BUY":
         # Scale-Out Parcial (Asegurar 50% de Ganancias en 1.0 ATR)
-        if current_live_price >= entry + (atr * 1.0) and not state.get("scaled_out", False):
+        if current_live_price >= entry + (atr * 1.5) and not state.get("scaled_out", False):
             import datetime as dt_mod
             print("💰 SCALE-OUT: Asegurando 50% de las ganancias.")
             partial_pnl = ((current_live_price - entry) * (size_btc * 0.5)) - (state.get("entry_fee_usd", 0) * 0.5) - (current_live_price * (size_btc * 0.5) * 0.0004)
@@ -560,14 +572,14 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
             
         # Escudo Breakeven (0.75 ATR a favor -> Stop a precio de entrada)
-        if current_live_price >= entry + (atr * 0.75) and updated_sl < entry:
+        if current_live_price >= entry + (atr * 1.25) and updated_sl < entry:
             updated_sl = entry
             state["stop_loss"] = updated_sl
             print(f"🛡 BREAKEVEN SHIELD ACTIVO: SL subido a precio de entrada (${entry:.2f})")
             send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 0.75 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
             
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
-        new_sl = current_closed_price - (atr * 1.5)
+        new_sl = current_closed_price - (atr * 2.0)
         if new_sl > sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
@@ -586,10 +598,10 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             if live_candle.get('rsi', 50) >= 65:
                 # Dynamic TP Extension (Let winners run)
                 print(f"🔥 Take Profit alcanzado pero mercado eufórico (RSI >= 65). Extendiendo TP.")
-                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp + (atr * 2.0):,.2f}\n<b>Locked SL:</b> ${max(updated_sl, tp - (atr * 0.5)):,.2f}")
-                state["take_profit"] = tp + (atr * 2.0)
-                if (tp - (atr * 0.5)) > updated_sl:
-                    updated_sl = tp - (atr * 0.5)
+                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp + (atr * 2.5):,.2f}\n<b>Locked SL:</b> ${max(updated_sl, tp - (atr * 1.0)):,.2f}")
+                state["take_profit"] = tp + (atr * 2.5)
+                if (tp - (atr * 1.0)) > updated_sl:
+                    updated_sl = tp - (atr * 1.0)
             else:
                 print("✅ Take Profit alcanzado en la mecha superior.")
                 pnl_dollars = (tp - entry) * size_btc
@@ -601,7 +613,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             
     elif action == "SELL":
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
-        new_sl = current_closed_price + (atr * 1.5)
+        new_sl = current_closed_price + (atr * 2.0)
         if new_sl < sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
@@ -620,10 +632,10 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             if live_candle.get('rsi', 50) <= 35:
                 # Dynamic TP Extension (Let winners run)
                 print(f"🔥 Take Profit alcanzado pero mercado eufórico (RSI <= 35). Extendiendo TP.")
-                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp - (atr * 2.0):,.2f}\n<b>Locked SL:</b> ${min(updated_sl, tp + (atr * 0.5)):,.2f}")
-                state["take_profit"] = tp - (atr * 2.0)
-                if (tp + (atr * 0.5)) < updated_sl:
-                    updated_sl = tp + (atr * 0.5)
+                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp - (atr * 2.5):,.2f}\n<b>Locked SL:</b> ${min(updated_sl, tp + (atr * 1.0)):,.2f}")
+                state["take_profit"] = tp - (atr * 2.5)
+                if (tp + (atr * 1.0)) < updated_sl:
+                    updated_sl = tp + (atr * 1.0)
             else:
                 print("✅ Take Profit alcanzado en la mecha inferior.")
                 pnl_dollars = (entry - tp) * size_btc
