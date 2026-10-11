@@ -216,3 +216,12 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 
 ### 2. Nueva Posición Táctica (HYPE)
 - A las 18:00:09, el arquetipo Híbrido y Wyckoff entraron en corto (SELL) en HYPE a \$86.79 tras confirmar divergencia bajista institucional y TD de agotamiento. Stop Loss fijado en \$87.65 y TP en \$85.50.
+
+## [11-10-2026] - Operación: Optimización de Break Even Dinámico (0.5 ATR Shield)
+### 1. Refactorización del Algoritmo de Salida
+- **Problema Abordado:** En operaciones con baja volatilidad inicial (ej. aperturas de fin de semana), el umbral de `1.0 ATR` para Break Even resultaba excesivamente lejano, permitiendo que ganancias latentes (+0.55 ATR) se transformaran en pérdidas completas ante reversiones bruscas del mercado.
+- **Solución Implementada:** 
+  - Reducción del umbral de activación de Break Even de `1.0 ATR` a **`0.5 ATR`** tanto para posiciones largas (`BUY`) como cortas (`SELL`).
+  - Persistencia inmediata de `state["stop_loss"] = entry` en memoria y disco para sincronización en tiempo real con el dashboard y notificaciones por Telegram.
+  - Eliminación de comprobaciones redundantes de 1.25 ATR en el ciclo de salida.
+- **Despliegue:** Sincronizado vía `scp` a la Raspberry Pi y servicio `gatdseq-bot` reiniciado exitosamente.

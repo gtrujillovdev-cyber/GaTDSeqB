@@ -529,16 +529,20 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
     updated_sl = sl
     close_reason = ""
     
-    # --- BREAK EVEN LOGIC ---
-    if action == "BUY" and live_candle['high'] > (entry + atr):
-        if sl < entry:
+    # --- BREAK EVEN LOGIC (0.5 ATR SENSITIVE SHIELD) ---
+    if action == "BUY" and live_candle['high'] >= (entry + (atr * 0.5)):
+        if updated_sl < entry:
             updated_sl = entry
-            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss subido a ${updated_sl:.2f}")
-    elif action == "SELL" and live_candle['low'] < (entry - atr):
-        if sl > entry:
+            state["stop_loss"] = updated_sl
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss subido a ${updated_sl:.2f} (+0.5 ATR favorable)")
+            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 0.5 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
+    elif action == "SELL" and live_candle['low'] <= (entry - (atr * 0.5)):
+        if updated_sl > entry:
             updated_sl = entry
-            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss bajado a ${updated_sl:.2f}")
-    # ------------------------
+            state["stop_loss"] = updated_sl
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss bajado a ${updated_sl:.2f} (+0.5 ATR favorable)")
+            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 0.5 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
+    # ----------------------------------------------------
 
     
     if action == "BUY":
@@ -571,13 +575,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
                 
             send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
             
-        # Escudo Breakeven (0.75 ATR a favor -> Stop a precio de entrada)
-        if current_live_price >= entry + (atr * 1.25) and updated_sl < entry:
-            updated_sl = entry
-            state["stop_loss"] = updated_sl
-            print(f"🛡 BREAKEVEN SHIELD ACTIVO: SL subido a precio de entrada (${entry:.2f})")
-            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 0.75 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
-            
+
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
         new_sl = current_closed_price - (atr * 2.0)
         if new_sl > sl:
