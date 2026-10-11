@@ -208,3 +208,11 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Posiciones Activas:** Actualmente, `ETH_HYB_1h` y `ETH_TD9_1h` mantienen una posición corta (SELL) abierta en Ethereum a un precio de entrada de \$2,512.39.
 - **Rendimiento Flotante:** La posición acumula un beneficio no realizado de +\$531.40 USD (+\$265.70 USD por bot), con el precio cotizando en \$2,502.76 hacia el objetivo de \$2,476.15.
 - **Diferenciación A/B/C:** El arquetipo `ETH_WYK_1h` filtró exitosamente la entrada, demostrando la selectividad de los filtros estructurales de volumen frente a las señales puras de agotamiento secuencial.
+
+## [11-10-2026] - Operación: Auditoría Post-Stop Loss (ETH) y Despliegue en HYPE
+### 1. Análisis Forense de los Stops en ETH (1h)
+- A las 16:35:07, una mecha de volatilidad en Ethereum alcanzó los \$2,516.38, ejecutando los Stop Loss de `ETH_HYB_1h` y `ETH_TD9_1h`.
+- **Causa Cuantitativa:** El precio no alcanzó el umbral de `1.0 ATR` (\$2,492) necesario para desplazar el Stop a Break Even (quedó en \$2,501 antes de revertir). La pérdida se limitó a -\$165.59 USD por bot (-1.66% del bank asignado), validando el control estricto del riesgo por operación.
+
+### 2. Nueva Posición Táctica (HYPE)
+- A las 18:00:09, el arquetipo Híbrido y Wyckoff entraron en corto (SELL) en HYPE a \$86.79 tras confirmar divergencia bajista institucional y TD de agotamiento. Stop Loss fijado en \$87.65 y TP en \$85.50.
