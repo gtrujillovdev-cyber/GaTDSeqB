@@ -198,3 +198,13 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Resolución Arquitectónica (Regla #4):** Se decreta que cualquier nueva estrategia cuantitativa debe anclarse al *pipeline* de datos principal. Las descargas de Klines desde la API se realizarán una única vez por activo y timeframe. Ese DataFrame resultante se pasará por referencia a los diferentes motores matemáticos (TD Sequential, Wyckoff, etc.) para mantener la huella de memoria al mínimo.
 - **Refactorización Core (Wyckoff Nativo):** Se ha destruido el módulo independiente de Wyckoff que causó el OOM. Sus motores de cálculo (`volume_profile.py` y `wycoff_logic.py`) han sido asimilados directamente en el `bot.py` principal. Ahora la Raspberry procesa los datos (Klines) en un solo hilo y decide si disparar por TD Sequential, por Wyckoff, o por ambos, con **0% de impacto adicional en la RAM**.
 - **Entorno Multivariante (A/B/C Testing):** Se ha rediseñado la arquitectura del pipeline para evaluar múltiples motores simultáneamente con impacto de memoria cero. El Dashboard ahora compite 4 bots en tiempo real: `BTC_TD9` (Control), `BTC_WYK` (Volumen Institucional), `BTC_HYB` (Fusión) y `ETH_HYB` (Validación Cruzada).
+
+## [11-10-2026] - Operación: Macro Auditoría y Evaluación Táctica (Entorno A/B/C)
+### 1. Estado de Infraestructura y Rendimiento
+- **Estabilidad de la Raspberry Pi:** La máquina lleva encendida 1 día y 16 horas sin interrupciones (`uptime: 1d 16h`). Carga de CPU estable (`Load average: 2.35`), memoria RAM óptima con ~215MB disponibles.
+- **Entorno A/B/C Operativo:** La flota completa de 27 instancias virtuales (9 bots por arquetipo: Híbrido, TD9 puro y Wyckoff) se encuentra monitorizando el mercado de forma completamente asíncrona y aislada.
+
+### 2. Evaluación Táctica del Mercado
+- **Posiciones Activas:** Actualmente, `ETH_HYB_1h` y `ETH_TD9_1h` mantienen una posición corta (SELL) abierta en Ethereum a un precio de entrada de \$2,512.39.
+- **Rendimiento Flotante:** La posición acumula un beneficio no realizado de +\$531.40 USD (+\$265.70 USD por bot), con el precio cotizando en \$2,502.76 hacia el objetivo de \$2,476.15.
+- **Diferenciación A/B/C:** El arquetipo `ETH_WYK_1h` filtró exitosamente la entrada, demostrando la selectividad de los filtros estructurales de volumen frente a las señales puras de agotamiento secuencial.
