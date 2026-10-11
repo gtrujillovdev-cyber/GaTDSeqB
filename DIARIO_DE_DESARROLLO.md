@@ -225,3 +225,14 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Persistencia inmediata de `state["stop_loss"] = entry` en memoria y disco para sincronización en tiempo real con el dashboard y notificaciones por Telegram.
   - Eliminación de comprobaciones redundantes de 1.25 ATR en el ciclo de salida.
 - **Despliegue:** Sincronizado vía `scp` a la Raspberry Pi y servicio `gatdseq-bot` reiniciado exitosamente.
+
+## [11-10-2026] - Operación: Despliegue de Scale-Out Simétrico (1.0 ATR)
+### 1. Refactorización Cuantitativa de Salidas Parciales
+- **Simetría Long/Short:** Se implementó el bloque de **Scale-Out del 50%** en la rama de ventas (`SELL`), igualando las capacidades de toma de beneficios entre compras y cortos.
+- **Calibración de Umbral:** Se ajustó el disparador de Scale-Out a **`1.0 ATR`** estricto tanto en `BUY` como en `SELL`.
+- **Mecánica Operativa:**
+  - Al alcanzar 1.0 ATR favorable, se ejecuta un cierre parcial del 50% de la posición, deduciendo fees de exchange y registrando el PnL neto directamente en `trades_*.json`.
+  - El tamaño remanente (`size_btc` y `size_usd`) se reduce al 50%.
+  - El Stop Loss de la posición residual queda sellado de forma innegociable en el precio de entrada (`entry`), convirtiendo el trade en una operación libre de riesgo.
+  - Se activa la bandera `scaled_out = True` para reflejar la insignia `💰 SCALE-OUT: 50% SECURED` en el dashboard.
+- **Despliegue y Pruebas:** Código compilado, transferido a la Raspberry Pi, y servicio `gatdseq-bot` reiniciado operando con normalidad.

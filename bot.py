@@ -547,16 +547,16 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
     
     if action == "BUY":
         # Scale-Out Parcial (Asegurar 50% de Ganancias en 1.0 ATR)
-        if current_live_price >= entry + (atr * 1.5) and not state.get("scaled_out", False):
+        if current_live_price >= entry + (atr * 1.0) and not state.get("scaled_out", False):
             import datetime as dt_mod
-            print("💰 SCALE-OUT: Asegurando 50% de las ganancias.")
+            print("💰 SCALE-OUT: Asegurando 50% de las ganancias (BUY a +1.0 ATR).")
             partial_pnl = ((current_live_price - entry) * (size_btc * 0.5)) - (state.get("entry_fee_usd", 0) * 0.5) - (current_live_price * (size_btc * 0.5) * 0.0004)
             trades = load_trades()
             trades.append({
                 "trade_id": trade_id + "_partial",
                 "time": dt_mod.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "type": "VENTA (Cierre Parcial 50%)",
-                "reason": "Scale-Out Táctico",
+                "reason": "Scale-Out Táctico (+1.0 ATR)",
                 "price": current_live_price,
                 "pnl": partial_pnl
             })
@@ -610,6 +610,35 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
                 current_live_price = tp # For closing log
             
     elif action == "SELL":
+        # Scale-Out Parcial (Asegurar 50% de Ganancias en 1.0 ATR)
+        if current_live_price <= entry - (atr * 1.0) and not state.get("scaled_out", False):
+            import datetime as dt_mod
+            print("💰 SCALE-OUT: Asegurando 50% de las ganancias (SELL a -1.0 ATR).")
+            partial_pnl = ((entry - current_live_price) * (size_btc * 0.5)) - (state.get("entry_fee_usd", 0) * 0.5) - (current_live_price * (size_btc * 0.5) * 0.0004)
+            trades = load_trades()
+            trades.append({
+                "trade_id": trade_id + "_partial",
+                "time": dt_mod.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "type": "COMPRA (Cierre Parcial 50%)",
+                "reason": "Scale-Out Táctico (+1.0 ATR)",
+                "price": current_live_price,
+                "pnl": partial_pnl
+            })
+            with open(TRADES_FILE, "w") as f:
+                json.dump(trades, f)
+            
+            # Actualizar State
+            state["size_btc"] = size_btc * 0.5
+            state["size_usd"] = state.get("size_usd", 0) * 0.5
+            state["entry_fee_usd"] = state.get("entry_fee_usd", 0) * 0.5
+            state["scaled_out"] = True
+            
+            if updated_sl > entry:
+                updated_sl = entry
+                state["stop_loss"] = updated_sl
+                
+            send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
+
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
         new_sl = current_closed_price + (atr * 2.0)
         if new_sl < sl:
