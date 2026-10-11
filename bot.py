@@ -45,6 +45,49 @@ def _send_telegram_async(msg):
 def send_telegram(msg):
     threading.Thread(target=_send_telegram_async, args=(msg,), daemon=True).start()
 
+# --- ATOMIC STORAGE & STATE HELPERS ---
+def load_state(filepath=None):
+    target = filepath or STATE_FILE
+    if os.path.exists(target):
+        try:
+            with open(target, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            print(f"⚠️ Alerta: {target} corrupto o inaccesible. Retornando IDLE.")
+            return {"status": "IDLE"}
+    return {"status": "IDLE"}
+
+def save_state(state, filepath=None):
+    target = filepath or STATE_FILE
+    tmp_target = f"{target}.tmp"
+    try:
+        with open(tmp_target, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp_target, target)
+    except Exception as e:
+        print(f"Error en escritura atómica de {target}: {e}")
+
+def load_trades(filepath=None):
+    target = filepath or TRADES_FILE
+    if os.path.exists(target):
+        try:
+            with open(target, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            print(f"⚠️ Alerta: {target} corrupto. Iniciando lista vacía.")
+            return []
+    return []
+
+def save_trades(trades, filepath=None):
+    target = filepath or TRADES_FILE
+    tmp_target = f"{target}.tmp"
+    try:
+        with open(tmp_target, "w") as f:
+            json.dump(trades, f)
+        os.replace(tmp_target, target)
+    except Exception as e:
+        print(f"Error en escritura atómica de {target}: {e}")
+
 # Inicializar Binance
 exchange = ccxt.binance({
     'enableRateLimit': True,
@@ -183,12 +226,10 @@ def get_global_open_trades():
         except: pass
     return open_count
 
-def analyze_market(df, bot_id, strategy_type):
+def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
     global TIMEFRAME, SYMBOL, STATE_FILE, TRADES_FILE
     STATE_FILE = f"state_{bot_id}_{TIMEFRAME}.json"
     TRADES_FILE = f"trades_{bot_id}_{TIMEFRAME}.json"
-    
-    df = df.copy()
     
     # SEPARACIÓN CRÍTICA: Vela Cerrada (Entradas) vs Vela Viva (Salidas/StopLoss)
     closed_candle = df.iloc[-2]
@@ -202,7 +243,7 @@ def analyze_market(df, bot_id, strategy_type):
     bb_upper = closed_candle.get('bb_upper', 0)
     bb_lower = closed_candle.get('bb_lower', float('inf'))
     
-    # --- ATR DYNAMIC SCALING (Volatility Adjustment) ---
+    # --- ATR DYNAMIC SCALING & FLOOR ATR (Institutional Volatility Guard) ---
     if TIMEFRAME == '5m': tf_mult = 2.0
     elif TIMEFRAME == '15m': tf_mult = 1.8
     elif TIMEFRAME == '1h': tf_mult = 1.5
@@ -210,19 +251,29 @@ def analyze_market(df, bot_id, strategy_type):
     else: tf_mult = 1.0 # 1d
     
     atr = raw_atr * tf_mult
-    # ---------------------------------------------------
+    # Suelo de volatilidad mínima: previene stops de papel durante consolidaciones o fines de semana
+    min_atr_pct = 0.006 if TIMEFRAME == '1h' else (0.010 if TIMEFRAME == '4h' else 0.015)
+    floor_atr = current_live_price * min_atr_pct
+    atr = max(atr, floor_atr)
+    # ------------------------------------------------------------------------
     
     count = closed_candle['td_count']
     countdown = closed_candle['td_countdown']
     trigger_time = str(closed_candle['timestamp'])
     
-    
-    # --- WYCKOFF CORE ---
-    vp_data = calculate_volume_profile(df.tail(100), bins=20)
-    poc = vp_data['poc']
-    vah = vp_data['vah']
-    val = vp_data['val']
-    divergence = detect_divergences(df.iloc[:-1])
+    # --- WYCKOFF CORE (Optimizado con contexto precalculado) ---
+    if precomputed_context and 'vp_data' in precomputed_context:
+        vp_data = precomputed_context['vp_data']
+        poc = vp_data['poc']
+        vah = vp_data['vah']
+        val = vp_data['val']
+        divergence = precomputed_context.get('divergence')
+    else:
+        vp_data = calculate_volume_profile(df.tail(100), bins=20)
+        poc = vp_data['poc']
+        vah = vp_data['vah']
+        val = vp_data['val']
+        divergence = detect_divergences(df.iloc[:-1])
     
     avg_vol = df['volume'].iloc[-20:-1].mean()
     volume = closed_candle.get('volume', 0)
@@ -235,22 +286,28 @@ def analyze_market(df, bot_id, strategy_type):
     wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5) and (divergence == 'BULLISH' or rsi < 45)
     wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5) and (divergence == 'BEARISH' or rsi > 55)
     
-    # Save wyckoff state for UI
+    # Cargar y sincronizar estado con Dirty-Check para preservar la vida útil de la MicroSD
     state = load_state()
-    state["poc"] = poc
-    state["wyckoff_div"] = divergence or "NONE"
-
+    new_td = int(countdown) if countdown != 0 else int(count)
+    div_str = divergence or "NONE"
+    
+    state_dirty = False
+    if state.get("poc") != poc:
+        state["poc"] = poc
+        state_dirty = True
+    if state.get("wyckoff_div") != div_str:
+        state["wyckoff_div"] = div_str
+        state_dirty = True
+    if state.get("td_count") != new_td:
+        state["td_count"] = new_td
+        state_dirty = True
+        
+    if state_dirty:
+        save_state(state)
     
     if abs(count) >= 7 or state.get("status") == "IN_TRADE":
         print(f"Analizando {SYMBOL} en {TIMEFRAME} con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
         print(f"{SYMBOL} | Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
-    
-    # Save the current TD Count to state so the dashboard can display it
-    # UI Trick: Show Countdown if active, else Setup
-    state["td_count"] = int(countdown) if countdown != 0 else int(count)
-    import json
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
 
     
     if state.get("status") == "IDLE":
@@ -348,15 +405,9 @@ def analyze_market(df, bot_id, strategy_type):
         check_exit_conditions(live_candle, closed_candle, atr, state)
 
 def execute_reinforcement(price, atr, state, action):
-    import time, json
+    import time
     
-    trades = []
-    import os
-    if os.path.exists(TRADES_FILE):
-        with open(TRADES_FILE, "r") as f:
-            try: trades = json.load(f)
-            except: pass
-            
+    trades = load_trades()
     current_bank = INITIAL_BANK + sum(t.get('pnl', 0.0) for t in trades)
     
     # Calculate Risk (Matching execute_trade's standard risk)
@@ -402,8 +453,7 @@ def execute_reinforcement(price, atr, state, action):
     state["take_profit"] = new_tp
     state["reinforced_13"] = True
     
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
+    save_state(state)
         
     icon = "🟩" if action == "BUY" else "🟥"
     msg = (f"🚀 <b>DCA DEPLOYED | {SYMBOL} [{TIMEFRAME}]</b>\n\n"
@@ -479,8 +529,7 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
         "leverage": required_leverage,
         "last_trigger_time": trigger_time
     }
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f)
+    save_state(state)
     
     # Registro de apertura
     trades.append({
@@ -491,8 +540,7 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
         "price": price,
         "pnl": 0.0
     })
-    with open(TRADES_FILE, "w") as f:
-        json.dump(trades, f)
+    save_trades(trades)
         
     direction = "LONG" if action == "BUY" else "SHORT"
     icon = "🟩" if action == "BUY" else "🟥"
@@ -560,8 +608,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
                 "price": current_live_price,
                 "pnl": partial_pnl
             })
-            with open(TRADES_FILE, "w") as f:
-                json.dump(trades, f)
+            save_trades(trades)
             
             # Actualizar State
             state["size_btc"] = size_btc * 0.5
@@ -572,6 +619,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             if updated_sl < entry:
                 updated_sl = entry
                 state["stop_loss"] = updated_sl
+                save_state(state)
                 
             send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
             
@@ -624,8 +672,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
                 "price": current_live_price,
                 "pnl": partial_pnl
             })
-            with open(TRADES_FILE, "w") as f:
-                json.dump(trades, f)
+            save_trades(trades)
             
             # Actualizar State
             state["size_btc"] = size_btc * 0.5
@@ -636,6 +683,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             if updated_sl > entry:
                 updated_sl = entry
                 state["stop_loss"] = updated_sl
+                save_state(state)
                 
             send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
 
@@ -675,8 +723,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
     # Save state if trailing stop moved
     if updated_sl != sl and not closed:
         state["stop_loss"] = updated_sl
-        with open(STATE_FILE, "w") as f:
-            json.dump(state, f)
+        save_state(state)
             
     if closed:
         trades = load_trades()
@@ -696,13 +743,11 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             "price": current_live_price,
             "pnl": pnl_dollars
         })
-        with open(TRADES_FILE, "w") as f:
-            json.dump(trades, f)
+        save_trades(trades)
             
         # Reset state
         state["status"] = "IDLE"
-        with open(STATE_FILE, "w") as f:
-            json.dump(state, f)
+        save_state(state)
             
         emoji = "🟩" if pnl_dollars > 0 else "🟥"
         result_str = "PROFIT" if pnl_dollars > 0 else "LOSS"
@@ -713,26 +758,6 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
                f"<b>Net {result_str}:</b> {sign}${pnl_dollars:,.2f}\n"
                f"<b>Updated Bank:</b> ${new_bank:,.2f}")
         send_telegram(msg)
-
-def load_state():
-    if os.path.exists(STATE_FILE):
-        try:
-            with open(STATE_FILE, "r") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            print(f"⚠️ Alerta: {STATE_FILE} corrupto. Restaurando a IDLE.")
-            return {"status": "IDLE"}
-    return {"status": "IDLE"}
-
-def load_trades():
-    if os.path.exists(TRADES_FILE):
-        try:
-            with open(TRADES_FILE, "r") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            print(f"⚠️ Alerta: {TRADES_FILE} corrupto. Iniciando lista vacía.")
-            return []
-    return []
 
 if __name__ == "__main__":
     import argparse
@@ -760,11 +785,20 @@ if __name__ == "__main__":
     while True:
         for tf in timeframes:
             df_cache = {}
+            market_context_cache = {}
             for symbol in ['BTC', 'ETH', 'HYPE']:
                 try:
                     raw_df = get_data(f"{symbol}/USDT", tf)
                     if raw_df is not None:
-                        df_cache[symbol] = calculate_td_sequential(raw_df)
+                        df = calculate_td_sequential(raw_df)
+                        df_cache[symbol] = df
+                        # Precalcular Volume Profile y Divergencias Wyckoff 1 SOLA VEZ por activo y timeframe
+                        vp_data = calculate_volume_profile(df.tail(100), bins=20)
+                        divergence = detect_divergences(df.iloc[:-1])
+                        market_context_cache[symbol] = {
+                            'vp_data': vp_data,
+                            'divergence': divergence
+                        }
                 except Exception as e:
                     print(f"Error fetching {symbol}: {e}")
                     
@@ -775,7 +809,7 @@ if __name__ == "__main__":
                 TIMEFRAME = tf
                 SYMBOL = symbol
                 try:
-                    analyze_market(df_cache[symbol], bot['id'], bot['strategy'])
+                    analyze_market(df_cache[symbol], bot['id'], bot['strategy'], market_context_cache.get(symbol))
                 except Exception as e:
                     print(f"Error analizando {bot['id']}: {e}")
             import gc
