@@ -260,3 +260,23 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 
 ### 3. Verificación Operativa
 - Compilación verificada con `py_compile`. Código transferido a producción en Raspberry Pi y servicio `gatdseq-bot` reiniciado en estado `active (running)`. Verificación de logs sin excepciones.
+
+## [12-10-2026] - Operación: Macro Auditoría y Evaluación Táctica (Validación de Scale-Out y Take Profit en BTC)
+### 1. Auditoría de Infraestructura y Estabilidad
+- **Uptime y Hardware:** La Raspberry Pi 3 Model B mantiene un tiempo de actividad continuo superior a 2 días y 17 horas (`uptime: 2d 17h 31m`). La carga de CPU se sitúa en 2.14 y la memoria RAM libre en ~229 MB con cero procesos zombi.
+- **Servicios:** Tanto el motor algorítmico (`gatdseq-bot`) como el servidor de streaming (`gatdseq-server`) operan de forma ininterrumpida.
+- **Optimizaciones en Producción:** Tras la centralización de indicadores pesados y la implementación del guardado atómico con dirty-check, no se han registrado excepciones ni bloqueos de concurrencia.
+
+### 2. Evaluación Táctica y Rentabilidad (Hito de Forward Testing)
+- **Rentabilidad Neta Positiva:** La cartera global ha pasado a terreno positivo consolidado:
+  - **P&L Realizado Acumulado:** `+$811.23 USD`
+  - **Equity Total:** `$270,811.23 USD` (ROI Global: `+0.30%`).
+- **Operación Maestra en BTC (1h):**
+  - Los arquetipos `BTC_WYK_1h` y `BTC_HYB_1h` abrieron una posición corta institucional en \$83,667.98 tras detectar un *Wyckoff Upthrust*.
+  - La nueva arquitectura de **Scale-Out simétrico escalonado a +1.0 ATR** aseguró ganancias parciales en \$83,150, \$82,997 y \$82,756, culminando con el impacto del **Take Profit** en \$82,663.96.
+  - Beneficio generado: `+$1,263.91 USD` en Wyckoff y `+$1,203.20 USD` en el Híbrido, validando empíricamente la efectividad del cierre parcial frente a reversiones bruscas.
+
+### 3. Radar de Oportunidades Inminentes
+- `BTC_1d`: TD Count en **12** (a 1 vela del agotamiento macro TD 13).
+- `BTC_4h`: TD Count en **-8** (a 1 vela del gatillo de compra TD -9).
+- `HYPE_4h`: TD Count en **-11** (en zona de capitulación profunda de 4H).
