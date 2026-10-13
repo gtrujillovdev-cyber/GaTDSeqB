@@ -91,13 +91,38 @@
             color: var(--bg-root);
         }
 
-        /* MACRO TICKER TAPE */
+        /* MACRO TICKER TAPE (SMOOTH WALL STREET MARQUEE) */
         #macro-ticker-tape {
-            display: flex; gap: 20px; align-items: center; justify-content: center;
-            background: var(--bg-card); border-bottom: 1px solid var(--border-dim); padding: 4px 10px;
-            font-size: 11px; font-weight: bold; overflow-x: auto; white-space: nowrap; margin-bottom: 6px;
+            background: var(--bg-card); 
+            border-bottom: 1px solid var(--border-dim); 
+            padding: 5px 0;
+            margin-bottom: 6px;
+            overflow: hidden; 
+            white-space: nowrap; 
+            position: relative;
+            display: flex;
+            align-items: center;
         }
-        .ticker-item { display: inline-flex; gap: 6px; }
+        .ticker-track {
+            display: flex;
+            gap: 30px;
+            width: max-content;
+            animation: tickerScroll 28s linear infinite;
+        }
+        .ticker-track:hover {
+            animation-play-state: paused;
+        }
+        @keyframes tickerScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+        .ticker-item { 
+            display: inline-flex; 
+            gap: 6px; 
+            font-size: 11px; 
+            font-weight: 900; 
+            letter-spacing: 0.5px;
+        }
         .ticker-name { color: var(--text-primary); }
         .ticker-price { color: var(--text-white); }
 
@@ -278,13 +303,22 @@
         </div>
     </div>
 
-    <!-- MACRO TICKER TAPE -->
+    <!-- MACRO TICKER TAPE (CONTINUOUS TICKER MARQUEE) -->
     <div id="macro-ticker-tape">
-        <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price" id="tick-BTC">--</span></div>
-        <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price" id="tick-ETH">--</span></div>
-        <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price" id="tick-HYPE">--</span></div>
-        <div class="ticker-item"><span class="ticker-name">S&P 500:</span><span class="ticker-price" id="tick-SP500">--</span></div>
-        <div class="ticker-item"><span class="ticker-name">NASDAQ:</span><span class="ticker-price" id="tick-NASDAQ">--</span></div>
+        <div class="ticker-track">
+            <!-- Track 1 -->
+            <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">S&P 500:</span><span class="ticker-price tick-SP500">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">NASDAQ:</span><span class="ticker-price tick-NASDAQ">--</span></div>
+            <!-- Track 2 (Duplicate for Seamless Loop) -->
+            <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">S&P 500:</span><span class="ticker-price tick-SP500">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">NASDAQ:</span><span class="ticker-price tick-NASDAQ">--</span></div>
+        </div>
     </div>
 
     <!-- MACRO KPI BAR -->
@@ -480,14 +514,15 @@
                         if (data[sym]) {
                             let price = data[sym][0];
                             let pct = data[sym][1];
-                            let el = document.getElementById(`tick-${sym}`);
-                            if (el) {
-                                let col = pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                                let sign = pct >= 0 ? '+' : '';
-                                el.innerHTML = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
-                                if (globalPrices[sym] !== undefined) {
-                                    globalPrices[sym] = price;
-                                }
+                            let els = document.querySelectorAll(`.tick-${sym}`);
+                            let col = pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+                            let sign = pct >= 0 ? '+' : '';
+                            let formattedHtml = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
+                            els.forEach(el => {
+                                el.innerHTML = formattedHtml;
+                            });
+                            if (globalPrices[sym] !== undefined) {
+                                globalPrices[sym] = price;
                             }
                         }
                     }

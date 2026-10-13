@@ -343,3 +343,11 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 
 ### 2. Frontend (`templates/lite.html`)
 - **Listener WebSocket de Recarga:** Se vinculó el evento `socket.on('force_reload')` para ejecutar `window.location.reload(true)` en caliente sin intervención manual.
+
+## [13-10-2026] - Operación: Ticker Tape Infinito Animado (Continuous Marquee de Izquierda a Derecha)
+### 1. Frontend UI (`templates/lite.html`)
+- **Marquee Dinámico Fluido (Wall Street Aesthetic):**
+  - Se transformó la barra estática de precios en un **Ticker Tape animado continuo** con desplazamiento automático horizontal de derecha a izquierda / flujo continuo (`transform: translateX(-50%)` con `animation: tickerScroll 28s linear infinite`).
+  - Implementación del patrón de pista duplicada (*Double Track*) para lograr un bucle infinito continuo e imperceptible (*Seamless Loop*) sin cortes ni parpadeos.
+  - Pausa interactiva al posar el cursor o dedo (`:hover { animation-play-state: paused }`).
+  - Sincronización JavaScript mediante `document.querySelectorAll('.tick-[sym]')` para reflejar variaciones de precio en tiempo real en todos los segmentos del carrusel.
