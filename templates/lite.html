@@ -7,55 +7,119 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.0/socket.io.min.js"></script>
     <style>
         * { box-sizing: border-box; border-radius: 0px !important; }
+
+        /* ROOT COLOR TOKENS: HIGH-CONTRAST DARK (DEFAULT) */
+        :root {
+            --bg-root: #000000;
+            --bg-panel: #050505;
+            --bg-card: #080808;
+            --bg-active-card: #031403;
+            --border-dim: #2e2e2e;
+            --border-bright: #ffb200;
+            --border-active: #00ff66;
+            --text-primary: #ffb200;
+            --text-white: #ffffff;
+            --text-muted: #b0b0b0;
+            --text-dim: #888888;
+            --accent-green: #00ff66;
+            --accent-red: #ff3333;
+            --range-fill: linear-gradient(90deg, #ff3333 0%, #444444 50%, #00ff66 100%);
+            --topbar-btn-bg: #111111;
+        }
+
+        /* LIGHT MODE: INSTITUTIONAL HIGH-CONTRAST PAPER TERMINAL */
+        body.theme-light {
+            --bg-root: #f4f5f7;
+            --bg-panel: #ffffff;
+            --bg-card: #ebeef2;
+            --bg-active-card: #e3fae8;
+            --border-dim: #c5cbd3;
+            --border-bright: #b87000;
+            --border-active: #008f39;
+            --text-primary: #b87000;
+            --text-white: #11141a;
+            --text-muted: #3a424e;
+            --text-dim: #555d6b;
+            --accent-green: #008f39;
+            --accent-red: #c91414;
+            --range-fill: linear-gradient(90deg, #c91414 0%, #b0b8c2 50%, #008f39 100%);
+            --topbar-btn-bg: #e2e6eb;
+        }
+
         body { 
-            background-color: #000000; 
-            color: #ffb200; 
+            background-color: var(--bg-root); 
+            color: var(--text-primary); 
             font-family: "Courier New", Courier, monospace;
             font-variant-numeric: tabular-nums;
-            margin: 0; padding: 12px; font-size: 12px;
+            margin: 0; padding: 10px 12px; font-size: 12px;
             height: 100vh; overflow: hidden;
             display: flex; flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         /* TOP BAR & TICKER */
         .top-bar { 
             display: flex; justify-content: space-between; align-items: center; 
-            border-bottom: 2px solid #ffb200; padding-bottom: 6px; margin-bottom: 6px;
+            border-bottom: 2px solid var(--border-bright); padding-bottom: 5px; margin-bottom: 5px;
         }
-        .top-bar h1 { margin: 0; font-size: 20px; color: #ffb200; font-weight: bold; letter-spacing: 1px; }
-        .top-bar .system-subtitle { color: #777; font-size: 11px; font-weight: normal; margin-left: 8px; }
-        .hw-stats { font-size: 12px; font-weight: bold; color: #ffb200; display: flex; gap: 15px; }
-        .hw-stats span { color: #00ff00; }
+        .top-bar-left { display: flex; align-items: center; gap: 8px; }
+        .top-bar h1 { margin: 0; font-size: 19px; color: var(--text-primary); font-weight: 900; letter-spacing: 1px; }
+        .top-bar .system-subtitle { color: var(--text-muted); font-size: 11px; font-weight: bold; }
+        
+        .top-bar-right { display: flex; align-items: center; gap: 15px; }
+        .hw-stats { font-size: 11px; font-weight: bold; color: var(--text-primary); display: flex; gap: 12px; }
+        .hw-stats span { color: var(--accent-green); }
+
+        /* THEME TOGGLE BUTTON */
+        .theme-pill-btn {
+            background: var(--topbar-btn-bg);
+            border: 1px solid var(--border-bright);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 10px;
+            font-weight: 900;
+            padding: 3px 8px;
+            cursor: pointer;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+        .theme-pill-btn:hover {
+            background: var(--border-bright);
+            color: var(--bg-root);
+        }
 
         /* MACRO TICKER TAPE */
         #macro-ticker-tape {
             display: flex; gap: 20px; align-items: center; justify-content: center;
-            background: #080808; border-bottom: 1px solid #222; padding: 5px 10px;
-            font-size: 11px; font-weight: bold; overflow-x: auto; white-space: nowrap; margin-bottom: 8px;
+            background: var(--bg-card); border-bottom: 1px solid var(--border-dim); padding: 4px 10px;
+            font-size: 11px; font-weight: bold; overflow-x: auto; white-space: nowrap; margin-bottom: 6px;
         }
         .ticker-item { display: inline-flex; gap: 6px; }
-        .ticker-name { color: #ffb200; }
-        .ticker-price { color: #ffffff; }
+        .ticker-name { color: var(--text-primary); }
+        .ticker-price { color: var(--text-white); }
 
         /* MACRO KPI BAR */
         #macro-kpi-bar {
             display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
-            background: #050505; border: 1px solid #222; padding: 6px 12px; margin-bottom: 10px;
+            background: var(--bg-panel); border: 1px solid var(--border-dim); padding: 6px 12px; margin-bottom: 8px;
             font-size: 11px; font-weight: bold; text-transform: uppercase;
         }
         .kpi-box { display: flex; flex-direction: column; gap: 2px; }
-        .kpi-title { color: #888; font-size: 10px; }
-        .kpi-val { font-size: 14px; color: #ffffff; }
+        .kpi-title { color: var(--text-muted); font-size: 10px; font-weight: 800; }
+        .kpi-val { font-size: 14px; color: var(--text-white); font-weight: 900; }
 
         /* MAIN TERMINAL LAYOUT (21:9 UltraGear & Desktop) */
         .bloomberg-terminal {
             display: grid;
             grid-template-columns: 2.2fr 1fr;
-            grid-template-rows: 1fr 110px;
+            grid-template-rows: 1fr 105px;
             grid-template-areas: 
                 "bots sidebar"
                 "terminal sidebar";
-            gap: 12px 16px;
+            gap: 10px 14px;
             flex: 1; min-height: 0;
         }
 
@@ -64,106 +128,109 @@
             grid-area: bots; 
             display: grid; 
             grid-template-columns: repeat(3, 1fr); 
-            gap: 12px; 
+            gap: 10px; 
             min-height: 0; overflow-y: auto;
         }
 
         .asset-column {
-            display: flex; flex-direction: column; gap: 8px;
-            border: 1px solid #222; background: #000000; padding: 8px;
+            display: flex; flex-direction: column; gap: 6px;
+            border: 1px solid var(--border-dim); background: var(--bg-panel); padding: 8px;
             min-height: 0;
         }
         .asset-header {
             display: flex; justify-content: space-between; align-items: baseline;
-            border-bottom: 1px solid #ffb200; padding-bottom: 4px; margin-bottom: 4px;
+            border-bottom: 2px solid var(--border-bright); padding-bottom: 4px; margin-bottom: 2px;
         }
-        .asset-title { font-size: 14px; font-weight: bold; color: #ffb200; }
-        .asset-live-price { font-size: 16px; font-weight: bold; color: #00ff00; }
+        .asset-title { font-size: 13px; font-weight: 900; color: var(--text-primary); }
+        .asset-live-price { font-size: 15px; font-weight: 900; color: var(--accent-green); }
 
         /* TIMEFRAME & VARIANT CARDS */
         .tf-box {
-            border: 1px solid #1a1a1a; background: #050505; padding: 6px 8px;
+            border: 1px solid var(--border-dim); background: var(--bg-card); padding: 6px 8px;
             display: flex; flex-direction: column; gap: 4px;
         }
         .tf-box-header {
             display: flex; justify-content: space-between; align-items: center;
-            font-size: 11px; font-weight: bold; color: #ffb200;
+            font-size: 11px; font-weight: 900; color: var(--text-primary);
         }
         .matrix-row {
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
             margin-top: 2px;
         }
         .variant-pill {
-            border: 1px solid #222; background: #000; padding: 3px 4px;
+            border: 1px solid var(--border-dim); background: var(--bg-panel); padding: 3px 5px;
             font-size: 10px; display: flex; justify-content: space-between; align-items: center;
         }
-        .variant-pill.active { border-color: #00ff00; background: #001a00; }
-        .variant-name { color: #888; font-weight: bold; }
-        .variant-pill.active .variant-name { color: #00ff00; }
+        .variant-pill.active { border-color: var(--border-active); background: var(--bg-active-card); }
+        .variant-name { color: var(--text-muted); font-weight: 900; }
+        .variant-pill.active .variant-name { color: var(--accent-green); }
 
         /* STATUS BADGES */
-        .status-badge { padding: 2px 5px; font-size: 9px; font-weight: bold; color: #000; }
-        .status-active { background-color: #00ff00; }
-        .status-idle { background-color: #ffb200; }
-        .status-offline { background-color: #ff0000; color: #fff; }
+        .status-badge { padding: 2px 6px; font-size: 9px; font-weight: 900; color: #000; letter-spacing: 0.5px; }
+        .status-active { background-color: var(--accent-green); color: #000; }
+        .status-idle { background-color: var(--border-bright); color: #000; }
+        .status-offline { background-color: var(--accent-red); color: #fff; }
 
         /* ACTIVE TRADE CARD ENHANCEMENTS */
         .active-trade-card {
-            border: 1px solid #00ff00 !important; background: #020902 !important;
+            border: 2px solid var(--border-active) !important; 
+            background: var(--bg-active-card) !important;
             padding: 8px !important; margin-top: 4px;
         }
         .trade-badges-row {
             display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px;
         }
         .tactical-badge {
-            font-size: 9px; font-weight: bold; padding: 1px 4px; border: 1px solid #ffb200; color: #ffb200; background: #110c00;
+            font-size: 9px; font-weight: 900; padding: 2px 5px; 
+            border: 1px solid var(--border-bright); color: var(--text-primary); 
+            background: var(--bg-panel);
         }
-        .tactical-badge.shield { border-color: #ffb200; color: #ffb200; }
-        .tactical-badge.scaled { border-color: #00ff00; color: #00ff00; background: #001500; }
+        .tactical-badge.shield { border-color: var(--border-bright); color: var(--text-primary); }
+        .tactical-badge.scaled { border-color: var(--accent-green); color: var(--accent-green); }
 
         .trade-stats-grid {
             display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; font-size: 10px;
         }
-        .row { display: flex; justify-content: space-between; border-bottom: 1px dotted #181818; padding: 2px 0; }
-        .label { color: #777; font-weight: bold; }
-        .value { color: #ffffff; font-weight: bold; }
-        .val-green { color: #00ff00 !important; }
-        .val-red { color: #ff0000 !important; }
+        .row { display: flex; justify-content: space-between; border-bottom: 1px dotted var(--border-dim); padding: 2px 0; }
+        .label { color: var(--text-muted); font-weight: 800; }
+        .value { color: var(--text-white); font-weight: 900; }
+        .val-green { color: var(--accent-green) !important; }
+        .val-red { color: var(--accent-red) !important; }
 
         /* RANGE BAR */
         .range-track {
-            width: 100%; background: #151515; height: 6px; position: relative; margin-top: 4px;
+            width: 100%; background: var(--border-dim); height: 7px; position: relative; margin-top: 5px;
         }
         .range-fill {
             position: absolute; left: 0; top: 0; height: 100%; width: 100%;
-            background: linear-gradient(90deg, #ff0000 0%, #333333 50%, #00ff00 100%);
-            opacity: 0.35;
+            background: var(--range-fill);
+            opacity: 0.45;
         }
         .range-cursor {
-            position: absolute; top: -3px; width: 3px; height: 12px;
-            box-shadow: 0 0 4px #00ff00;
+            position: absolute; top: -3px; width: 4px; height: 13px;
+            box-shadow: 0 0 4px var(--accent-green);
         }
 
         /* SIDEBAR (LEADERBOARD & HISTORY) */
         .sidebar-panel {
             grid-area: sidebar;
-            display: flex; flex-direction: column; gap: 10px;
-            border: 1px solid #222; background: #000000; padding: 10px;
+            display: flex; flex-direction: column; gap: 8px;
+            border: 1px solid var(--border-dim); background: var(--bg-panel); padding: 10px;
             min-height: 0; overflow: hidden;
         }
         .panel-heading {
-            font-size: 12px; font-weight: bold; color: #ffb200;
-            border-bottom: 1px solid #ffb200; padding-bottom: 4px; margin-bottom: 6px;
+            font-size: 11px; font-weight: 900; color: var(--text-primary);
+            border-bottom: 2px solid var(--border-bright); padding-bottom: 4px; margin-bottom: 5px;
             display: flex; justify-content: space-between; align-items: baseline;
         }
         .leaderboard-table, .history-table {
             width: 100%; border-collapse: collapse; font-size: 11px;
         }
         .leaderboard-table th, .history-table th {
-            border-bottom: 1px solid #333; color: #666; font-size: 10px; padding: 4px 2px; text-align: left;
+            border-bottom: 1px solid var(--border-dim); color: var(--text-muted); font-size: 10px; font-weight: 800; padding: 4px 2px; text-align: left;
         }
         .leaderboard-table td, .history-table td {
-            border-bottom: 1px dotted #181818; padding: 4px 2px; font-weight: bold;
+            border-bottom: 1px dotted var(--border-dim); padding: 4px 2px; font-weight: 900;
         }
 
         .scrollable-history {
@@ -173,10 +240,10 @@
         /* LIVE TERMINAL */
         #terminal-log {
             grid-area: terminal;
-            border: 1px solid #222; background: #030303; color: #00ff00;
-            padding: 8px 10px; font-size: 11px; overflow: hidden;
+            border: 1px solid var(--border-dim); background: var(--bg-card); color: var(--accent-green);
+            padding: 6px 10px; font-size: 11px; overflow: hidden;
         }
-        #terminal-content { line-height: 1.35; }
+        #terminal-content { line-height: 1.35; font-weight: bold; }
 
         /* RESPONSIVE FOR SMALL / MOBILE (Fallback) */
         @media (max-width: 1200px) {
@@ -195,12 +262,19 @@
 
     <!-- TOP HEADER -->
     <div class="top-bar">
-        <h1>GATDSEQ <span class="system-subtitle">// QUANTITATIVE CORE // RASPBERRY PI 3B</span></h1>
-        <div class="hw-stats">
-            <div>CPU: <span id="sys-cpu">--%</span></div>
-            <div>RAM: <span id="sys-ram">--%</span></div>
-            <div>TEMP: <span id="sys-temp">--°C</span></div>
-            <div>UTC: <span id="clock-utc" style="color:#ffffff;">--:--:--</span></div>
+        <div class="top-bar-left">
+            <h1>GATDSEQ <span class="system-subtitle">// QUANTITATIVE CORE // RASPBERRY PI 3B</span></h1>
+        </div>
+        <div class="top-bar-right">
+            <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light / Auto Solar Mode">
+                <span id="theme-icon">☀️</span> <span id="theme-label">AUTO [SOLAR]</span>
+            </button>
+            <div class="hw-stats">
+                <div>CPU: <span id="sys-cpu">--%</span></div>
+                <div>RAM: <span id="sys-ram">--%</span></div>
+                <div>TEMP: <span id="sys-temp">--°C</span></div>
+                <div>UTC: <span id="clock-utc" style="color:var(--text-white);">--:--:--</span></div>
+            </div>
         </div>
     </div>
 
@@ -233,7 +307,7 @@
         </div>
         <div class="kpi-box">
             <span class="kpi-title">FEAR & GREED</span>
-            <span class="kpi-val" id="fng-index" style="color:#ffb200;">--</span>
+            <span class="kpi-val" id="fng-index" style="color:var(--text-primary);">--</span>
         </div>
     </div>
 
@@ -252,7 +326,7 @@
             <div>
                 <div class="panel-heading">
                     <span>A/B/C STRATEGY LEADERBOARD</span>
-                    <span style="color:#666; font-size:10px;">FORWARD TEST</span>
+                    <span style="color:var(--text-muted); font-size:10px;">FORWARD TEST</span>
                 </div>
                 <table class="leaderboard-table" id="leaderboard-table">
                     <thead>
@@ -265,16 +339,16 @@
                         </tr>
                     </thead>
                     <tbody id="leaderboard-body">
-                        <tr><td colspan="5" style="color:#666; text-align:center;">CALCULATING METRICS...</td></tr>
+                        <tr><td colspan="5" style="color:var(--text-muted); text-align:center;">CALCULATING METRICS...</td></tr>
                     </tbody>
                 </table>
             </div>
 
             <!-- REAL-TIME ORDER LOG -->
-            <div style="flex:1; display:flex; flex-direction:column; min-height:0; margin-top:6px;">
+            <div style="flex:1; display:flex; flex-direction:column; min-height:0; margin-top:4px;">
                 <div class="panel-heading">
                     <span>REAL-TIME ORDER LOG</span>
-                    <span style="color:#666; font-size:10px;">LAST 25 EXECUTIONS</span>
+                    <span style="color:var(--text-muted); font-size:10px;">LAST 25 EXECUTIONS</span>
                 </div>
                 <div class="scrollable-history">
                     <table class="history-table">
@@ -288,7 +362,7 @@
                             </tr>
                         </thead>
                         <tbody id="history-rows">
-                            <tr><td colspan="5" style="color:#666; text-align:center;">LOADING TRADES...</td></tr>
+                            <tr><td colspan="5" style="color:var(--text-muted); text-align:center;">LOADING TRADES...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -298,7 +372,7 @@
 
         <!-- LIVE TERMINAL STREAM -->
         <div id="terminal-log">
-            <div style="color: #666; margin-bottom: 4px; border-bottom: 1px solid #222; padding-bottom: 2px;">
+            <div style="color: var(--text-muted); margin-bottom: 3px; border-bottom: 1px solid var(--border-dim); padding-bottom: 2px;">
                 > ENGINE LOG (STREAMING VIA WEBSOCKETS)
             </div>
             <div id="terminal-content">
@@ -311,6 +385,71 @@
     <script>
         let globalPrices = { 'BTC': 0, 'ETH': 0, 'HYPE': 0 };
         let currentFleet = null;
+
+        // ==========================================
+        // DUAL THEME ENGINE (SOLAR SUNRISE/SUNSET AUTO)
+        // Modes: 'auto', 'dark', 'light'
+        // ==========================================
+        let currentThemeMode = localStorage.getItem('gatdseq_theme_mode') || 'auto';
+
+        function computeSolarIsDay() {
+            // Evaluates local civil daylight vs sunset
+            // Default window: 07:30 to 19:30 local time is daylight
+            let now = new Date();
+            let hours = now.getHours();
+            let mins = now.getMinutes();
+            let timeVal = hours + mins / 60;
+            return timeVal >= 7.5 && timeVal < 19.5;
+        }
+
+        function applyTheme() {
+            let isLight = false;
+            let icon = '☀️';
+            let label = 'AUTO [SOLAR]';
+
+            if (currentThemeMode === 'auto') {
+                isLight = computeSolarIsDay();
+                icon = isLight ? '☀️' : '🌙';
+                label = isLight ? 'AUTO [DAY]' : 'AUTO [NIGHT]';
+            } else if (currentThemeMode === 'light') {
+                isLight = true;
+                icon = '☀️';
+                label = 'LIGHT [FORCED]';
+            } else {
+                isLight = false;
+                icon = '🌙';
+                label = 'DARK [FORCED]';
+            }
+
+            if (isLight) {
+                document.body.classList.add('theme-light');
+            } else {
+                document.body.classList.remove('theme-light');
+            }
+
+            let iconEl = document.getElementById('theme-icon');
+            let labelEl = document.getElementById('theme-label');
+            if (iconEl && labelEl) {
+                iconEl.innerText = icon;
+                labelEl.innerText = label;
+            }
+        }
+
+        function cycleThemeMode() {
+            if (currentThemeMode === 'auto') {
+                currentThemeMode = 'light';
+            } else if (currentThemeMode === 'light') {
+                currentThemeMode = 'dark';
+            } else {
+                currentThemeMode = 'auto';
+            }
+            localStorage.setItem('gatdseq_theme_mode', currentThemeMode);
+            applyTheme();
+        }
+
+        // Check solar state every 60 seconds
+        setInterval(applyTheme, 60000);
+        applyTheme();
 
         // CLOCK
         function updateClock() {
@@ -343,9 +482,9 @@
                             let pct = data[sym][1];
                             let el = document.getElementById(`tick-${sym}`);
                             if (el) {
-                                let col = pct >= 0 ? '#00ff00' : '#ff0000';
+                                let col = pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                                 let sign = pct >= 0 ? '+' : '';
-                                el.innerHTML = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="color:${col}">(${sign}${pct.toFixed(2)}%)</span>`;
+                                el.innerHTML = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
                                 if (globalPrices[sym] !== undefined) {
                                     globalPrices[sym] = price;
                                 }
@@ -364,9 +503,9 @@
                 let val = parseInt(data.data[0].value);
                 let fngEl = document.getElementById('fng-index');
                 fngEl.innerText = `${val} (${data.data[0].value_classification.toUpperCase()})`;
-                if (val >= 60) { fngEl.style.color = '#00ff00'; }
-                else if (val <= 40) { fngEl.style.color = '#ff0000'; }
-                else { fngEl.style.color = '#ffb200'; }
+                if (val >= 60) { fngEl.style.color = 'var(--accent-green)'; }
+                else if (val <= 40) { fngEl.style.color = 'var(--accent-red)'; }
+                else { fngEl.style.color = 'var(--text-primary)'; }
             } catch(e) {}
         }
 
@@ -448,14 +587,15 @@
                                 </div>
                                 <div class="matrix-row">
                             `;
+
                             variants.forEach(v => {
                                 let st = tfVariantsData[v] || {};
                                 let tdVal = st.td_count !== undefined ? st.td_count : '--';
-                                let tdCol = tdVal > 0 ? '#ff4444' : (tdVal < 0 ? '#00ff00' : '#888');
+                                let tdCol = tdVal > 0 ? 'var(--accent-red)' : (tdVal < 0 ? 'var(--accent-green)' : 'var(--text-muted)');
                                 gridHtml += `
                                     <div class="variant-pill">
                                         <span class="variant-name">${v}</span>
-                                        <span style="color:${tdCol}; font-weight:bold;">${tdVal}</span>
+                                        <span style="color:${tdCol}; font-weight:900;">${tdVal}</span>
                                     </div>
                                 `;
                             });
@@ -479,7 +619,7 @@
 
                             let margin = st.size_usd / (st.leverage || 1);
                             let unPnlPct = margin > 0 ? (unPnl / margin) * 100 : 0;
-                            let unPnlColor = unPnl >= 0 ? '#00ff00' : '#ff0000';
+                            let unPnlColor = unPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                             let unPnlSign = unPnl >= 0 ? '+' : '';
 
                             // Tactical badges
@@ -494,7 +634,7 @@
                             gridHtml += `
                                 <div class="active-trade-card">
                                     <div class="tf-box-header">
-                                        <span>[ ${tf} ] <span style="color:#ffffff;">${activeNames}</span></span>
+                                        <span>[ ${tf} ] <span style="color:var(--text-white);">${activeNames}</span></span>
                                         <span class="status-badge status-active">IN TRADE</span>
                                     </div>
                                     <div class="trade-badges-row">
@@ -506,8 +646,8 @@
                                         <div class="row"><span class="label">Invest</span><span class="value">$${st.size_usd ? st.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) : '--'} (x${(st.leverage||1).toFixed(1)})</span></div>
                                         <div class="row"><span class="label">Entry</span><span class="value">$${entry.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
                                         <div class="row"><span class="label">Now</span><span class="value">$${currPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
-                                        <div class="row"><span class="label">SL</span><span class="value" style="color:#ff4444;">$${sl.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
-                                        <div class="row"><span class="label">TP</span><span class="value" style="color:#00ff00;">$${tp.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
+                                        <div class="row"><span class="label">SL</span><span class="value" style="color:var(--accent-red);">$${sl.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
+                                        <div class="row"><span class="label">TP</span><span class="value" style="color:var(--accent-green);">$${tp.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
                                     </div>
                                     <div class="row" style="margin-top:4px; padding-top:2px;">
                                         <span class="label">U/PNL</span>
@@ -534,17 +674,17 @@
                 totalRealizedPnl = totalBank - baseCapital;
                 let currentEquity = totalBank + totalUnrealizedPnl;
                 let globalRoi = ((currentEquity - baseCapital) / baseCapital) * 100;
-                let roiColor = globalRoi >= 0 ? '#00ff00' : '#ff0000';
+                let roiColor = globalRoi >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                 let roiSign = globalRoi >= 0 ? '+' : '';
 
                 document.getElementById('global-equity').innerHTML = `$${currentEquity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} <span style="color:${roiColor}; font-size:11px;">(${roiSign}${globalRoi.toFixed(2)}%)</span>`;
                 
                 let rSign = totalRealizedPnl >= 0 ? '+' : '';
-                let rColor = totalRealizedPnl >= 0 ? '#00ff00' : '#ff0000';
+                let rColor = totalRealizedPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                 document.getElementById('global-realized').innerHTML = `<span style="color:${rColor}">${rSign}$${Math.abs(totalRealizedPnl).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`;
 
                 let uSign = totalUnrealizedPnl >= 0 ? '+' : '';
-                let uColor = totalUnrealizedPnl >= 0 ? '#00ff00' : '#ff0000';
+                let uColor = totalUnrealizedPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                 document.getElementById('global-unrealized').innerHTML = `<span style="color:${uColor}">${uSign}$${Math.abs(totalUnrealizedPnl).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`;
 
                 document.getElementById('active-trades-kpi').innerText = `${activeTradesCount} / 27`;
@@ -556,16 +696,16 @@
                     let rPnl = st.bank - (9 * 10000.0);
                     let roi = (rPnl / (9 * 10000.0)) * 100;
                     let wr = st.trades > 0 ? (st.wins / st.trades) * 100 : 0;
-                    let pCol = rPnl >= 0 ? '#00ff00' : '#ff0000';
+                    let pCol = rPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                     let pSign = rPnl >= 0 ? '+' : '';
 
                     lbHtml += `
                         <tr>
-                            <td style="color:#ffffff;">${st.name}</td>
+                            <td style="color:var(--text-white);">${st.name}</td>
                             <td style="color:${pCol};">${pSign}$${Math.abs(rPnl).toFixed(2)}</td>
                             <td style="color:${pCol};">${pSign}${roi.toFixed(1)}%</td>
                             <td>${st.trades}</td>
-                            <td style="color:${wr >= 50 ? '#00ff00' : '#ffb200'};">${wr.toFixed(0)}%</td>
+                            <td style="color:${wr >= 50 ? 'var(--accent-green)' : 'var(--text-primary)'};">${wr.toFixed(0)}%</td>
                         </tr>
                     `;
                 });
@@ -576,21 +716,21 @@
                 let histHtml = '';
                 allTrades.slice(0, 25).forEach(t => {
                     let pnl = parseFloat(t.pnl) || 0;
-                    let pnlColor = pnl > 0 ? '#00ff00' : (pnl < 0 ? '#ff0000' : '#888');
+                    let pnlColor = pnl > 0 ? 'var(--accent-green)' : (pnl < 0 ? 'var(--accent-red)' : 'var(--text-muted)');
                     let pnlStr = pnl !== 0 ? (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2) : '--';
                     
                     let isScale = t.type && t.type.includes('Parcial');
                     let isClose = t.type && t.type.includes('Cierre');
                     let action = isScale ? 'PRT' : (isClose ? 'CLS' : 'OPN');
-                    let actionColor = isScale ? '#ffb200' : (isClose ? '#ffffff' : '#888');
+                    let actionColor = isScale ? 'var(--text-primary)' : (isClose ? 'var(--text-white)' : 'var(--text-muted)');
 
                     let timeParts = t.time.split(' ');
                     let timeStr = timeParts.length > 1 ? timeParts[1].substring(0, 8) : t.time;
 
                     histHtml += `
                         <tr>
-                            <td style="color:#777;">${timeStr}</td>
-                            <td style="color:#ffffff;">${t.asset} <span style="color:#ffb200; font-size:9px;">${t.tf}</span></td>
+                            <td style="color:var(--text-muted);">${timeStr}</td>
+                            <td style="color:var(--text-white);">${t.asset} <span style="color:var(--text-primary); font-size:9px;">${t.tf}</span></td>
                             <td style="color:${actionColor};">${action}</td>
                             <td>$${t.price ? t.price.toLocaleString(undefined, {minimumFractionDigits:1, maximumFractionDigits:2}) : '--'}</td>
                             <td style="color:${pnlColor};">${pnlStr}</td>

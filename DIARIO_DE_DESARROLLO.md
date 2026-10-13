@@ -325,3 +325,13 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 
 ### 2. Documentación Institucional (`README.md`)
 - Se reescribió por completo el `README.md` bajo el más riguroso estándar institucional de Wall Street (idioma inglés, diagramas de arquitectura de dos niveles, desglose de la matriz multivariante A/B/C de 27 bots, módulos de ejecución y salvaguarda de riesgo con Break Even Shield y Scale-Out simétrico, y directrices de hardening de hardware ARMv7).
+
+## [13-10-2026] - Operación: Alto Contraste y Motor de Tema Solar Día/Noche en Kiosko
+### 1. Frontend UI (`templates/lite.html`)
+- **Corrección de Legibilidad y Alto Contraste:** Se erradicaron los tonos grises de baja visibilidad (`#777`, `#666`, `#888`), sustituyéndolos por variables CSS con contraste optimizado (`--text-muted: #b0b0b0`, `--text-white: #ffffff` y fuentes en `font-weight: 800-900`) para legibilidad instantánea en monitores UltraGear a distancia.
+- **Arquitectura de Temas Dinámicos (Dual Theme Engine):**
+  - **Dark Mode (Bloomberg Pure Black):** Fondo `#000000`, paneles `#050505`, bordes `#2e2e2e`, acentos en Ámbar `#ffb200`, Verde `#00ff66` y Rojo `#ff3333`.
+  - **Light Mode (Financial Paper Terminal):** Fondo `#f4f5f7`, tarjetas `#ebeef2`, bordes `#c5cbd3`, texto oscuro de alto contraste `#11141a` y `#3a424e`, acentos en ámbar institucional `#b87000`, verde bosque `#008f39` y carmesí `#c91414`. Cero azules o cian (fiel a la Regla 3).
+- **Conmutación Solar Automática (Amanecer / Puesta de Sol):**
+  - Implementación de la función `computeSolarIsDay()` que evalúa el ciclo solar diurno/nocturno local (07:30 a 19:30).
+  - Selector interactivo en la barra superior (`AUTO [SOLAR]` / `LIGHT [FORCED]` / `DARK [FORCED]`) con persistencia en `localStorage`.
