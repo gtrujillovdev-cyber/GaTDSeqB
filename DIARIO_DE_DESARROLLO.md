@@ -335,3 +335,11 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Conmutación Solar Automática (Amanecer / Puesta de Sol):**
   - Implementación de la función `computeSolarIsDay()` que evalúa el ciclo solar diurno/nocturno local (07:30 a 19:30).
   - Selector interactivo en la barra superior (`AUTO [SOLAR]` / `LIGHT [FORCED]` / `DARK [FORCED]`) con persistencia en `localStorage`.
+
+## [13-10-2026] - Operación: Purga Forzada de Caché (Clear-Site-Data) y WebSocket Force-Reload
+### 1. Backend (`server.py`)
+- **Cabeceras Anti-Caché Agresivas:** En la ruta `/lite`, se inyectó `Clear-Site-Data: "cache"` junto con `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` para obligar a Safari en iOS y a los navegadores móviles a purgar la caché local de la página y descargar el HTML/CSS fresco.
+- **Ruta de Recarga Remota (`/api/reload`):** Se implementó el endpoint `@app.route('/api/reload')` que emite el evento WebSocket `force_reload` a todas las pantallas y teléfonos conectados simultáneamente.
+
+### 2. Frontend (`templates/lite.html`)
+- **Listener WebSocket de Recarga:** Se vinculó el evento `socket.on('force_reload')` para ejecutar `window.location.reload(true)` en caliente sin intervención manual.

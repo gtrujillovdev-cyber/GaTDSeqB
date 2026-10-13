@@ -770,6 +770,10 @@
         socket.on('fleet_update', function(data) {
             renderFleet(data);
         });
+
+        socket.on('force_reload', function() {
+            window.location.reload(true);
+        });
     </script>
 </body>
 </html>

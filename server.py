@@ -56,7 +56,12 @@ def add_header(response):
 def index(): return render_template('index.html')
 
 @app.route('/lite')
-def lite(): return render_template('lite.html')
+def lite():
+    from flask import make_response
+    response = make_response(render_template('lite.html'))
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Clear-Site-Data'] = '"cache"'
+    return response
 
 MSTR_CACHE = {'price': 160.24, 'change': 0.0, 'time': 0}
 
@@ -257,6 +262,11 @@ def handle_connect():
 def handle_disconnect():
     global clients
     clients -= 1
+
+@app.route('/api/reload')
+def api_force_reload():
+    socketio.emit('force_reload', {})
+    return jsonify({"status": "broadcasted force_reload to all clients"})
 
 def websocket_monitor_loop():
     last_mtimes = {}
