@@ -10,7 +10,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
 
-TICKER_CACHE = {'BTC': [0,0], 'ETH': [0,0], 'HYPE': [0,0], 'SP500': [0,0], 'NASDAQ': [0,0]}
+TICKER_CACHE = {'BTC': [0,0], 'ETH': [0,0], 'HYPE': [0,0], 'SP500': [0,0], 'NASDAQ': [0,0], 'DXY': [0,0]}
 import threading, requests
 
 def ticker_fetch_loop():
@@ -24,9 +24,9 @@ def ticker_fetch_loop():
                     sym = d['symbol'].replace('USDT', '')
                     TICKER_CACHE[sym] = [float(d['lastPrice']), float(d['priceChangePercent'])]
                     
-            # 2. Fetch TradFi from Yahoo
-            for ticker, sym in [('^GSPC', 'SP500'), ('^IXIC', 'NASDAQ')]:
-                r = requests.get(f'https://query2.finance.yahoo.com/v8/finance/chart/{ticker}', headers=headers, timeout=5)
+            # 2. Fetch TradFi & Macro from Yahoo (S&P 500, NASDAQ, DXY)
+            for ticker, sym in [('^GSPC', 'SP500'), ('^IXIC', 'NASDAQ'), ('DX-Y.NYB', 'DXY')]:
+                r = requests.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}', headers=headers, timeout=5)
                 if r.status_code == 200:
                     data = r.json()['chart']['result'][0]['meta']
                     price = data['regularMarketPrice']

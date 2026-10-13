@@ -351,3 +351,12 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Implementación del patrón de pista duplicada (*Double Track*) para lograr un bucle infinito continuo e imperceptible (*Seamless Loop*) sin cortes ni parpadeos.
   - Pausa interactiva al posar el cursor o dedo (`:hover { animation-play-state: paused }`).
   - Sincronización JavaScript mediante `document.querySelectorAll('.tick-[sym]')` para reflejar variaciones de precio en tiempo real en todos los segmentos del carrusel.
+
+## [13-10-2026] - Operación: Integración Macroeconómica de DXY (US Dollar Index) en Ticker Tape
+### 1. Backend (`server.py`)
+- **Adquisición del Índice DXY:** Se añadió la consulta en tiempo real al ICE Futures US Dollar Index (`DX-Y.NYB`) vía Yahoo Finance en el ciclo multihilo `ticker_fetch_loop`.
+- **Ampliación de Caché TradFi:** La estructura `TICKER_CACHE` ahora distribuye en paralelo `BTC`, `ETH`, `HYPE`, `DXY`, `SP500` y `NASDAQ`.
+
+### 2. Frontend (`templates/lite.html`)
+- **Presencia en Ticker Tape:** Se inyectó la cotización de `DXY` tanto en la pista principal como en la réplica del carrusel infinito para el flujo continuo.
+- **Formateo Específico:** `DXY` se renderiza en puntos de índice institucional (ej. `102.45 (+0.15%)`) sin el símbolo `$`, reservado para activos cotizados en dólares.
