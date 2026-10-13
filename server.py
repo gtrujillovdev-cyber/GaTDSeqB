@@ -10,7 +10,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
 
-TICKER_CACHE = {'BTC': [0,0], 'ETH': [0,0], 'HYPE': [0,0], 'SP500': [0,0], 'NASDAQ': [0,0], 'DXY': [0,0]}
+TICKER_CACHE = {'BTC': [0,0], 'ETH': [0,0], 'HYPE': [0,0], 'SP500': [0,0], 'NASDAQ': [0,0], 'DXY': [0,0], 'VIX': [0,0], 'BTCD': [0,0]}
 import threading, requests
 
 def ticker_fetch_loop():
@@ -24,8 +24,8 @@ def ticker_fetch_loop():
                     sym = d['symbol'].replace('USDT', '')
                     TICKER_CACHE[sym] = [float(d['lastPrice']), float(d['priceChangePercent'])]
                     
-            # 2. Fetch TradFi & Macro from Yahoo (S&P 500, NASDAQ, DXY)
-            for ticker, sym in [('^GSPC', 'SP500'), ('^IXIC', 'NASDAQ'), ('DX-Y.NYB', 'DXY')]:
+            # 2. Fetch TradFi & Macro from Yahoo (S&P 500, NASDAQ, DXY, VIX)
+            for ticker, sym in [('^GSPC', 'SP500'), ('^IXIC', 'NASDAQ'), ('DX-Y.NYB', 'DXY'), ('^VIX', 'VIX')]:
                 r = requests.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}', headers=headers, timeout=5)
                 if r.status_code == 200:
                     data = r.json()['chart']['result'][0]['meta']
@@ -33,6 +33,14 @@ def ticker_fetch_loop():
                     prev = data.get('chartPreviousClose', price)
                     pct = ((price - prev) / prev) * 100 if prev else 0
                     TICKER_CACHE[sym] = [price, pct]
+
+            # 3. Fetch BTC Dominance from CoinGecko Global API
+            r_cg = requests.get('https://api.coingecko.com/api/v3/global', headers=headers, timeout=5)
+            if r_cg.status_code == 200:
+                cg_data = r_cg.json().get('data', {})
+                btc_dom = cg_data.get('market_cap_percentage', {}).get('btc', 0.0)
+                if btc_dom > 0:
+                    TICKER_CACHE['BTCD'] = [btc_dom, 0.0]
         except Exception as e:
             print(f"Error fetching ticker: {e}")
             

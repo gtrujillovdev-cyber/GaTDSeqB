@@ -310,14 +310,18 @@
             <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
             <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
             <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">BTC.D:</span><span class="ticker-price tick-BTCD">--</span></div>
             <div class="ticker-item"><span class="ticker-name">DXY:</span><span class="ticker-price tick-DXY">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">VIX:</span><span class="ticker-price tick-VIX">--</span></div>
             <div class="ticker-item"><span class="ticker-name">S&P 500:</span><span class="ticker-price tick-SP500">--</span></div>
             <div class="ticker-item"><span class="ticker-name">NASDAQ:</span><span class="ticker-price tick-NASDAQ">--</span></div>
             <!-- Track 2 (Duplicate for Seamless Loop) -->
             <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
             <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
             <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">BTC.D:</span><span class="ticker-price tick-BTCD">--</span></div>
             <div class="ticker-item"><span class="ticker-name">DXY:</span><span class="ticker-price tick-DXY">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">VIX:</span><span class="ticker-price tick-VIX">--</span></div>
             <div class="ticker-item"><span class="ticker-name">S&P 500:</span><span class="ticker-price tick-SP500">--</span></div>
             <div class="ticker-item"><span class="ticker-name">NASDAQ:</span><span class="ticker-price tick-NASDAQ">--</span></div>
         </div>
@@ -512,15 +516,23 @@
                 let res = await fetch('/api/ticker');
                 if (res.ok) {
                     let data = await res.json();
-                    for (let sym of ['BTC', 'ETH', 'HYPE', 'DXY', 'SP500', 'NASDAQ']) {
+                    for (let sym of ['BTC', 'ETH', 'HYPE', 'BTCD', 'DXY', 'VIX', 'SP500', 'NASDAQ']) {
                         if (data[sym]) {
                             let price = data[sym][0];
                             let pct = data[sym][1];
                             let els = document.querySelectorAll(`.tick-${sym}`);
                             let col = pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                             let sign = pct >= 0 ? '+' : '';
-                            let prefix = (sym === 'DXY') ? '' : '$';
-                            let formattedHtml = `${prefix}${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
+                            
+                            let formattedHtml = '';
+                            if (sym === 'BTCD') {
+                                formattedHtml = `${price.toFixed(2)}%`;
+                            } else if (sym === 'DXY' || sym === 'VIX') {
+                                formattedHtml = `${price.toFixed(2)} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
+                            } else {
+                                formattedHtml = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
+                            }
+
                             els.forEach(el => {
                                 el.innerHTML = formattedHtml;
                             });

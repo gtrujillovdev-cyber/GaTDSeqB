@@ -360,3 +360,12 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 ### 2. Frontend (`templates/lite.html`)
 - **Presencia en Ticker Tape:** Se inyectó la cotización de `DXY` tanto en la pista principal como en la réplica del carrusel infinito para el flujo continuo.
 - **Formateo Específico:** `DXY` se renderiza en puntos de índice institucional (ej. `102.45 (+0.15%)`) sin el símbolo `$`, reservado para activos cotizados en dólares.
+
+## [13-10-2026] - Operación: Integración de Indicadores de Volatilidad y Dominancia (BTC.D y VIX)
+### 1. Backend (`server.py`)
+- **CBOE Volatility Index (`^VIX`):** Se integró la extracción de la volatilidad implícita del mercado tradicional desde Yahoo Finance.
+- **Dominancia de Bitcoin (`BTCD`):** Se implementó la consulta periódica a la API global de CoinGecko para obtener el porcentaje de capitalización de mercado de BTC en tiempo real (ej. `59.35%`).
+
+### 2. Frontend (`templates/lite.html`)
+- **Ampliación del Marquee Dinámico:** Se incorporaron `BTC.D` y `VIX` en ambas pistas del carrusel continuo.
+- **Formateo y Simbología:** `BTC.D` se formatea con porcentaje directo (`59.35%`) y `VIX` en puntos de volatilidad con su variación porcentual correspondiente.
