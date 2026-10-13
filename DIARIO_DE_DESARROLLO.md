@@ -301,3 +301,16 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 
 ### 3. Herramientas y TradingView
 - Se desarrolló el indicador oficial en Pine Script v5 (`GaTDSEQ // Quantitative TD Sequential Core`) integrando la matemática exacta del bot (Setup 9, Countdown 13 DeMark, filtro de reversión institucional, EMA 200 y Bandas de Bollinger).
+
+## [13-10-2026] - Operación: Despliegue de Reingeniería del Kiosko UltraGear (21:9 Bloomberg Terminal)
+### 1. Frontend UI (Reestructuración de la Malla y Cero Scroll)
+- **3 Macro-Columnas de Activos:** Se sustituyó el renderizado plano de 9 columnas por una arquitectura agrupada en 3 activos principales (`BTC`, `ETH`, `HYPE`), albergando horizontalmente la sub-matriz A/B/C (`[WYK | HYB | TD9]`) por cada timeframe (`1h`, `4h`, `1d`).
+- **Eliminación Definitiva de Scroll:** Toda la flota de 27 instancias se visualiza simultáneamente sin desplazamiento vertical en monitores 1080p y 1440p ultra-panorámicos.
+- **Panel Táctico Lateral (30% Ancho):**
+  - **A/B/C Strategy Leaderboard:** Cuadro comparativo en tiempo real con PnL acumulado, ROI (%), volumen de operaciones y Win Rate por estrategia.
+  - **Real-Time Order Log:** Historial de ejecuciones con distinción explícita de `[PRT]` (Scale-Out parcial a +1.0 ATR), `[CLS]` (cierres por TP/SL) y `[OPN]` (aperturas).
+- **Trade Cards Enriquecidas:** Incorporación de insignias tácticas `[🛡️ BREAKEVEN SHIELD]` y `[💰 50% SCALED]`, junto con barra de rango dinámico del trade (`SL ── Entry ── Ahora ── TP`).
+
+### 2. Backend Server (`server.py`)
+- Se implementó y expuso la ruta `@app.route('/api/ticker')` para alimentar el Ticker Tape superior con cotizaciones e índices TradFi en tiempo real.
+- Código sincronizado a la Raspberry Pi y servicio `gatdseq-server` reiniciado exitosamente.

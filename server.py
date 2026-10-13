@@ -183,6 +183,10 @@ def get_fleet_data():
 def api_fleet():
     return jsonify(get_fleet_data())
 
+@app.route('/api/ticker')
+def api_ticker():
+    return jsonify(TICKER_CACHE)
+
 
 
 terminal_buffer = []
