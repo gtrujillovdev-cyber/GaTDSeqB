@@ -314,3 +314,14 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 ### 2. Backend Server (`server.py`)
 - Se implementó y expuso la ruta `@app.route('/api/ticker')` para alimentar el Ticker Tape superior con cotizaciones e índices TradFi en tiempo real.
 - Código sincronizado a la Raspberry Pi y servicio `gatdseq-server` reiniciado exitosamente.
+
+## [13-10-2026] - Operación: Auditoría y Profesionalización Integral del Repositorio Git
+### 1. Higiene del Repositorio y Alineación de Ramas
+- **Convergencia de Ramas (`wycoff` -> `main`):** Se auditó la divergencia del repositorio donde el desarrollo avanzado (21 commits) residía en `wycoff`. Se ejecutó un merge fast-forward limpio hacia `main`, consolidando `main` como la única fuente de verdad institucional para producción.
+- **Saneamiento del Índice (`git rm --cached`):**
+  - Se eliminaron del control de versiones los archivos de estado dinámico (`portfolio.json`) que violaban la Regla 2 del proyecto.
+  - Se purgó el artefacto duplicado `lite.html` de la raíz del proyecto (preservando el canónico en `templates/lite.html`).
+  - Se eliminaron residuos de sistema operativo (`.DS_Store`) del índice y se blindó el `.gitignore`.
+
+### 2. Documentación Institucional (`README.md`)
+- Se reescribió por completo el `README.md` bajo el más riguroso estándar institucional de Wall Street (idioma inglés, diagramas de arquitectura de dos niveles, desglose de la matriz multivariante A/B/C de 27 bots, módulos de ejecución y salvaguarda de riesgo con Break Even Shield y Scale-Out simétrico, y directrices de hardening de hardware ARMv7).
