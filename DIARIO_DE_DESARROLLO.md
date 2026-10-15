@@ -369,3 +369,29 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 ### 2. Frontend (`templates/lite.html`)
 - **Ampliación del Marquee Dinámico:** Se incorporaron `BTC.D` y `VIX` en ambas pistas del carrusel continuo.
 - **Formateo y Simbología:** `BTC.D` se formatea con porcentaje directo (`59.35%`) y `VIX` en puntos de volatilidad con su variación porcentual correspondiente.
+
+## [15-10-2026] - Operación: Macro Auditoría Técnica y Evaluación Táctica (5 Días Uptime)
+### 1. Auditoría de Infraestructura y Fiabilidad
+- **Uptime Récord Continuo:** La Raspberry Pi 3B consolida **5 días, 10 horas y 42 minutos** de ejecución ininterrumpida (`uptime: 5d 10h 42m`).
+- **RAM y CPU:** Memoria disponible de 251 MB (consumo contenido al 72%), Swap utilizado de forma óptima (441 MB) y CPU en carga media controlada.
+- **MicroSD Shield & Prevención Definitiva:** Se identificó que el servidor X11 generó un log masivo de 13 GB (`/var/log/Xorg.0.log`). Se truncó a cero liberando el almacenamiento al 29% (9.5 GB libres) y se programó un Cron Job diario a las 04:00 AM (`0 4 * * * /usr/bin/truncate -s 0 /var/log/Xorg.0.log`) para evitar la degradación de la memoria flash.
+
+### 2. Evaluación Táctica y Rendimiento Cuantitativo
+- **Cartera Global Consolidada:**
+  - **P&L Realizado Acumulado:** `+$13,264.23 USD`
+  - **Equity Total:** `$283,264.23 USD` (ROI Global: `+4.91%` sobre \$270,000 USD base).
+  - **Volumen Total:** 113 trades cerrados con un **Win Rate Global del 63.7%**.
+- **Alpha Leaders:**
+  - `HYPE_WYK_1h`: `+$7,997.73 USD` (25 trades, Win Rate 88.0%).
+  - `HYPE_HYB_1h`: `+$7,918.34 USD` (27 trades, Win Rate 81.5%).
+  - `HYPE_TD9_1h`: `+$3,180.76 USD` (23 trades, Win Rate 87.0%).
+  - `BTC_WYK_1h`: `+$1,188.75 USD` (6 trades, Win Rate 66.7%).
+- **Trinchera Activa (8 Posiciones Abiertas):**
+  - **BTC 1h:** `BTC_HYB_1h` y `BTC_WYK_1h` en compras (*Long*) desde \$81,538.01 buscando TP en \$83,076.16 (SL de protección en \$80,384.40).
+  - **ETH 1h & 4h:** Flota activa en compras (*Long*) en \$2,380.06 / \$2,380.66 con objetivos TP en \$2,457 y \$2,484.
+  - **HYPE 4h:** `HYPE_WYK_4h` y `HYPE_HYB_4h` en compras en \$80.54 hacia TP en \$84.85.
+
+### 3. Radar de Gatillos Inminentes
+- **BTC Macro (1d):** TD Count en **12** (a 1 vela del agotamiento DeMark 13 institucional).
+- **HYPE Macro (1d):** TD Count en **-8** (a 1 vela del gatillo alcista TD -9).
+- **ETH Swing (4h):** TD Count en **-7** (en zona de sobreventa con RSI en 31.49).
