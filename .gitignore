@@ -178,3 +178,8 @@ bot_unified.log
 
 # Material de Marketing / Redes Sociales
 linkedin post/
+
+# Backtesting Data Cache
+backtesting/data/
+*.parquet
+

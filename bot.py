@@ -283,8 +283,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
     if candle_range == 0: candle_range = 1
     close_pct = (closed_candle['close'] - closed_candle['low']) / candle_range
     
-    wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5) and (divergence == 'BULLISH' or rsi < 45)
-    wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5) and (divergence == 'BEARISH' or rsi > 55)
+    wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5) and (divergence == 'BULLISH')
+    wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5) and (divergence == 'BEARISH')
     
     # Cargar y sincronizar estado con Dirty-Check para preservar la vida útil de la MicroSD
     state = load_state()
@@ -346,8 +346,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                         reason = "TD9 Buy (Counter-Trend)"
                     else:
                         print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
-                        stop_loss = current_live_price - (atr * 2.0)
-                        take_profit = current_live_price + (atr * 3.5)
+                        stop_loss = current_live_price - (atr * 1.5)
+                        take_profit = current_live_price + (atr * 2.5)
                         reason = "TD9 Buy (Trend)"
                 else:
                     print(">>> ALERTA DE COMPRA <<< (Wyckoff)")
@@ -375,8 +375,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                         reason = "TD9 Sell (Counter-Trend)"
                     else:
                         print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
-                        stop_loss = current_live_price + (atr * 2.0)
-                        take_profit = current_live_price - (atr * 3.5)
+                        stop_loss = current_live_price + (atr * 1.5)
+                        take_profit = current_live_price - (atr * 2.5)
                         reason = "TD9 Sell (Trend)"
                 else:
                     print(">>> ALERTA DE VENTA <<< (Wyckoff)")
@@ -577,19 +577,19 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
     updated_sl = sl
     close_reason = ""
     
-    # --- BREAK EVEN LOGIC (0.5 ATR SENSITIVE SHIELD) ---
-    if action == "BUY" and live_candle['high'] >= (entry + (atr * 0.5)):
+    # --- BREAK EVEN LOGIC (1.0 ATR INSTITUTIONAL SHIELD) ---
+    if action == "BUY" and live_candle['high'] >= (entry + (atr * 1.0)):
         if updated_sl < entry:
             updated_sl = entry
             state["stop_loss"] = updated_sl
-            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss subido a ${updated_sl:.2f} (+0.5 ATR favorable)")
-            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 0.5 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
-    elif action == "SELL" and live_candle['low'] <= (entry - (atr * 0.5)):
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss subido a ${updated_sl:.2f} (+1.0 ATR favorable)")
+            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 1.0 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
+    elif action == "SELL" and live_candle['low'] <= (entry - (atr * 1.0)):
         if updated_sl > entry:
             updated_sl = entry
             state["stop_loss"] = updated_sl
-            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss bajado a ${updated_sl:.2f} (+0.5 ATR favorable)")
-            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 0.5 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss bajado a ${updated_sl:.2f} (+1.0 ATR favorable)")
+            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 1.0 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
     # ----------------------------------------------------
 
     
@@ -619,14 +619,14 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             if updated_sl < entry:
                 updated_sl = entry
                 state["stop_loss"] = updated_sl
-                save_state(state)
+            save_state(state)
                 
             send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
             
 
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
         new_sl = current_closed_price - (atr * 2.0)
-        if new_sl > sl:
+        if new_sl > updated_sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
             send_telegram(f"🛡 <b>RISK MITIGATION | {SYMBOL} [{TIMEFRAME}]</b>\nTrailing Stop advanced to lock in favorable delta.\n\n<b>New Stop Loss:</b> ${updated_sl:,.2f}\n<b>Current Price:</b> ${current_live_price:,.2f}")
@@ -683,13 +683,13 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
             if updated_sl > entry:
                 updated_sl = entry
                 state["stop_loss"] = updated_sl
-                save_state(state)
+            save_state(state)
                 
             send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
 
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
         new_sl = current_closed_price + (atr * 2.0)
-        if new_sl < sl:
+        if new_sl < updated_sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
             send_telegram(f"🛡 <b>RISK MITIGATION | {SYMBOL} [{TIMEFRAME}]</b>\nTrailing Stop advanced to lock in favorable delta.\n\n<b>New Stop Loss:</b> ${updated_sl:,.2f}\n<b>Current Price:</b> ${current_live_price:,.2f}")

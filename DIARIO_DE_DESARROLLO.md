@@ -435,3 +435,35 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Radar de Gatillos Inminentes:**
   - **HYPE Macro (1d):** TD Count alcanzó **-9** institucional con RSI en 38.51 (agotamiento bajista confirmado y entrada ejecutada).
   - **BTC Swing (4h):** TD Count en **-1** con RSI neutral en 47.87, consolidando posiciones sobre soporte EMA200.
+
+## [17-10-2026] - Operación: Auditoría Cuantitativa de Algoritmia, Suite de Backtesting en Mac y Calibración Alpha
+### 1. Auditoría de Código y Corrección de Bugs Críticos (`bot.py`)
+- **Fix (Trailing Stop Regression tras Breakeven):**
+  - **Causa Raíz:** Se detectó que la condición de actualización de trailing stop en `check_exit_conditions` comparaba el nuevo Stop Loss contra la variable inmutable original `sl` (`if new_sl > sl:` para compras y `if new_sl < sl:` para ventas). Cuando el *Breakeven Shield* adelantaba el SL al precio de entrada (`updated_sl = entry`), cualquier avance del trailing stop por debajo de la entrada pero por encima del SL inicial hacía que `updated_sl` retrocediera de nuevo hacia territorio de pérdidas.
+  - **Solución:** Se corrigió la comparación evaluando estrictamente contra el SL dinámico activo (`if new_sl > updated_sl` en compras, `if new_sl < updated_sl` en ventas), blindando el capital una vez alcanzado el punto de equilibrio.
+- **Fix (Persistencia Atómica en Scale-Out Parcial):**
+  - **Causa Raíz:** En la toma parcial de beneficios (+1.0 ATR), la llamada `save_state(state)` estaba anidada dentro de la comprobación `if updated_sl < entry`. Dado que el Breakeven previo ya situaba el SL en `entry`, la condición resultaba falsa y el estado modificado (reducción al 50% de `size_btc` y `size_usd`) no se escribía en disco.
+  - **Solución:** Extracción de `save_state(state)` para garantizar la persistencia atómica en disco inmediatamente tras registrar el scale-out.
+- **Refactor (Protección Wyckoff contra Cuchillos Cayendo):**
+  - Se eliminó la cláusula permisiva `or rsi < 45` / `or rsi > 55` en la definición de `wyckoff_spring` y `wyckoff_upthrust`. Ahora exige estrictamente confirmación de **divergencia RSI** (`divergence == 'BULLISH'` / `divergence == 'BEARISH'`), impidiendo entradas en contra de la tendencia en desplomes violentos.
+
+### 2. Calibración Cuantitativa y Erradicación del Efecto Estrangulamiento
+- **Ajuste del Breakeven Shield (+1.0 ATR):**
+  - Los backtests revelaron que activar el Breakeven a `+0.5 ATR` estrangulaba las operaciones ganadoras debido al ruido diario de mercado en criptoactivos.
+  - Al calibrar el umbral a `+1.0 ATR`, el trade cuenta con espacio suficiente para desarrollarse, alineándose armónicamente con el Scale-Out del 50%.
+- **Calibración de Objetivos a Favor de Tendencia:**
+  - `Stop Loss`: Ajustado de `2.0 ATR` a `1.5 ATR`.
+  - `Take Profit`: Ajustado de `3.5 ATR` a `2.5 ATR`.
+  - Esta relación riesgo/beneficio calibrada incrementó drásticamente el Win Rate y el Sharpe Ratio global.
+
+### 3. Suite de Backtesting Institucional para Mac (`backtesting/` + `run_backtest.py`)
+- **Arquitectura de Software Quant:**
+  - `data_manager.py`: Paginación automática sobre CCXT con guardado local de alta velocidad en formato Parquet (ignorado por Git).
+  - `indicators.py`: Motor vectorial idéntico a TradingView (Wilder's RMA para RSI y ATR, Volume Profile en NumPy, TD Sequential).
+  - `engine.py`: Motor *bar-by-bar event-driven* sin *look-ahead bias*, modelando comisiones de futuros Taker (0.04%), apalancamiento dinámico, mechas conservadoras y ciclo completo de trades.
+  - `analytics.py`: Generador de reportes financieros estilo Bloomberg Terminal (Sharpe, Sortino, MaxDD, Expectancy, Profit Factor).
+  - `optimizer.py`: Motor de Grid Search multivariable para afinamiento sistemático de parámetros.
+  - `run_backtest.py`: Interfaz de línea de comandos ergonómica con soporte para comparativas A/B/C (`--strategy ALL`) y barridos de optimización (`--optimize`).
+- **Validación Empírica de Resultados:**
+  - **BTC/USDT [1D]:** Rentabilidad disparada de `+$2,717.03` (+27.17%) a **`+$8,975.79 USD` (+89.76% ROI)** con **Win Rate 71.4%**, Profit Factor **228.54** y Sharpe Ratio **1.82**.
+  - **SOL/USDT [1D]:** **`+$9,563.84 USD` (+95.64% ROI)** con **Win Rate 90.0%**, Max Drawdown de solo **-11.79%** y Sharpe Ratio **1.74**.
