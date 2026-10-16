@@ -331,7 +331,7 @@
     <!-- MACRO KPI BAR -->
     <div id="macro-kpi-bar">
         <div class="kpi-box">
-            <span class="kpi-title">GLOBAL EQUITY (27 BOTS)</span>
+            <span class="kpi-title">GLOBAL EQUITY (18 BOTS)</span>
             <span class="kpi-val" id="global-equity">LOADING...</span>
         </div>
         <div class="kpi-box">
@@ -344,7 +344,7 @@
         </div>
         <div class="kpi-box">
             <span class="kpi-title">ACTIVE POSITIONS</span>
-            <span class="kpi-val" id="active-trades-kpi">0 / 27</span>
+            <span class="kpi-val" id="active-trades-kpi">0 / 18</span>
         </div>
         <div class="kpi-box">
             <span class="kpi-title">FEAR & GREED</span>
@@ -586,7 +586,7 @@
                 };
 
                 let assets = ['BTC', 'ETH', 'HYPE'];
-                let timeframes = ['1h', '4h', '1d'];
+                let timeframes = ['4h', '1d'];
                 let variants = ['WYK', 'HYB', 'TD9'];
 
                 let gridHtml = '';
@@ -729,7 +729,7 @@
                 document.getElementById('main-grid').innerHTML = gridHtml;
 
                 // UPDATE KPI HEADER
-                let baseCapital = 27 * 10000.0;
+                let baseCapital = 18 * 10000.0;
                 totalRealizedPnl = totalBank - baseCapital;
                 let currentEquity = totalBank + totalUnrealizedPnl;
                 let globalRoi = ((currentEquity - baseCapital) / baseCapital) * 100;
@@ -746,14 +746,14 @@
                 let uColor = totalUnrealizedPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                 document.getElementById('global-unrealized').innerHTML = `<span style="color:${uColor}">${uSign}$${Math.abs(totalUnrealizedPnl).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`;
 
-                document.getElementById('active-trades-kpi').innerText = `${activeTradesCount} / 27`;
+                document.getElementById('active-trades-kpi').innerText = `${activeTradesCount} / 18`;
 
                 // RENDER LEADERBOARD
                 let lbHtml = '';
                 variants.forEach(v => {
                     let st = strategyStats[v];
-                    let rPnl = st.bank - (9 * 10000.0);
-                    let roi = (rPnl / (9 * 10000.0)) * 100;
+                    let rPnl = st.bank - (6 * 10000.0);
+                    let roi = (rPnl / (6 * 10000.0)) * 100;
                     let wr = st.trades > 0 ? (st.wins / st.trades) * 100 : 0;
                     let pCol = rPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                     let pSign = rPnl >= 0 ? '+' : '';

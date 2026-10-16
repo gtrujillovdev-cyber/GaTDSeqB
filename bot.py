@@ -818,9 +818,9 @@ if __name__ == "__main__":
 
     INITIAL_BANK = args.bank
     print(f"Iniciando GaTDSEQ Bot UNIFICADO | Bank: ${INITIAL_BANK}...")
-    send_telegram("🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking multi-asset pipeline (5 Timeframes).")
+    send_telegram("🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking macro pipeline (4h & 1d).")
     
-    timeframes = ['1h', '4h', '1d']
+    timeframes = ['4h', '1d']
     bots = [
         {'id': 'BTC_TD9', 'symbol': 'BTC', 'strategy': 'TD9'},
         {'id': 'BTC_WYK', 'symbol': 'BTC', 'strategy': 'WYK'},

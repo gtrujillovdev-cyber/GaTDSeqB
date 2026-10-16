@@ -475,3 +475,21 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Se codificó en `bot.py` y en `backtesting/engine.py` un vector de evaluación que calcula una puntuación de convicción $S \in [0.0, 1.0]$ sobre 4 dimensiones: Calidad del Setup DeMark (30%), Momentum & Divergencia RSI (25%), Volumen Institucional vs SMA20 (25%) y Tendencia Macro EMA200 (20%).
   - **Filtro de Descarte Inmediato:** Si el score no alcanza el umbral mínimo (`MIN_CONFIDENCE = 0.55`), la orden se cancela atómicamente (`SKIP`) y se registra en log la causa de descarte, blindando el capital frente a señales de bajo ratio.
   - **Validación:** En `BTC/USDT 1D`, el gate descartó las 2 operaciones perdedoras de menor convicción, elevando el Win Rate del 71.4% al **75.0%** y el Profit Factor a **315.77**.
+
+### 5. Optimización de Flota Cuantitativa: Supresión de la Temporalidad 1h (Flota de 18 Bots en 4h y 1d)
+- **Motivación Cuantitativa y Racional de Diseño:**
+  - Los resultados empíricos del backtesting demostraron sistemáticamente que la temporalidad de `1h` en criptoactivos (BTC y ETH) presenta un ratio señal/ruido desfavorable y una alta penalización por fricción de comisiones taker (0.04%), arrojando retornos negativos o mediocres frente al rendimiento institucional de `4h` y `1d` (Sharpe > 1.7, Win Rates de 75% a 90%).
+  - La eliminación de `1h` reorienta la flota exclusivamente a estrategias Swing y Posicionales con ventajas estadísticas sólidas.
+- **Redimensionamiento de la Flota:**
+  - Reducción de la matriz multivariable de 27 bots (3 activos × 3 estrategias × 3 timeframes) a **18 bots concurrentes** (3 activos: BTC, ETH, HYPE × 3 estrategias: TD9, WYK, HYB × 2 timeframes: 4h, 1d).
+  - Capital base ajustado de \$270,000 USD a **\$180,000 USD** (\$10,000 USD base por bot).
+  - Benchmark por estrategia en el Leaderboard ajustado a \$60,000 USD (6 bots por variante).
+- **Refactor en Backend y Telemetría:**
+  - `bot.py`: Bucle principal de timeframes reducido a `timeframes = ['4h', '1d']`.
+  - `server.py`: Iteradores en `get_fleet_data()` y `websocket_monitor_loop()` actualizados a `['4h', '1d']`, reduciendo en un tercio las llamadas de I/O a disco sobre los archivos de estado.
+- **Optimización del Kiosko Bloomberg UI (`lite.html` & `templates/lite.html`):**
+  - KPI Header actualizado: `GLOBAL EQUITY (18 BOTS)` y `ACTIVE POSITIONS: 0 / 18`.
+  - Ajuste del renderizado dinámico de la cuadrícula: al pasar de 3 a 2 filas por columna de activo, el layout elimina el scroll vertical en pantallas UltraGear 21:9 y mejora la legibilidad de las tarjetas de trades activos sin recortes visuales.
+  - Sincronización exacta de código entre `templates/lite.html` y la copia raíz `lite.html`.
+- **Actualización Documental y README:**
+  - Actualización de badges, esquemas de arquitectura ASCII, tablas de estrategia y descripciones de repositorios reflejando con exactitud la nueva arquitectura de 18 bots.
