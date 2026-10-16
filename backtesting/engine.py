@@ -36,6 +36,7 @@ class BacktestEngine:
             "scale_out_atr": 1.0,
             "scale_out_pct": 0.5,
             "trailing_atr": 2.0,
+            "min_confidence": 0.55,
             "enable_scale_out": True,
             "enable_breakeven": True,
             "enable_dca_13": True,
@@ -66,6 +67,37 @@ class BacktestEngine:
     def _get_base_risk(self) -> float:
         risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
         return risk_matrix.get(self.timeframe, 0.05)
+
+    def _calculate_confidence_score(self, candle, action, divergence, is_counter_trend) -> float:
+        score = 0.0
+        count = abs(candle.get('td_count', 0))
+        if count >= 9: score += 0.30
+        elif count >= 7: score += 0.15
+        
+        rsi = candle.get('rsi', 50.0)
+        if action == "BUY":
+            if divergence == 'BULLISH': score += 0.25
+            elif rsi <= 30: score += 0.20
+            elif rsi <= 40: score += 0.10
+        else:
+            if divergence == 'BEARISH': score += 0.25
+            elif rsi >= 70: score += 0.20
+            elif rsi >= 60: score += 0.10
+            
+        vol = candle.get('volume', 0.0)
+        avg_vol = candle.get('volume_sma', vol)
+        if avg_vol > 0:
+            vol_ratio = vol / avg_vol
+            if vol_ratio >= 1.5: score += 0.25
+            elif vol_ratio >= 1.0: score += 0.15
+            else: score += 0.05
+            
+        if not is_counter_trend:
+            score += 0.20
+        else:
+            score += 0.05
+            
+        return round(score, 2)
 
     def run(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -186,43 +218,47 @@ class BacktestEngine:
                 
         if trigger_buy and rsi < 70:
             is_counter = signal_price < ema200
-            if "TD9" in reason:
-                if is_counter:
-                    sl = current_live_price - (atr * self.params["atr_sl_counter"])
-                    tp = current_live_price + (atr * self.params["atr_tp_counter"])
-                    reason += " (Counter-Trend)"
+            conf = self._calculate_confidence_score(closed_candle, "BUY", divergence, is_counter)
+            if conf >= self.params.get("min_confidence", 0.65):
+                if "TD9" in reason:
+                    if is_counter:
+                        sl = current_live_price - (atr * self.params["atr_sl_counter"])
+                        tp = current_live_price + (atr * self.params["atr_tp_counter"])
+                        reason += " (Counter-Trend)"
+                    else:
+                        sl = current_live_price - (atr * self.params["atr_sl_trend"])
+                        tp = current_live_price + (atr * self.params["atr_tp_trend"])
+                        reason += " (Trend)"
                 else:
-                    sl = current_live_price - (atr * self.params["atr_sl_trend"])
-                    tp = current_live_price + (atr * self.params["atr_tp_trend"])
-                    reason += " (Trend)"
-            else:
-                sl = current_live_price - (atr * self.params["atr_sl_wyckoff"])
-                tp = current_live_price + (atr * self.params["atr_tp_wyckoff"])
-                reason += f" + RSI {rsi:.1f}"
-                
-            conviction = 1.5 if rsi < 30 else 1.0
-            final_risk = self._get_base_risk() * conviction
-            self._open_trade("BUY", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
+                    sl = current_live_price - (atr * self.params["atr_sl_wyckoff"])
+                    tp = current_live_price + (atr * self.params["atr_tp_wyckoff"])
+                    reason += f" + RSI {rsi:.1f}"
+                    
+                conviction = 1.5 if rsi < 30 else 1.0
+                final_risk = self._get_base_risk() * conviction
+                self._open_trade("BUY", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
             
         elif trigger_sell and rsi > 30:
             is_counter = signal_price > ema200
-            if "TD9" in reason:
-                if is_counter:
-                    sl = current_live_price + (atr * self.params["atr_sl_counter"])
-                    tp = current_live_price - (atr * self.params["atr_tp_counter"])
-                    reason += " (Counter-Trend)"
+            conf = self._calculate_confidence_score(closed_candle, "SELL", divergence, is_counter)
+            if conf >= self.params.get("min_confidence", 0.65):
+                if "TD9" in reason:
+                    if is_counter:
+                        sl = current_live_price + (atr * self.params["atr_sl_counter"])
+                        tp = current_live_price - (atr * self.params["atr_tp_counter"])
+                        reason += " (Counter-Trend)"
+                    else:
+                        sl = current_live_price + (atr * self.params["atr_sl_trend"])
+                        tp = current_live_price - (atr * self.params["atr_tp_trend"])
+                        reason += " (Trend)"
                 else:
-                    sl = current_live_price + (atr * self.params["atr_sl_trend"])
-                    tp = current_live_price - (atr * self.params["atr_tp_trend"])
-                    reason += " (Trend)"
-            else:
-                sl = current_live_price + (atr * self.params["atr_sl_wyckoff"])
-                tp = current_live_price - (atr * self.params["atr_tp_wyckoff"])
-                reason += f" + RSI {rsi:.1f}"
-                
-            conviction = 1.5 if rsi > 70 else 1.0
-            final_risk = self._get_base_risk() * conviction
-            self._open_trade("SELL", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
+                    sl = current_live_price + (atr * self.params["atr_sl_wyckoff"])
+                    tp = current_live_price - (atr * self.params["atr_tp_wyckoff"])
+                    reason += f" + RSI {rsi:.1f}"
+                    
+                conviction = 1.5 if rsi > 70 else 1.0
+                final_risk = self._get_base_risk() * conviction
+                self._open_trade("SELL", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
 
     def _open_trade(self, action: str, price: float, sl: float, tp: float, reason: str, time_stamp, risk_pct: float, atr: float):
         risk_amount = self.bank * risk_pct

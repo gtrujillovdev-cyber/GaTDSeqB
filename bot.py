@@ -226,6 +226,47 @@ def get_global_open_trades():
         except: pass
     return open_count
 
+MIN_CONFIDENCE = 0.55
+
+def calculate_confidence_score(candle, action, divergence, is_counter_trend):
+    """
+    Funnel Architecture: Calcula una puntuación de convicción multidimensional (0.0 a 1.0).
+    Ejes: 1. Setup DeMark (30%) | 2. Momentum RSI (25%) | 3. Volumen (25%) | 4. Tendencia EMA200 (20%)
+    """
+    score = 0.0
+    # 1. Setup DeMark
+    count = abs(candle.get('td_count', 0))
+    if count >= 9: score += 0.30
+    elif count >= 7: score += 0.15
+    
+    # 2. RSI & Divergencia
+    rsi = candle.get('rsi', 50.0)
+    if action == "BUY":
+        if divergence == 'BULLISH': score += 0.25
+        elif rsi <= 30: score += 0.20
+        elif rsi <= 40: score += 0.10
+    else:
+        if divergence == 'BEARISH': score += 0.25
+        elif rsi >= 70: score += 0.20
+        elif rsi >= 60: score += 0.10
+        
+    # 3. Volumen Institucional vs SMA 20
+    vol = candle.get('volume', 0.0)
+    avg_vol = candle.get('volume_sma', vol)
+    if avg_vol > 0:
+        vol_ratio = vol / avg_vol
+        if vol_ratio >= 1.5: score += 0.25
+        elif vol_ratio >= 1.0: score += 0.15
+        else: score += 0.05
+        
+    # 4. Tendencia Macro EMA 200
+    if not is_counter_trend:
+        score += 0.20
+    else:
+        score += 0.05
+        
+    return round(score, 2)
+
 def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
     global TIMEFRAME, SYMBOL, STATE_FILE, TRADES_FILE
     STATE_FILE = f"state_{bot_id}_{TIMEFRAME}.json"
@@ -338,26 +379,31 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
         if trigger_buy:
             if rsi < 70: # Permitir compras si no está extremadamente sobrecomprado
                 is_counter_trend = current_live_price < ema200
-                if "TD9" in reason_buy:
-                    if is_counter_trend:
-                        print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia)")
-                        stop_loss = current_live_price - (atr * 1.5)
-                        take_profit = current_live_price + (atr * 2.0)
-                        reason = "TD9 Buy (Counter-Trend)"
-                    else:
-                        print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
-                        stop_loss = current_live_price - (atr * 1.5)
-                        take_profit = current_live_price + (atr * 2.5)
-                        reason = "TD9 Buy (Trend)"
-                else:
-                    print(">>> ALERTA DE COMPRA <<< (Wyckoff)")
-                    stop_loss = current_live_price - (atr * 1.5)
-                    take_profit = current_live_price + (atr * 2.0)
-                    reason = f"Wyckoff Spring + RSI {rsi:.1f}"
+                conf_score = calculate_confidence_score(closed_candle, "BUY", divergence, is_counter_trend)
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE})")
 
-                if state.get("last_trigger_time") == trigger_time:
+                if conf_score < MIN_CONFIDENCE:
+                    print(f"🛑 SKIP: Señal BUY descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
+                    if "TD9" in reason_buy:
+                        if is_counter_trend:
+                            print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia)")
+                            stop_loss = current_live_price - (atr * 1.5)
+                            take_profit = current_live_price + (atr * 2.0)
+                            reason = f"TD9 Buy (Counter-Trend) [Conf: {conf_score:.2f}]"
+                        else:
+                            print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
+                            stop_loss = current_live_price - (atr * 1.5)
+                            take_profit = current_live_price + (atr * 2.5)
+                            reason = f"TD9 Buy (Trend) [Conf: {conf_score:.2f}]"
+                    else:
+                        print(">>> ALERTA DE COMPRA <<< (Wyckoff)")
+                        stop_loss = current_live_price - (atr * 1.5)
+                        take_profit = current_live_price + (atr * 2.0)
+                        reason = f"Wyckoff Spring + RSI {rsi:.1f} [Conf: {conf_score:.2f}]"
+
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     conviction_multiplier = 1.5 if rsi < 30 else 1.0
@@ -367,26 +413,31 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
         elif trigger_sell:
             if rsi > 30: # Permitir ventas si no está extremadamente sobrevendido
                 is_counter_trend = current_live_price > ema200
-                if "TD9" in reason_sell:
-                    if is_counter_trend:
-                        print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia)")
-                        stop_loss = current_live_price + (atr * 1.5)
-                        take_profit = current_live_price - (atr * 2.0)
-                        reason = "TD9 Sell (Counter-Trend)"
-                    else:
-                        print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
-                        stop_loss = current_live_price + (atr * 1.5)
-                        take_profit = current_live_price - (atr * 2.5)
-                        reason = "TD9 Sell (Trend)"
-                else:
-                    print(">>> ALERTA DE VENTA <<< (Wyckoff)")
-                    stop_loss = current_live_price + (atr * 1.5)
-                    take_profit = current_live_price - (atr * 2.0)
-                    reason = f"Wyckoff Upthrust + RSI {rsi:.1f}"
+                conf_score = calculate_confidence_score(closed_candle, "SELL", divergence, is_counter_trend)
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE})")
 
-                if state.get("last_trigger_time") == trigger_time:
+                if conf_score < MIN_CONFIDENCE:
+                    print(f"🛑 SKIP: Señal SELL descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
+                    if "TD9" in reason_sell:
+                        if is_counter_trend:
+                            print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia)")
+                            stop_loss = current_live_price + (atr * 1.5)
+                            take_profit = current_live_price - (atr * 2.0)
+                            reason = f"TD9 Sell (Counter-Trend) [Conf: {conf_score:.2f}]"
+                        else:
+                            print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
+                            stop_loss = current_live_price + (atr * 1.5)
+                            take_profit = current_live_price - (atr * 2.5)
+                            reason = f"TD9 Sell (Trend) [Conf: {conf_score:.2f}]"
+                    else:
+                        print(">>> ALERTA DE VENTA <<< (Wyckoff)")
+                        stop_loss = current_live_price + (atr * 1.5)
+                        take_profit = current_live_price - (atr * 2.0)
+                        reason = f"Wyckoff Upthrust + RSI {rsi:.1f} [Conf: {conf_score:.2f}]"
+
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     conviction_multiplier = 1.5 if rsi > 70 else 1.0

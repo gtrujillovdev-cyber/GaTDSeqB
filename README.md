@@ -91,20 +91,19 @@ The execution layer implements defensive risk mechanics engineered to preserve c
 ```
  Entry Price
      │
-     ├───────────────────► [+0.5 ATR]  BREAK EVEN SHIELD TRIGGERED
-     │                                 Stop Loss moved to Entry Price + Fees. Zero downside risk.
-     │
-     ├───────────────────► [+1.0 ATR]  SYMMETRIC SCALE-OUT EXECUTED
+     ├───────────────────► [+1.0 ATR]  BREAK EVEN SHIELD & SCALE-OUT (50%)
+     │                                 Stop Loss moved to Entry Price (Zero Risk).
      │                                 50% of position size closed at market. Locks realized alpha.
-     │                                 Trailing Stop Loss latches onto remaining 50%.
+     │                                 Monotonic Trailing Stop Loss latches onto remaining 50%.
      │
      └───────────────────► [Take Profit Level] 100% POSITION CLOSED
 ```
 
-### Key Risk Modules
-- **0.5 ATR Break Even Shield:** Once unrealized profit reaches half of the current Average True Range ($+0.5\times\text{ATR}$), the Stop Loss is automatically repositioned to the exact entry price plus estimated taker fees.
+### Key Risk & Funnel Modules
+- **Multi-Stage Funnel Filter (Confidence Gate):** All prospective signals must pass a 4-dimensional conviction vector (DeMark Setup Purity, RSI Extreme/Divergence, Institutional Volume vs SMA20, and Macro EMA200 Trend). Signals with $S < 0.55$ are automatically skipped (`SKIP`), dodging low-conviction noise trades.
+- **1.0 ATR Break Even Shield:** Once unrealized profit reaches Average True Range ($+1.0\times\text{ATR}$), the Stop Loss is automatically repositioned to the exact entry price. Calibrated to eradicate the "Choke Effect" of premature 0.5 ATR triggers.
 - **1.0 ATR Symmetric Scale-Out:** When favorable momentum hits $+1.0\times\text{ATR}$, 50% of the active position is closed immediately at market price. Realized profit is locked, and the trade card is badged with `[💰 50% SCALED]`.
-- **Dynamic Floor ATR:** To prevent Stop Loss collapse during prolonged low-volatility consolidations, a floor clamp ($ATR_{\text{min}} = \max(ATR, 0.005 \times Price)$) prevents premature stop-outs during noise sweeps.
+- **Dynamic Floor ATR:** To prevent Stop Loss collapse during prolonged low-volatility consolidations, a floor clamp ($ATR_{\text{min}} = \max(ATR, 0.006 \times Price)$) prevents premature stop-outs during noise sweeps.
 - **TD-13 DCA & Exhaustion Battalion:** If an active trade faces extended counter-momentum that reaches a DeMark Countdown 13, the system initiates a calculated dollar-cost average tranche to lower average entry price before mean reversion.
 
 ---
@@ -144,8 +143,17 @@ To verify and visually backtest the signals directly on TradingView charts, the 
 
 ```
 GaTDSEQ/
-├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, CCXT data acquisition, strategy logic
+├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, Funnel Gate, CCXT data acquisition
 ├── server.py               # Telemetry server: Flask-SocketIO, Eventlet, WebSockets, psutil metrics
+├── run_backtest.py         # Institutional backtesting CLI (Terminal Bloomberg reports)
+├── backtesting/            # High-performance local backtesting suite for Mac (Parquet, event-driven)
+│   ├── data_manager.py     # Paged CCXT fetcher & local Parquet caching
+│   ├── indicators.py       # Vectorized Wilder's RMA indicators & Volume Profile
+│   ├── engine.py           # Bar-by-bar simulation engine with fees & dynamic leverage
+│   ├── analytics.py        # Financial metrics (Sharpe, Sortino, MaxDD, Profit Factor)
+│   └── optimizer.py        # Multi-parameter Grid Search engine
+├── docs/
+│   └── RESEARCH_FUNNEL_ARCHITECTURE.md # Quantitative whitepaper on Multi-Stage Funnel Design
 ├── templates/
 │   └── lite.html           # Institutional Bloomberg Kiosk UI (UltraGear 21:9 zero-scroll dashboard)
 ├── pinescript/
