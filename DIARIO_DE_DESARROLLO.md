@@ -493,3 +493,27 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Sincronización exacta de código entre `templates/lite.html` y la copia raíz `lite.html`.
 - **Actualización Documental y README:**
   - Actualización de badges, esquemas de arquitectura ASCII, tablas de estrategia y descripciones de repositorios reflejando con exactitud la nueva arquitectura de 18 bots.
+
+### 6. Despliegue de Blindaje de Cartera, Macro Sentimiento (Fear & Greed) y Carry Cost Guard
+- **Portfolio & Correlation Shield (Control de Exposición Global):**
+  - Implementación de la función `get_fleet_position_stats()` en `bot.py` que audita en memoria todos los estados `state_*.json`.
+  - Establecimiento de 3 techos de seguridad institucionales:
+    1. `MAX_TOTAL_FLEET_TRADES = 6`: Máximo 6 de los 18 bots pueden mantener posiciones simultáneas (33% de utilización máxima de margen).
+    2. `MAX_DIRECTIONAL_TRADES = 4`: Límite estricto de máximo 4 LONGs o 4 SHORTs concurrentes en toda la cartera, evitando la sobreexposición unidireccional en caídas en cascada.
+    3. `MAX_TRADES_PER_SYMBOL = 2`: Máximo 2 posiciones abiertas simultáneas en un mismo subyacente (ej. BTC), impidiendo la sobreconcentración por activo.
+  - **Amortiguación Dinámica de Riesgo (Dynamic Dampening):** Si ya existen 2 o más posiciones en la misma dirección, las siguientes reducen automáticamente su tamaño al 75% (`portfolio_dampening = 0.75`).
+- **Inyección del Índice Fear & Greed en el Funnel Gate:**
+  - Función `get_fear_and_greed()` con caché local de 1 hora (TTL 3600s) y fallback de seguridad (50 neutral).
+  - Modulación de convicción:
+    - Compras en pánico extremo ($F\&G \le 25$): Bonificación de $+0.10$ por compra con descuento institucional.
+    - Compras en codicia extrema ($F\&G \ge 75$): Penalización de $-0.10$ para evitar comprar techos euforizantes.
+    - Ventas en codicia extrema ($F\&G \ge 75$): Bonificación de $+0.10$ para capturar distribuciones.
+    - Ventas en pánico extremo ($F\&G \le 25$): Penalización de $-0.10$ para no vender en suelos de capitulación.
+- **Carry Cost Guard (Protección de Tasa de Financiación en Perpetuos):**
+  - Función `get_funding_rate(symbol)` consultando la API de Binance Futures con caché de 1h.
+  - Penalización de $-0.05$ en señales con carry negativo agresivo ($>0.04\%$ por 8h en compras o $<-0.04\%$ en ventas) y bonificación de $+0.05$ en operaciones con carry trade positivo.
+- **Sincronización Total en Motor de Backtesting:**
+  - Actualización de `_calculate_confidence_score` en `backtesting/engine.py` manteniendo paridad matemática estricta entre la simulación y la ejecución en vivo.
+- **Ampliación de Documentación Cuantitativa:**
+  - Actualización de la fórmula matemática de 6 dimensiones y los parámetros del Portfolio Shield en `docs/RESEARCH_FUNNEL_ARCHITECTURE.md`.
+

@@ -216,22 +216,109 @@ def calculate_td_sequential(df):
     return df
 
 
-def get_global_open_trades():
+# ==============================================================================
+# INSTITUTIONAL PORTFOLIO & CORRELATION SHIELD (Fleet Exposure Caps)
+# ==============================================================================
+MAX_TOTAL_FLEET_TRADES = 6       # Máximo 6 de los 18 bots en trade simultáneamente (33% de la flota)
+MAX_DIRECTIONAL_TRADES = 4       # Máximo 4 LONGs o 4 SHORTs concurrentes en toda la flota
+MAX_TRADES_PER_SYMBOL = 2        # Máximo 2 concurrentes en el mismo subyacente (ej. BTC)
+
+def get_fleet_position_stats():
+    """
+    Escanea todos los archivos state_*.json y consolida el estado global de la cartera.
+    """
     import glob, json
-    open_count = 0
+    stats = {
+        'total': 0,
+        'longs': 0,
+        'shorts': 0,
+        'by_symbol': {'BTC': 0, 'ETH': 0, 'HYPE': 0}
+    }
     for file in glob.glob("state_*.json"):
         try:
             with open(file, "r") as f:
-                if json.load(f).get("status") == "IN_TRADE": open_count += 1
-        except: pass
-    return open_count
+                st = json.load(f)
+                if st.get("status") == "IN_TRADE":
+                    stats['total'] += 1
+                    pos = st.get("position", "BUY")
+                    if pos == "BUY":
+                        stats['longs'] += 1
+                    else:
+                        stats['shorts'] += 1
+                    
+                    base = os.path.basename(file)
+                    parts = base.replace("state_", "").split("_")
+                    if len(parts) > 0 and parts[0] in stats['by_symbol']:
+                        stats['by_symbol'][parts[0]] += 1
+        except Exception:
+            pass
+    return stats
+
+# ==============================================================================
+# MACRO SENTIMENT & CARRY COST GATES (Fear & Greed + Funding Rate)
+# ==============================================================================
+_FNG_CACHE = {"value": 50, "last_fetch": 0}
+_FUNDING_CACHE = {} # symbol -> {'rate': float, 'last_fetch': float}
+
+def get_fear_and_greed():
+    """
+    Consulta el índice Crypto Fear & Greed (alternative.me) con caché de 1 hora en memoria.
+    Retorna 50 (Neutral) como fallback seguro si no hay conectividad.
+    """
+    global _FNG_CACHE
+    now = time.time()
+    if now - _FNG_CACHE["last_fetch"] < 3600 and _FNG_CACHE["last_fetch"] > 0:
+        return _FNG_CACHE["value"]
+    
+    try:
+        resp = requests.get('https://api.alternative.me/fng/?limit=1', headers={'User-Agent': 'GaTDSEQ/2.2'}, timeout=4)
+        if resp.status_code == 200:
+            data = resp.json()
+            val = int(data['data'][0]['value'])
+            _FNG_CACHE["value"] = val
+            _FNG_CACHE["last_fetch"] = now
+            return val
+    except Exception:
+        pass
+    return _FNG_CACHE["value"]
+
+def get_funding_rate(symbol):
+    """
+    Consulta la tasa de financiación de Binance Futures para el símbolo con caché de 1 hora.
+    Retorna la tasa como float (ej: 0.0001 = 0.01%). Fallback seguro 0.0.
+    """
+    global _FUNDING_CACHE
+    now = time.time()
+    cached = _FUNDING_CACHE.get(symbol)
+    if cached and (now - cached['last_fetch'] < 3600):
+        return cached['rate']
+    
+    pair = f"{symbol}USDT"
+    try:
+        url = f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={pair}&limit=1"
+        resp = requests.get(url, headers={'User-Agent': 'GaTDSEQ/2.2'}, timeout=4)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list) and len(data) > 0:
+                rate = float(data[0].get('fundingRate', 0.0))
+                _FUNDING_CACHE[symbol] = {'rate': rate, 'last_fetch': now}
+                return rate
+    except Exception:
+        pass
+    return 0.0
 
 MIN_CONFIDENCE = 0.55
 
-def calculate_confidence_score(candle, action, divergence, is_counter_trend):
+def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng_index=50, funding_rate=0.0):
     """
     Funnel Architecture: Calcula una puntuación de convicción multidimensional (0.0 a 1.0).
-    Ejes: 1. Setup DeMark (30%) | 2. Momentum RSI (25%) | 3. Volumen (25%) | 4. Tendencia EMA200 (20%)
+    Ejes: 
+    1. Setup DeMark (30%) 
+    2. Momentum RSI (25%) 
+    3. Volumen (25%) 
+    4. Tendencia EMA200 (20%)
+    5. Macro Confluence: Fear & Greed Index (Modulador ±10%)
+    6. Carry Cost: Tasa de financiación en futuros (Modulador ±5%)
     """
     score = 0.0
     # 1. Setup DeMark
@@ -265,6 +352,26 @@ def calculate_confidence_score(candle, action, divergence, is_counter_trend):
     else:
         score += 0.05
         
+    # 5. Macro Confluence: Fear & Greed Index
+    if fng_index is not None:
+        if action == "BUY":
+            if fng_index <= 25: score += 0.10     # Pánico Extremo: Smart Money acumula
+            elif fng_index <= 40: score += 0.05    # Pánico moderado: Descuento
+            elif fng_index >= 75: score -= 0.10    # Euforia Extrema: Riesgo de atrapar cuchillos en techos
+        elif action == "SELL":
+            if fng_index >= 75: score += 0.10     # Euforia Extrema: Distribución institucional
+            elif fng_index >= 60: score += 0.05    # Codicia: Buen punto de agotamiento
+            elif fng_index <= 25: score -= 0.10    # Pánico Extremo: Riesgo de vender en el suelo
+            
+    # 6. Carry Cost: Funding Rate en Perpetuos
+    if funding_rate != 0.0:
+        if action == "BUY":
+            if funding_rate > 0.0004: score -= 0.05   # Longs pagando funding caro (>0.04%/8h)
+            elif funding_rate < -0.0002: score += 0.05 # Shorts pagando a longs (carry positivo)
+        elif action == "SELL":
+            if funding_rate < -0.0004: score -= 0.05  # Shorts pagando funding caro
+            elif funding_rate > 0.0002: score += 0.05  # Longs pagando a shorts (carry positivo)
+
     return round(score, 2)
 
 def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
@@ -379,11 +486,21 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
         if trigger_buy:
             if rsi < 70: # Permitir compras si no está extremadamente sobrecomprado
                 is_counter_trend = current_live_price < ema200
-                conf_score = calculate_confidence_score(closed_candle, "BUY", divergence, is_counter_trend)
-                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE})")
+                fng_val = get_fear_and_greed()
+                funding_val = get_funding_rate(SYMBOL)
+                conf_score = calculate_confidence_score(closed_candle, "BUY", divergence, is_counter_trend, fng_val, funding_val)
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%")
 
+                # --- PORTFOLIO & CORRELATION SHIELD ---
+                fleet_stats = get_fleet_position_stats()
                 if conf_score < MIN_CONFIDENCE:
                     print(f"🛑 SKIP: Señal BUY descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                elif fleet_stats['total'] >= MAX_TOTAL_FLEET_TRADES:
+                    print(f"🛑 PORTFOLIO SHIELD: Cap total de cartera alcanzado ({fleet_stats['total']}/{MAX_TOTAL_FLEET_TRADES} trades activos). Omitiendo BUY.")
+                elif fleet_stats['longs'] >= MAX_DIRECTIONAL_TRADES:
+                    print(f"🛑 CORRELATION SHIELD: Cap direccional LONG alcanzado ({fleet_stats['longs']}/{MAX_DIRECTIONAL_TRADES} LONGs activos). Omitiendo BUY.")
+                elif fleet_stats['by_symbol'].get(SYMBOL, 0) >= MAX_TRADES_PER_SYMBOL:
+                    print(f"🛑 ASSET CONCENTRATION SHIELD: Cap de activo alcanzado ({SYMBOL}: {fleet_stats['by_symbol'].get(SYMBOL, 0)}/{MAX_TRADES_PER_SYMBOL} trades activos). Omitiendo BUY.")
                 elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
@@ -392,32 +509,45 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                             print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia)")
                             stop_loss = current_live_price - (atr * 1.5)
                             take_profit = current_live_price + (atr * 2.0)
-                            reason = f"TD9 Buy (Counter-Trend) [Conf: {conf_score:.2f}]"
+                            reason = f"TD9 Buy (Counter-Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                         else:
                             print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
                             stop_loss = current_live_price - (atr * 1.5)
                             take_profit = current_live_price + (atr * 2.5)
-                            reason = f"TD9 Buy (Trend) [Conf: {conf_score:.2f}]"
+                            reason = f"TD9 Buy (Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                     else:
                         print(">>> ALERTA DE COMPRA <<< (Wyckoff)")
                         stop_loss = current_live_price - (atr * 1.5)
                         take_profit = current_live_price + (atr * 2.0)
-                        reason = f"Wyckoff Spring + RSI {rsi:.1f} [Conf: {conf_score:.2f}]"
+                        reason = f"Wyckoff Spring + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     conviction_multiplier = 1.5 if rsi < 30 else 1.0
-                    final_risk = base_risk * conviction_multiplier
+                    
+                    # Dynamic Portfolio Dampening: Si ya hay 2 o más posiciones LONG, modular riesgo al 75%
+                    portfolio_dampening = 0.75 if fleet_stats['longs'] >= 2 else 1.0
+                    final_risk = base_risk * conviction_multiplier * portfolio_dampening
                     execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
         elif trigger_sell:
             if rsi > 30: # Permitir ventas si no está extremadamente sobrevendido
                 is_counter_trend = current_live_price > ema200
-                conf_score = calculate_confidence_score(closed_candle, "SELL", divergence, is_counter_trend)
-                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE})")
+                fng_val = get_fear_and_greed()
+                funding_val = get_funding_rate(SYMBOL)
+                conf_score = calculate_confidence_score(closed_candle, "SELL", divergence, is_counter_trend, fng_val, funding_val)
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%")
 
+                # --- PORTFOLIO & CORRELATION SHIELD ---
+                fleet_stats = get_fleet_position_stats()
                 if conf_score < MIN_CONFIDENCE:
                     print(f"🛑 SKIP: Señal SELL descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                elif fleet_stats['total'] >= MAX_TOTAL_FLEET_TRADES:
+                    print(f"🛑 PORTFOLIO SHIELD: Cap total de cartera alcanzado ({fleet_stats['total']}/{MAX_TOTAL_FLEET_TRADES} trades activos). Omitiendo SELL.")
+                elif fleet_stats['shorts'] >= MAX_DIRECTIONAL_TRADES:
+                    print(f"🛑 CORRELATION SHIELD: Cap direccional SHORT alcanzado ({fleet_stats['shorts']}/{MAX_DIRECTIONAL_TRADES} SHORTs activos). Omitiendo SELL.")
+                elif fleet_stats['by_symbol'].get(SYMBOL, 0) >= MAX_TRADES_PER_SYMBOL:
+                    print(f"🛑 ASSET CONCENTRATION SHIELD: Cap de activo alcanzado ({SYMBOL}: {fleet_stats['by_symbol'].get(SYMBOL, 0)}/{MAX_TRADES_PER_SYMBOL} trades activos). Omitiendo SELL.")
                 elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
@@ -426,22 +556,25 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                             print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia)")
                             stop_loss = current_live_price + (atr * 1.5)
                             take_profit = current_live_price - (atr * 2.0)
-                            reason = f"TD9 Sell (Counter-Trend) [Conf: {conf_score:.2f}]"
+                            reason = f"TD9 Sell (Counter-Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                         else:
                             print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
                             stop_loss = current_live_price + (atr * 1.5)
                             take_profit = current_live_price - (atr * 2.5)
-                            reason = f"TD9 Sell (Trend) [Conf: {conf_score:.2f}]"
+                            reason = f"TD9 Sell (Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                     else:
                         print(">>> ALERTA DE VENTA <<< (Wyckoff)")
                         stop_loss = current_live_price + (atr * 1.5)
                         take_profit = current_live_price - (atr * 2.0)
-                        reason = f"Wyckoff Upthrust + RSI {rsi:.1f} [Conf: {conf_score:.2f}]"
+                        reason = f"Wyckoff Upthrust + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
                     risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     conviction_multiplier = 1.5 if rsi > 70 else 1.0
-                    final_risk = base_risk * conviction_multiplier
+                    
+                    # Dynamic Portfolio Dampening: Si ya hay 2 o más posiciones SHORT, modular riesgo al 75%
+                    portfolio_dampening = 0.75 if fleet_stats['shorts'] >= 2 else 1.0
+                    final_risk = base_risk * conviction_multiplier * portfolio_dampening
                     execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
     elif state.get("status") == "IN_TRADE":

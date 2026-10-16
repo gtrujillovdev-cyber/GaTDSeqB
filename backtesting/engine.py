@@ -68,7 +68,7 @@ class BacktestEngine:
         risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
         return risk_matrix.get(self.timeframe, 0.05)
 
-    def _calculate_confidence_score(self, candle, action, divergence, is_counter_trend) -> float:
+    def _calculate_confidence_score(self, candle, action, divergence, is_counter_trend, fng_index=50, funding_rate=0.0) -> float:
         score = 0.0
         count = abs(candle.get('td_count', 0))
         if count >= 9: score += 0.30
@@ -96,6 +96,24 @@ class BacktestEngine:
             score += 0.20
         else:
             score += 0.05
+
+        if fng_index is not None:
+            if action == "BUY":
+                if fng_index <= 25: score += 0.10
+                elif fng_index <= 40: score += 0.05
+                elif fng_index >= 75: score -= 0.10
+            elif action == "SELL":
+                if fng_index >= 75: score += 0.10
+                elif fng_index >= 60: score += 0.05
+                elif fng_index <= 25: score -= 0.10
+
+        if funding_rate != 0.0:
+            if action == "BUY":
+                if funding_rate > 0.0004: score -= 0.05
+                elif funding_rate < -0.0002: score += 0.05
+            elif action == "SELL":
+                if funding_rate < -0.0004: score -= 0.05
+                elif funding_rate > 0.0002: score += 0.05
             
         return round(score, 2)
 

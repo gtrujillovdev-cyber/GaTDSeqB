@@ -72,18 +72,26 @@ if td_9 and rsi < 30 and close > ema200 and volume > sma_vol:
 ### Institutional Pattern: Tiered Confidence Scoring
 Instead of a brittle boolean, the system separates **Hard Fact Invariants** from **Graded Conviction**:
 1. **Hard Invariants (Gates 1 & 2):** Pure arithmetic, zero-cost. If the market is crashing without volume or has zero liquidity, the signal is dropped immediately.
-2. **Confidence Vector (Gate 3):** Evaluates multi-dimensional confluence:
-   $$\text{Confidence Score } (S) = w_1 S_{\text{setup}} + w_2 S_{\text{momentum}} + w_3 S_{\text{volume}} + w_4 S_{\text{trend}}$$
+2. **Confidence Vector (Gate 3):** Evaluates 6-dimensional confluence:
+   $$\text{Confidence Score } (S) = w_1 S_{\text{setup}} + w_2 S_{\text{momentum}} + w_3 S_{\text{volume}} + w_4 S_{\text{trend}} + \Delta S_{\text{macro}} + \Delta S_{\text{funding}}$$
    Where:
    - $w_1 = 0.30$ (DeMark Setup / Structural Reversal confirmation)
    - $w_2 = 0.25$ (RSI Extreme & Confirmed Divergence)
    - $w_3 = 0.25$ (Institutional Volume Expansion vs SMA20)
    - $w_4 = 0.20$ (Macro Trend Alignment with EMA 200)
+   - $\Delta S_{\text{macro}} \in [-0.10, +0.10]$ (Macro Sentiment: Alternative.me Fear & Greed extreme discount / euphoria modifier)
+   - $\Delta S_{\text{funding}} \in [-0.05, +0.05]$ (Perpetual Futures Funding Rate: Positive carry bonus / negative carry penalty)
 
-3. **Execution Gate:**
+3. **Portfolio & Correlation Shield (Pre-Execution Guard):**
+   - $\text{Total Fleet Cap}: \le 6 \text{ trades}$ across the 18-bot matrix (max 33% capital deployment).
+   - $\text{Directional Cap}: \le 4 \text{ LONGs}$ or $4 \text{ SHORTs}$ concurrent, immunizing against one-way liquidation cascades.
+   - $\text{Asset Concentration Cap}: \le 2 \text{ trades}$ on the same underlying symbol (e.g. BTC).
+   - $\text{Dynamic Dampening}: 0.75\times \text{risk}$ scaling if already $\ge 2$ positions in the same direction.
+
+4. **Execution Gate:**
    $$\text{Action} = \begin{cases} 
-   \text{EXECUTE}, & \text{if } S \ge 0.65 \\
-   \text{SKIP (Log reason)}, & \text{if } S < 0.65 
+   \text{EXECUTE}, & \text{if } S \ge 0.55 \text{ and passes Portfolio Shield} \\
+   \text{SKIP (Log reason)}, & \text{otherwise} 
    \end{cases}$$
 
 ---
