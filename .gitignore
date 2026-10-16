@@ -183,3 +183,7 @@ linkedin post/
 backtesting/data/
 *.parquet
 
+# Production Snapshots & Backups
+backups/
+
+
