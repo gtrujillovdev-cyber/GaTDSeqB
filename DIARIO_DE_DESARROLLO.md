@@ -517,3 +517,15 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Ampliación de Documentación Cuantitativa:**
   - Actualización de la fórmula matemática de 6 dimensiones y los parámetros del Portfolio Shield en `docs/RESEARCH_FUNNEL_ARCHITECTURE.md`.
 
+### 7. Corrección de Despliegue de Plantillas UI y Purga de Caché Móvil (Kiosko Bloomberg)
+- **Diagnóstico del Fallo de Visualización en Clientes Móviles:**
+  - El comando `rsync` previo había actualizado la copia raíz `lite.html` pero dejó desactualizada la plantilla interna `/home/raspberry/GaTDSEQ/templates/lite.html`, que es el archivo que lee el motor Jinja2 de Flask al despachar `render_template('lite.html')`.
+  - Como resultado, el servidor seguía sirviendo el layout obsoleto de 27 bots a navegadores móviles.
+- **Solución y Despliegue:**
+  - Sincronización exacta de `templates/lite.html` a su ruta de destino en la Raspberry Pi.
+  - Inyección de cabeceras anti-caché estrictas en `<head>` de `lite.html` (`Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`, `Expires: 0`).
+  - Refactor de la ruta raíz `/` en `server.py`: redirige automáticamente con código HTTP 302 y cabeceras `no-store` a `/lite`, garantizando que cualquier usuario que entre sin especificar la ruta acceda inmediatamente al Kiosko actualizado.
+  - Limpieza en la Raspberry Pi: Archivado de todos los archivos residuales `state_*_1h.json` a `backups/legacy_1h_states/` para evitar estados zombis en memoria.
+  - Reinicio y verificación de `gatdseq-server.service` y `gatdseq-bot.service`.
+
+
