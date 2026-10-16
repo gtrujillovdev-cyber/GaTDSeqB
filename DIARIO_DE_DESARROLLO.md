@@ -395,3 +395,43 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **BTC Macro (1d):** TD Count en **12** (a 1 vela del agotamiento DeMark 13 institucional).
 - **HYPE Macro (1d):** TD Count en **-8** (a 1 vela del gatillo alcista TD -9).
 - **ETH Swing (4h):** TD Count en **-7** (en zona de sobreventa con RSI en 31.49).
+
+## [16-10-2026] - Operación: Macro Auditoría Técnica, Evaluación Táctica y Dual Clock Institucional
+### 1. Auditoría de Infraestructura y Fiabilidad
+- **Uptime Récord:** La Raspberry Pi 3B alcanza **6 días, 11 horas y 19 minutos** de ejecución ininterrumpida (`uptime: 6d 11h 19m`).
+- **Telemetría del Edge Device:** Memoria RAM con 200 MB disponibles, Swap estabilizado en 389 MB y almacenamiento en 47% (7.3 GB disponibles). Cero saturación en disco tras la purga del log de Xorg.
+- **Diagnóstico y Corrección de Timezone (Fix 2 Horas):**
+  - **Causa Raíz:** Se descubrió que la Raspberry Pi tenía configurada la zona horaria por defecto `Europe/London` (BST, +01:00) y el Front-End (`templates/lite.html`) únicamente renderizaba `toISOString()`, correspondiente a la hora UTC universal (+00:00). Desde España peninsular (CEST, +02:00 en verano), esto provocaba un desfase visual de exactamente 2 horas menos.
+  - **Solución Implementada:** Se rediseñó la cabecera del Kiosko (`templates/lite.html`) incorporando un **Reloj Dual Institucional**:
+    - `LOC:` Hora civil local del usuario (`now.toTimeString().substring(0,8)`), marcando la hora exacta de España peninsular.
+    - `UTC:` Hora universal del exchange en ámbar institucional (`now.toISOString().substring(11,19)`), indispensable para conocer el tiempo de cierre de velas de Binance.
+
+### 2. Optimizaciones de Rendimiento y Algorítmicas (Backend & Red)
+- **Eliminación de Subprocess Fork en Backend (`server.py`):**
+  - Se erradicó la llamada `subprocess.call("pgrep -f 'bot.py' > /dev/null", shell=True)` dentro de `get_fleet_data()`.
+  - Se sustituyó por la función de coste cero `is_bot_active()`, basada en inspección en memoria y comprobación atómica del mtime de `bot_unified.log` con caché de 10s. Cero forks del shell, aliviando la CPU de la Raspberry Pi.
+- **Connection Pooling en Ticker (`requests.Session`):**
+  - Se migró el ciclo `ticker_fetch_loop` a una sesión persistente `requests.Session()`, reutilizando las conexiones TCP/TLS existentes hacia Binance y Yahoo Finance, eliminando la sobrecarga de negociación SSL en el procesador ARM.
+- **Desacoplamiento de Rate Limits (CoinGecko Global API):**
+  - Se desacopló la consulta de dominancia de BTC (`BTCD`) para realizarse cada 300 segundos (5 min) en lugar de cada 30 segundos, protegiendo al sistema de bloqueos HTTP 429 por límite de cuota IP.
+- **Alivio de I/O en Monitor WebSocket:**
+  - Se recalibró el intervalo de sondeo de archivos de estado de `0.5s` a `1.2s` en `websocket_monitor_loop()`, reduciendo en más de un 50% las llamadas al sistema (`os.stat` / `getmtime`) sobre la tarjeta MicroSD.
+
+### 3. Evaluación Táctica y Rendimiento Cuantitativo
+- **Cartera Global Consolidada:**
+  - **P&L Realizado Acumulado:** `+$13,363.87 USD`
+  - **Equity Total:** `$183,363.87 USD` (ROI Global: `+7.86%` sobre \$170,000 USD de base activa).
+  - **Volumen Total:** 182 operaciones cerradas.
+- **Alpha Leaders:**
+  - `HYPE_WYK_1h`: `+$7,997.73 USD` (29 trades, Win Rate 75.9%, ROI +79.98%).
+  - `HYPE_HYB_1h`: `+$7,918.34 USD` (33 trades, Win Rate 66.7%, ROI +79.18%).
+  - `HYPE_TD9_1h`: `+$3,180.76 USD` (26 trades, Win Rate 76.9%, ROI +31.81%).
+  - `BTC_WYK_1h`: `+$597.90 USD` (11 trades, Win Rate 36.4%, ROI +5.98%).
+  - `BTC_HYB_1h`: `+$88.88 USD` (13 trades, Win Rate 30.8%, ROI +0.89%).
+- **Trinchera Activa (6 Posiciones Abiertas):**
+  - **BTC 4h:** `BTC_HYB_4h` y `BTC_WYK_4h` en largos desde \$82,418.00 buscando TP en \$84,967.53 (SL \$80,505.85).
+  - **HYPE 1d:** `HYPE_HYB_1d` y `HYPE_WYK_1d` en compras de fondo desde \$81.81 hacia TP en \$90.38 (SL \$75.38).
+  - **HYPE 4h:** `HYPE_HYB_4h` y `HYPE_WYK_4h` en compras en \$81.62 hacia TP en \$86.37 (SL \$78.06).
+- **Radar de Gatillos Inminentes:**
+  - **HYPE Macro (1d):** TD Count alcanzó **-9** institucional con RSI en 38.51 (agotamiento bajista confirmado y entrada ejecutada).
+  - **BTC Swing (4h):** TD Count en **-1** con RSI neutral en 47.87, consolidando posiciones sobre soporte EMA200.

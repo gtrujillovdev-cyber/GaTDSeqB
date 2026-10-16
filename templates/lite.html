@@ -298,7 +298,8 @@
                 <div>CPU: <span id="sys-cpu">--%</span></div>
                 <div>RAM: <span id="sys-ram">--%</span></div>
                 <div>TEMP: <span id="sys-temp">--°C</span></div>
-                <div>UTC: <span id="clock-utc" style="color:var(--text-white);">--:--:--</span></div>
+                <div>LOC: <span id="clock-local" style="color:var(--text-white);">--:--:--</span></div>
+                <div>UTC: <span id="clock-utc" style="color:var(--text-muted);">--:--:--</span></div>
             </div>
         </div>
     </div>
@@ -491,10 +492,18 @@
         setInterval(applyTheme, 60000);
         applyTheme();
 
-        // CLOCK
+        // CLOCK (INSTITUTIONAL DUAL CLOCK: MADRID/LOCAL CIVIL & EXCHANGE UTC)
         function updateClock() {
             let now = new Date();
-            document.getElementById('clock-utc').innerText = now.toISOString().substring(11, 19);
+            // Local civil time (e.g. Madrid CEST/CET)
+            let locStr = now.toTimeString().substring(0, 8);
+            // Universal Coordinated Time (Exchange / Binance standard)
+            let utcStr = now.toISOString().substring(11, 19);
+            
+            let locEl = document.getElementById('clock-local');
+            if (locEl) locEl.innerText = locStr;
+            let utcEl = document.getElementById('clock-utc');
+            if (utcEl) utcEl.innerText = utcStr;
         }
         setInterval(updateClock, 1000);
         updateClock();
