@@ -654,8 +654,9 @@
                                 let st = tfVariantsData[v] || {};
                                 let tdVal = st.td_count !== undefined ? st.td_count : '--';
                                 let tdCol = tdVal > 0 ? 'var(--accent-red)' : (tdVal < 0 ? 'var(--accent-green)' : 'var(--text-muted)');
+                                let cdInfo = st.td_countdown ? ` | CD: ${st.td_countdown}` : '';
                                 gridHtml += `
-                                    <div class="variant-pill">
+                                    <div class="variant-pill" title="TD Setup: ${tdVal}${cdInfo}">
                                         <span class="variant-name">${v}</span>
                                         <span style="color:${tdCol}; font-weight:900;">${tdVal}</span>
                                     </div>

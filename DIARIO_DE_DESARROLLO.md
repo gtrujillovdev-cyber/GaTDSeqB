@@ -528,4 +528,20 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Limpieza en la Raspberry Pi: Archivado de todos los archivos residuales `state_*_1h.json` a `backups/legacy_1h_states/` para evitar estados zombis en memoria.
   - Reinicio y verificación de `gatdseq-server.service` y `gatdseq-bot.service`.
 
+### 8. Desacoplamiento de Métricas TD: Corrección del Bug de Enmascaramiento Setup vs. Countdown en Kiosko UI
+- **Diagnóstico del Fallo de Visualización (BTC 1D congelado en 12):**
+  - Se detectó una inconsistencia visual en el Kiosko donde BTC en timeframe diario (`1d`) mostraba permanentemente un valor de `12` en rojo mientras TradingView mostraba un conteo bajista en curso (-3 cerrado, -4 en vela viva).
+  - **Causa Raíz:** En `bot.py` (antigua línea 439), la directiva `new_td = int(countdown) if countdown != 0 else int(count)` sobreescribía el valor del TD Setup con el TD Countdown siempre que este último fuera distinto de cero.
+  - Al haberse completado un Setup alcista semanas atrás, el Countdown avanzó hasta la barra 12 el 11 de octubre. Al consolidar el mercado por debajo del máximo de hace 2 días (`close <= high[i-2]`), el Countdown alcista quedó suspendido en 12 sin alcanzar 13 ni cancelarse, enmascarando el Setup bajista activo (-3).
+  - La lógica del Risk Engine en `analyze_market()` evalúa disparos de orden exclusivamente sobre el Setup (`count <= -9` o `count >= 9`), por lo que mostrar el Countdown en la celda TD9 inducía a error al operador.
+- **Solución Técnica Aplicada:**
+  - **Desacoplamiento en Backend (`bot.py`):** Se separó la persistencia de estado para que `state["td_count"]` guarde estrictamente el conteo real del Setup (`int(count)`), garantizando paridad 1:1 con TradingView y con las condiciones de disparo del bot. Se añadió la clave independiente `state["td_countdown"]` para preservar el estado del Countdown sin contaminar el Setup.
+  - **Actualización en Frontend (`lite.html` y `templates/lite.html`):** Los pills de variantes muestran de forma limpia el Setup canónico (`-3` en verde para BTC 1d) y añaden un tooltip descriptivo institucional en `title` (`TD Setup: -3 | CD: 12`) para visibilidad del Countdown sin saturar la cuadrícula Bloomberg.
+  - **Despliegue y Verificación en Producción:**
+    - Código compilado localmente con `py_compile`.
+    - Sincronización a la Raspberry Pi (`/home/raspberry/GaTDSEQ/bot.py`, `lite.html`, `templates/lite.html`).
+    - Reinicio de servicios `gatdseq-bot.service` y `gatdseq-server.service`.
+    - Verificación del estado en producción: `state_BTC_TD9_1d.json` transicionó inmediatamente de `12` a `-3` con paridad exacta con el indicador de TradingView.
+
+
 

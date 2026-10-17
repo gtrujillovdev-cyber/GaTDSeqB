@@ -436,7 +436,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
     
     # Cargar y sincronizar estado con Dirty-Check para preservar la vida útil de la MicroSD
     state = load_state()
-    new_td = int(countdown) if countdown != 0 else int(count)
+    new_td = int(count)
+    new_countdown = int(countdown)
     div_str = divergence or "NONE"
     
     state_dirty = False
@@ -448,6 +449,9 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
         state_dirty = True
     if state.get("td_count") != new_td:
         state["td_count"] = new_td
+        state_dirty = True
+    if state.get("td_countdown") != new_countdown:
+        state["td_countdown"] = new_countdown
         state_dirty = True
         
     if state_dirty:
