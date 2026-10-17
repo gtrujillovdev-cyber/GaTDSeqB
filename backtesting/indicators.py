@@ -152,18 +152,20 @@ def calculate_td_sequential(df: pd.DataFrame) -> pd.DataFrame:
             
             if setup_up_active and c > high_2_ago:
                 countdown_up += 1
-                if countdown_up == 13:
-                    setup_up_active = False
                     
             if setup_down_active and c < low_2_ago:
                 countdown_down += 1
-                if countdown_down == 13:
-                    setup_down_active = False
                     
         if setup_up_active and countdown_up > 0:
             td_countdowns.append(countdown_up)
+            if countdown_up >= 13:
+                setup_up_active = False
+                countdown_up = 0
         elif setup_down_active and countdown_down > 0:
             td_countdowns.append(-countdown_down)
+            if countdown_down >= 13:
+                setup_down_active = False
+                countdown_down = 0
         else:
             td_countdowns.append(0)
             

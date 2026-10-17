@@ -64,6 +64,7 @@
         .top-bar { 
             display: flex; justify-content: space-between; align-items: center; 
             border-bottom: 2px solid var(--border-bright); padding-bottom: 5px; margin-bottom: 5px;
+            position: relative;
         }
         .top-bar-left { display: flex; align-items: center; gap: 8px; }
         .top-bar h1 { margin: 0; font-size: 19px; color: var(--text-primary); font-weight: 900; letter-spacing: 1px; }
@@ -88,6 +89,8 @@
             align-items: center;
             gap: 5px;
             transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
         .theme-pill-btn:hover {
             background: var(--border-bright);
@@ -284,6 +287,29 @@
             .main-grid { grid-template-columns: 1fr; }
             #macro-kpi-bar { grid-template-columns: 1fr 1fr; }
         }
+        @media (max-width: 768px) {
+            .top-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+                padding-right: 48px;
+            }
+            .top-bar h1 { font-size: 16px; }
+            .theme-pill-btn {
+                position: absolute;
+                top: 0;
+                right: 0;
+                padding: 4px 8px;
+            }
+            .theme-label-text {
+                display: none;
+            }
+            .hw-stats {
+                font-size: 10px;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+        }
     </style>
 </head>
 <body>
@@ -294,9 +320,6 @@
             <h1>GATDSEQ <span class="system-subtitle">// QUANTITATIVE CORE // RASPBERRY PI 3B</span></h1>
         </div>
         <div class="top-bar-right">
-            <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light / Auto Solar Mode">
-                <span id="theme-icon">☀️</span> <span id="theme-label">AUTO [SOLAR]</span>
-            </button>
             <div class="hw-stats">
                 <div>CPU: <span id="sys-cpu">--%</span></div>
                 <div>RAM: <span id="sys-ram">--%</span></div>
@@ -304,6 +327,9 @@
                 <div>LOC: <span id="clock-local" style="color:var(--text-white);">--:--:--</span></div>
                 <div>UTC: <span id="clock-utc" style="color:var(--text-muted);">--:--:--</span></div>
             </div>
+            <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light / Auto Solar Mode">
+                <span id="theme-icon">☀️</span> <span id="theme-label" class="theme-label-text">AUTO [SOLAR]</span>
+            </button>
         </div>
     </div>
 
@@ -449,20 +475,24 @@
         function applyTheme() {
             let isLight = false;
             let icon = '☀️';
-            let label = 'AUTO [SOLAR]';
+            let label = 'AUTO';
+            let titleText = '';
 
             if (currentThemeMode === 'auto') {
                 isLight = computeSolarIsDay();
                 icon = isLight ? '☀️' : '🌙';
-                label = isLight ? 'AUTO [DAY]' : 'AUTO [NIGHT]';
+                label = isLight ? 'AUTO (DAY)' : 'AUTO (NIGHT)';
+                titleText = `Theme: Auto Solar (${isLight ? 'Day' : 'Night'}) | Click to switch to Light`;
             } else if (currentThemeMode === 'light') {
                 isLight = true;
                 icon = '☀️';
-                label = 'LIGHT [FORCED]';
+                label = 'LIGHT';
+                titleText = 'Theme: Forced Light (Paper) | Click to switch to Dark';
             } else {
                 isLight = false;
                 icon = '🌙';
-                label = 'DARK [FORCED]';
+                label = 'DARK';
+                titleText = 'Theme: Forced Dark (Terminal) | Click to switch to Auto Solar';
             }
 
             if (isLight) {
@@ -473,9 +503,13 @@
 
             let iconEl = document.getElementById('theme-icon');
             let labelEl = document.getElementById('theme-label');
+            let btnEl = document.getElementById('theme-toggle-btn');
             if (iconEl && labelEl) {
                 iconEl.innerText = icon;
                 labelEl.innerText = label;
+            }
+            if (btnEl && titleText) {
+                btnEl.title = titleText;
             }
         }
 

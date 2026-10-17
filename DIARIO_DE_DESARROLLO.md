@@ -543,5 +543,20 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
     - Reinicio de servicios `gatdseq-bot.service` y `gatdseq-server.service`.
     - Verificación del estado en producción: `state_BTC_TD9_1d.json` transicionó inmediatamente de `12` a `-3` con paridad exacta con el indicador de TradingView.
 
+### 9. Rediseño Responsive de Cabecera (Selector de Tema) y Corrección Crítica del Countdown 13 (El Batallón DCA)
+- **Rediseño Responsive de Cabecera (Selector de Tema Móvil):**
+  - **Problema:** En pantallas reducidas (dispositivos móviles/iPhone), el botón del selector de tema (`AUTO [DAY]`) se intercalaba de forma caótica en medio del título (`QUANTITATIVE [AUTO] CORE // RASPBERRY PI 3B`) fracturando el espaciado y la estética institucional Bloomberg.
+  - **Solución UI:** 
+    - Se reordenó el árbol DOM colocando el botón tras el bloque de métricas de telemetría (`hw-stats`).
+    - En vista escritorio, se sitúa de forma limpia al extremo derecho de la barra tras los relojes LOC/UTC.
+    - Se introdujeron reglas de responsive específicas (`@media (max-width: 768px)`): la cabecera añade un canal lateral (`padding-right: 48px`), el botón se fija con posición absoluta en la esquina superior derecha (`position: absolute; top: 0; right: 0;`) y la etiqueta de texto se oculta (`.theme-label-text { display: none; }`), transformando el selector en un icono badge minimalista y cuadrado (`[ ☀️ ]` / `[ 🌙 ]`).
+    - Las etiquetas de modo en escritorio se simplificaron a `AUTO (DAY)`, `AUTO (NIGHT)`, `LIGHT` y `DARK` con tooltips contextuales dinámicos.
+- **Corrección Lógica del Countdown 13 ("El Batallón DCA"):**
+  - **Detección de Dead Code:** Se detectó que en `calculate_td_sequential()`, la condición `if countdown_up == 13: setup_up_active = False` se evaluaba antes de volcar el valor al array. Al desactivar `setup_up_active`, el código caía en el `else` e insertaba un `0` en vez del `13` (secuencia: `11, 12, 0`).
+  - Como consecuencia, los bloques de refuerzo por promediado a la baja (`pos == BUY and countdown == -13` y `pos == SELL and countdown == 13`) nunca habrían podido ejecutarse en producción.
+  - **Corrección Algorítmica:** Se sincronizó en `bot.py` y `backtesting/indicators.py` para registrar el valor `13` (o `-13`) en la vela de agotamiento antes de desactivar la bandera y resetear el contador a cero.
+- **Despliegue y Reinicio:** Sincronizado a producción y reiniciados `gatdseq-bot` y `gatdseq-server`.
+
+
 
 
