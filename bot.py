@@ -226,9 +226,9 @@ def calculate_td_sequential(df):
 # ==============================================================================
 # INSTITUTIONAL PORTFOLIO & CORRELATION SHIELD (Fleet Exposure Caps)
 # ==============================================================================
-MAX_TOTAL_FLEET_TRADES = 6       # Máximo 6 de los 18 bots en trade simultáneamente (33% de la flota)
-MAX_DIRECTIONAL_TRADES = 4       # Máximo 4 LONGs o 4 SHORTs concurrentes en toda la flota
-MAX_TRADES_PER_SYMBOL = 2        # Máximo 2 concurrentes en el mismo subyacente (ej. BTC)
+MAX_TOTAL_FLEET_TRADES = 9       # Máximo 9 de los 27 bots en trade simultáneamente (33% de la flota)
+MAX_DIRECTIONAL_TRADES = 6       # Máximo 6 LONGs o 6 SHORTs concurrentes en toda la flota
+MAX_TRADES_PER_SYMBOL = 3        # Máximo 3 concurrentes en el mismo subyacente (ej. BTC)
 
 def get_fleet_position_stats():
     """
@@ -316,7 +316,7 @@ def get_funding_rate(symbol):
 
 MIN_CONFIDENCE = 0.55
 
-def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng_index=50, funding_rate=0.0):
+def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng_index=50, funding_rate=0.0, weekly_context=None):
     """
     Funnel Architecture: Calcula una puntuación de convicción multidimensional (0.0 a 1.0).
     Ejes: 
@@ -326,6 +326,7 @@ def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng
     4. Tendencia EMA200 (20%)
     5. Macro Confluence: Fear & Greed Index (Modulador ±10%)
     6. Carry Cost: Tasa de financiación en futuros (Modulador ±5%)
+    7. Top-Down Macro Alignment: TD Sequential Semanal [1W] (Modulador ±15%)
     """
     score = 0.0
     # 1. Setup DeMark
@@ -379,9 +380,29 @@ def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng
             if funding_rate < -0.0004: score -= 0.05  # Shorts pagando funding caro
             elif funding_rate > 0.0002: score += 0.05  # Longs pagando a shorts (carry positivo)
 
+    # 7. Top-Down Macro Alignment: DeMark Semanal [1W] (Anti-Bias Shield Ponderado)
+    if weekly_context:
+        is_sell_exh = weekly_context.get('is_sell_exhaustion_active', False)
+        is_buy_exh = weekly_context.get('is_buy_exhaustion_active', False)
+        
+        # Ponderación suave institucional (±0.06): Modula operaciones marginales,
+        # pero NUNCA asfixia una señal de alta convicción en 4h (ej: 0.65 - 0.06 = 0.59 >= 0.55).
+        MACRO_MODULATOR = 0.06
+        
+        if is_sell_exh:
+            if action == "SELL":
+                score += MACRO_MODULATOR  # Viento a favor macro verificado
+            elif action == "BUY":
+                score -= MACRO_MODULATOR  # Leve filtro de prudencia en compras cerca de resistencia semanal
+        elif is_buy_exh:
+            if action == "BUY":
+                score += MACRO_MODULATOR  # Viento a favor macro verificado
+            elif action == "SELL":
+                score -= MACRO_MODULATOR  # Leve filtro de prudencia en ventas cerca de soporte semanal
+
     return round(score, 2)
 
-def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
+def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_context=None):
     global TIMEFRAME, SYMBOL, STATE_FILE, TRADES_FILE
     STATE_FILE = f"state_{bot_id}_{TIMEFRAME}.json"
     TRADES_FILE = f"trades_{bot_id}_{TIMEFRAME}.json"
@@ -403,11 +424,12 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
     elif TIMEFRAME == '15m': tf_mult = 1.8
     elif TIMEFRAME == '1h': tf_mult = 1.5
     elif TIMEFRAME == '4h': tf_mult = 1.2
-    else: tf_mult = 1.0 # 1d
+    elif TIMEFRAME == '1d': tf_mult = 1.0
+    else: tf_mult = 0.8 # 1w
     
     atr = raw_atr * tf_mult
     # Suelo de volatilidad mínima: previene stops de papel durante consolidaciones o fines de semana
-    min_atr_pct = 0.006 if TIMEFRAME == '1h' else (0.010 if TIMEFRAME == '4h' else 0.015)
+    min_atr_pct = 0.006 if TIMEFRAME == '1h' else (0.010 if TIMEFRAME == '4h' else (0.015 if TIMEFRAME == '1d' else 0.025))
     floor_atr = current_live_price * min_atr_pct
     atr = max(atr, floor_atr)
     # ------------------------------------------------------------------------
@@ -499,8 +521,9 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                 is_counter_trend = current_live_price < ema200
                 fng_val = get_fear_and_greed()
                 funding_val = get_funding_rate(SYMBOL)
-                conf_score = calculate_confidence_score(closed_candle, "BUY", divergence, is_counter_trend, fng_val, funding_val)
-                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%")
+                conf_score = calculate_confidence_score(closed_candle, "BUY", divergence, is_counter_trend, fng_val, funding_val, weekly_context)
+                w_td_str = f" | 1W TD: {weekly_context.get('td_count', 0)}" if weekly_context else ""
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%{w_td_str}")
 
                 # --- PORTFOLIO & CORRELATION SHIELD ---
                 fleet_stats = get_fleet_position_stats()
@@ -532,7 +555,7 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                         take_profit = current_live_price + (atr * 2.0)
                         reason = f"Wyckoff Spring + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
-                    risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
+                    risk_matrix = {"1w": 0.20, "1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     conviction_multiplier = 1.5 if rsi < 30 else 1.0
                     
@@ -546,8 +569,9 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                 is_counter_trend = current_live_price > ema200
                 fng_val = get_fear_and_greed()
                 funding_val = get_funding_rate(SYMBOL)
-                conf_score = calculate_confidence_score(closed_candle, "SELL", divergence, is_counter_trend, fng_val, funding_val)
-                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%")
+                conf_score = calculate_confidence_score(closed_candle, "SELL", divergence, is_counter_trend, fng_val, funding_val, weekly_context)
+                w_td_str = f" | 1W TD: {weekly_context.get('td_count', 0)}" if weekly_context else ""
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%{w_td_str}")
 
                 # --- PORTFOLIO & CORRELATION SHIELD ---
                 fleet_stats = get_fleet_position_stats()
@@ -579,7 +603,7 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
                         take_profit = current_live_price - (atr * 2.0)
                         reason = f"Wyckoff Upthrust + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
-                    risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
+                    risk_matrix = {"1w": 0.20, "1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
                     base_risk = risk_matrix.get(TIMEFRAME, 0.01)
                     conviction_multiplier = 1.5 if rsi > 70 else 1.0
                     
@@ -597,7 +621,7 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None):
             print(">>> ALERTA DE REFUERZO (DCA) TD-13 (SHORT) <<<")
             execute_reinforcement(current_live_price, atr, state, "SELL")
             
-        check_exit_conditions(live_candle, closed_candle, atr, state)
+        check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context)
 
 def execute_reinforcement(price, atr, state, action):
     import time
@@ -752,7 +776,7 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
     send_telegram(msg)
     print(f"Trade {action} Ejecutado a ${price:.2f} | Inversión: ${position_size_usd:.2f} | Riesgo: ${actual_risk_amount:.2f}")
 
-def check_exit_conditions(live_candle, closed_candle, atr, state):
+def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context=None):
     action = state["position"]
     current_live_price = live_candle['close']
     current_closed_price = closed_candle['close']
@@ -772,6 +796,23 @@ def check_exit_conditions(live_candle, closed_candle, atr, state):
     updated_sl = sl
     close_reason = ""
     
+    # --- MACRO WEEKLY CONFLUENCE SHIELD (Exhaustion Neutralizer con Filtro Anti-Sesgo) ---
+    if weekly_context:
+        is_sell_exh = weekly_context.get('is_sell_exhaustion_active', False)
+        is_buy_exh = weekly_context.get('is_buy_exhaustion_active', False)
+        
+        # Solo activa el escudo preventivo si el agotamiento macro semanal sigue activo y no se ha invalidado
+        if action == "BUY" and is_sell_exh and current_live_price > entry and updated_sl < entry:
+            updated_sl = entry
+            state["stop_loss"] = updated_sl
+            print(f"🛡 MACRO SHIELD: Corrección semanal activa en {SYMBOL}. Subiendo Stop de LONG a Break-Even (${updated_sl:.2f}).")
+            send_telegram(f"🛡 <b>MACRO SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nActive weekly pullback confirmed on {SYMBOL}. Immediate Break-Even shield activated on LONG position.")
+        elif action == "SELL" and is_buy_exh and current_live_price < entry and updated_sl > entry:
+            updated_sl = entry
+            state["stop_loss"] = updated_sl
+            print(f"🛡 MACRO SHIELD: Rebote semanal activo en {SYMBOL}. Bajando Stop de SHORT a Break-Even (${updated_sl:.2f}).")
+            send_telegram(f"🛡 <b>MACRO SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nActive weekly rebound confirmed on {SYMBOL}. Immediate Break-Even shield activated on SHORT position.")
+
     # --- BREAK EVEN LOGIC (1.0 ATR INSTITUTIONAL SHIELD) ---
     if action == "BUY" and live_candle['high'] >= (entry + (atr * 1.0)):
         if updated_sl < entry:
@@ -961,10 +1002,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     INITIAL_BANK = args.bank
-    print(f"Iniciando GaTDSEQ Bot UNIFICADO | Bank: ${INITIAL_BANK}...")
-    send_telegram("🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking macro pipeline (4h & 1d).")
+    print(f"Iniciando GaTDSEQ Bot UNIFICADO (27 BOTS) | Bank: ${INITIAL_BANK}...")
+    send_telegram("🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking macro multi-timeframe pipeline (4h, 1d & 1w - 27 bots).")
     
-    timeframes = ['4h', '1d']
+    timeframes = ['4h', '1d', '1w']
     bots = [
         {'id': 'BTC_TD9', 'symbol': 'BTC', 'strategy': 'TD9'},
         {'id': 'BTC_WYK', 'symbol': 'BTC', 'strategy': 'WYK'},
@@ -978,24 +1019,74 @@ if __name__ == "__main__":
     ]
     
     while True:
+        # Precalcular contexto Macro Semanal para Top-Down Confluence (Con Anti-Bias Shield)
+        weekly_context_cache = {}
+        for symbol in ['BTC', 'ETH', 'HYPE']:
+            try:
+                w_raw = get_data(f"{symbol}/USDT", "1w", limit=100)
+                if w_raw is not None and len(w_raw) >= 5:
+                    w_df = calculate_td_sequential(w_raw)
+                    w_closed = w_df.iloc[-2]
+                    w_live = w_df.iloc[-1]
+                    w_td = int(w_closed.get('td_count', 0))
+                    
+                    # 1. ANTI-BIAS SHIELD: Ventana de Caducidad DeMark (Max 4 Barras / 1 to 4 bars decay)
+                    # En la teoría DeMark, la corrección esperada dura entre 1 y 4 velas (barras 9, 10, 11, 12).
+                    # Si el conteo supera 12 (13, 14, 15...), estamos ante una tendencia desbocada (runaway trend),
+                    # por lo que el sesgo de agotamiento se desactiva para no ponerse delante de un tren.
+                    is_within_sell_window = (9 <= w_td <= 12)
+                    is_within_buy_window = (-12 <= w_td <= -9)
+                    
+                    # 2. ANTI-BIAS SHIELD: Price Flip & Invalidation Guard
+                    # Si el precio vivo rompe por encima del máximo de la vela de Setup 9, el agotamiento se invalida.
+                    w_closed_high = float(w_closed.get('high', float('inf')))
+                    w_closed_low = float(w_closed.get('low', 0.0))
+                    w_live_price = float(w_live.get('close', w_closed.get('close', 0.0)))
+                    
+                    # Para Venta: activo solo si está dentro de la ventana de 4 barras y NO está rompiendo a nuevos máximos
+                    is_sell_exhaustion_active = is_within_sell_window and (w_live_price <= w_closed_high)
+                    # Para Compra: activo solo si está dentro de la ventana de 4 barras y NO está rompiendo a nuevos mínimos
+                    is_buy_exhaustion_active = is_within_buy_window and (w_live_price >= w_closed_low)
+
+                    weekly_context_cache[symbol] = {
+                        'td_count': w_td,
+                        'td_countdown': int(w_closed.get('td_countdown', 0)),
+                        'rsi': float(w_closed.get('rsi', 50.0)),
+                        'is_sell_exhaustion_active': is_sell_exhaustion_active,
+                        'is_buy_exhaustion_active': is_buy_exhaustion_active,
+                        'df': w_df
+                    }
+                    if is_sell_exhaustion_active:
+                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD Count: {w_td} | Sesgo Correctivo Activo (Ventana: {w_td}/12)")
+                    elif is_buy_exhaustion_active:
+                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD Count: {w_td} | Sesgo Acumulativo Activo (Ventana: {abs(w_td)}/12)")
+                    elif abs(w_td) >= 7:
+                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD Count: {w_td} | Sesgo Neutralizado (Runaway Trend / Extensión)")
+            except Exception as e:
+                print(f"Error fetching weekly context for {symbol}: {e}")
+
         for tf in timeframes:
             df_cache = {}
             market_context_cache = {}
             for symbol in ['BTC', 'ETH', 'HYPE']:
                 try:
-                    raw_df = get_data(f"{symbol}/USDT", tf)
-                    if raw_df is not None:
-                        df = calculate_td_sequential(raw_df)
+                    if tf == '1w' and symbol in weekly_context_cache:
+                        df = weekly_context_cache[symbol]['df']
+                    else:
+                        raw_df = get_data(f"{symbol}/USDT", tf)
+                        df = calculate_td_sequential(raw_df) if raw_df is not None else None
+                        
+                    if df is not None and len(df) >= 5:
                         df_cache[symbol] = df
                         # Precalcular Volume Profile y Divergencias Wyckoff 1 SOLA VEZ por activo y timeframe
-                        vp_data = calculate_volume_profile(df.tail(100), bins=20)
+                        vp_data = calculate_volume_profile(df.tail(min(100, len(df))), bins=20)
                         divergence = detect_divergences(df.iloc[:-1])
                         market_context_cache[symbol] = {
                             'vp_data': vp_data,
                             'divergence': divergence
                         }
                 except Exception as e:
-                    print(f"Error fetching {symbol}: {e}")
+                    print(f"Error fetching {symbol} ({tf}): {e}")
                     
             for bot in bots:
                 symbol = bot['symbol']
@@ -1004,9 +1095,15 @@ if __name__ == "__main__":
                 TIMEFRAME = tf
                 SYMBOL = symbol
                 try:
-                    analyze_market(df_cache[symbol], bot['id'], bot['strategy'], market_context_cache.get(symbol))
+                    analyze_market(
+                        df_cache[symbol], 
+                        bot['id'], 
+                        bot['strategy'], 
+                        market_context_cache.get(symbol),
+                        weekly_context_cache.get(symbol)
+                    )
                 except Exception as e:
-                    print(f"Error analizando {bot['id']}: {e}")
+                    print(f"Error analizando {bot['id']} [{tf}]: {e}")
             import gc
             gc.collect()
             

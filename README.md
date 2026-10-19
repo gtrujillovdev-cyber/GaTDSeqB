@@ -1,11 +1,11 @@
 # 🏛️ GaTDSEQ: Institutional Edge-Trading Kiosk & Multi-Agent Quantitative Engine
 
 [![System Status](https://img.shields.io/badge/Production-Raspberry%20Pi%203B%20ARMv7-00ff66?style=flat-square&logo=raspberrypi&logoColor=black)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
-[![Architecture](https://img.shields.io/badge/Engine-18%20Virtual%20Bots%20(A%2FB%2FC)-ffb000?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
+[![Architecture](https://img.shields.io/badge/Engine-27%20Virtual%20Bots%20(A%2FB%2FC)-ffb000?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
 [![Frontend UI](https://img.shields.io/badge/Interface-Bloomberg%20Terminal%2021:9-ffb000?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
 
-**GaTDSEQ** is an autonomous, swing quantitative trading engine and real-time execution kiosk designed from the ground up for low-power ARM Edge hardware (Raspberry Pi 3B, 1GB RAM). Operating on perpetual crypto markets (BTC, ETH, HYPE), the system runs an automated multivariate **A/B/C testing matrix across 18 concurrent algorithmic bots**, orchestrating DeMark Sequential, Wyckoff volume analysis, dynamic risk management shields, and a zero-latency Bloomberg-style monitoring console.
+**GaTDSEQ** is an autonomous, swing quantitative trading engine and real-time execution kiosk designed from the ground up for low-power ARM Edge hardware (Raspberry Pi 3B, 1GB RAM). Operating on perpetual crypto markets (BTC, ETH, HYPE), the system runs an automated multivariate **A/B/C testing matrix across 27 concurrent algorithmic bots**, orchestrating DeMark Sequential, Wyckoff volume analysis, Top-Down Weekly Macro Confluence, dynamic risk management shields, and a zero-latency Bloomberg-style monitoring console.
 
 ---
 
@@ -32,7 +32,8 @@
                                              ▼
                       ┌──────────────────────────────────────────────┐
                       │          QUANTITATIVE ENGINE (bot.py)        │
-                      │  - 18 Algorithmic Bots Concurrently Evaluated │
+                      │  - 27 Algorithmic Bots Concurrently Evaluated │
+                      │  - Top-Down 1W Weekly Macro Confluence Gate   │
                       │  - Precision DeMark TD Sequential (9 / 13)   │
                       │  - Wyckoff Phase Detection & Volume Spikes   │
                       │  - Wilders Smoothing RSI & Dynamic Floor ATR │
@@ -59,6 +60,7 @@
                       │  - Strict Bloomberg Amber/Mono Aesthetic     │
                       │  - Client-Side Visual P&L / Trailing Ranges  │
                       │  - A/B/C Comparative Alpha Leaderboard       │
+                      │  - Top-Down 1W Situational Awareness Badges  │
                       └──────────────────────────────────────────────┘
 ```
 
@@ -70,7 +72,7 @@ The system operates strictly as a decoupled **two-tier architecture**:
 
 ## 🔬 Quantitative Strategy Matrix (A/B/C Framework)
 
-GaTDSEQ trades across 3 primary assets (**BTC**, **ETH**, **HYPE**) over 2 macro timeframes (**4h**, **1d**), yielding 6 core trading lanes. Each lane is cloned into an **A/B/C strategy archetype**, resulting in **18 concurrent virtual bots** forward-testing different mathematical hypotheses simultaneously:
+GaTDSEQ trades across 3 primary assets (**BTC**, **ETH**, **HYPE**) over 3 macro timeframes (**4h**, **1d**, **1w**), yielding 9 core trading lanes. Each lane is cloned into an **A/B/C strategy archetype**, resulting in **27 concurrent virtual bots** forward-testing different mathematical hypotheses simultaneously:
 
 | Archetype | Identifier | Core Quantitative Thesis | Filter Mechanism |
 | :--- | :--- | :--- | :--- |
@@ -80,7 +82,7 @@ GaTDSEQ trades across 3 primary assets (**BTC**, **ETH**, **HYPE**) over 2 macro
 
 ### Capital Allocation & Margin Rules
 - **Isolated Portfolio Model:** Each bot operates with a dedicated virtual equity tranche (\$10,000 USD base), preventing cross-contamination of performance metrics.
-- **Dynamic Risk Sizing:** Allocation expands on macro timeframes (1D: 2.5x base risk) where signal-to-noise ratio is maximized, maintaining controlled exposure on swing entries (4h: 1.5x base risk).
+- **Dynamic Risk Sizing:** Allocation expands on macro timeframes (1W: 3.0x base risk, 1D: 2.5x base risk) where signal-to-noise ratio is maximized, maintaining controlled exposure on swing entries (4h: 1.5x base risk).
 
 ---
 
@@ -112,7 +114,7 @@ The execution layer implements defensive risk mechanics engineered to preserve c
 
 Built strictly adhering to the **Bloomberg Terminal Aesthetic** (Black `#000000`, Amber `#ffb000`, Bright Green `#00ff66`, Pure Red `#ff3333`, Monospace font, and 0px border radius):
 
-- **Zero-Scroll Multi-Asset Grid:** The entire 18-bot fleet is grouped into 3 vertical macro-columns (`BTC`, `ETH`, `HYPE`), subdivided into horizontal `[WYK | HYB | TD9]` rows per timeframe (`4h`, `1d`), fitting cleanly without vertical scrolling on 1080p and 1440p ultrawide displays with enhanced visual breathing room.
+- **Zero-Scroll Multi-Asset Grid:** The entire 27-bot fleet is grouped into 3 vertical macro-columns (`BTC`, `ETH`, `HYPE`), subdivided into horizontal `[WYK | HYB | TD9]` rows per timeframe (`4h`, `1d`, `1w`), fitting cleanly on 1080p and 1440p ultrawide displays with enhanced visual breathing room.
 - **Real-Time Client-Side Math:** All trailing distance calculations, unrealized P&L in USD and ROE (%), and progress range bars are computed on the client's V8 engine using pure Vanilla JavaScript, maintaining 0% CPU consumption on the Raspberry Pi server.
 - **A/B/C Comparative Leaderboard:** Displays real-time aggregate performance, realized P&L, Win Rate, and trade frequency comparison between TD9, Wyckoff, and Hybrid strategies.
 - **Institutional Order Ledger:** Live telemetry table streaming entries, `[PRT]` partial scale-outs, and `[CLS]` position closes.
@@ -143,7 +145,7 @@ To verify and visually backtest the signals directly on TradingView charts, the 
 
 ```
 GaTDSEQ/
-├── bot.py                  # Quantitative engine: 18-bot A/B/C matrix, Funnel Gate, CCXT data acquisition
+├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, Funnel Gate, CCXT data acquisition
 ├── server.py               # Telemetry server: Flask-SocketIO, Eventlet, WebSockets, psutil metrics
 ├── run_backtest.py         # Institutional backtesting CLI (Terminal Bloomberg reports)
 ├── backtesting/            # High-performance local backtesting suite for Mac (Parquet, event-driven)

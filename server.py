@@ -164,7 +164,7 @@ def get_fleet_data():
         
     for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
         fleet[asset] = {}
-        for tf in ['4h', '1d']:
+        for tf in ['4h', '1d', '1w']:
             
             state_file = f"state_{asset}_{tf}.json"
             if os.path.exists(state_file):

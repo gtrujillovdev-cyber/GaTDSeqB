@@ -360,7 +360,7 @@
     <!-- MACRO KPI BAR -->
     <div id="macro-kpi-bar">
         <div class="kpi-box">
-            <span class="kpi-title">GLOBAL EQUITY (18 BOTS)</span>
+            <span class="kpi-title" id="global-equity-title">GLOBAL EQUITY (27 BOTS)</span>
             <span class="kpi-val" id="global-equity">LOADING...</span>
         </div>
         <div class="kpi-box">
@@ -373,7 +373,7 @@
         </div>
         <div class="kpi-box">
             <span class="kpi-title">ACTIVE POSITIONS</span>
-            <span class="kpi-val" id="active-trades-kpi">0 / 18</span>
+            <span class="kpi-val" id="active-trades-kpi">0 / 27</span>
         </div>
         <div class="kpi-box">
             <span class="kpi-title">FEAR & GREED</span>
@@ -623,7 +623,7 @@
                 };
 
                 let assets = ['BTC', 'ETH', 'HYPE'];
-                let timeframes = ['4h', '1d'];
+                let timeframes = ['4h', '1d', '1w'];
                 let variants = ['WYK', 'HYB', 'TD9'];
 
                 let gridHtml = '';
@@ -632,10 +632,26 @@
                     let livePrice = globalPrices[asset] || 0;
                     let assetPriceStr = livePrice > 0 ? `$${livePrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}` : '--';
 
+                    // Top-Down Weekly Context Badge (Institutional Situational Awareness)
+                    let wState = (fleet[`${asset}_TD9`] && fleet[`${asset}_TD9`]['1w']) ? fleet[`${asset}_TD9`]['1w'] : null;
+                    let wTd = wState && wState.td_count !== undefined ? wState.td_count : null;
+                    let wBadge = '';
+                    if (wTd !== null) {
+                        if (wTd >= 8 && wTd <= 12) {
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-red); color:var(--accent-red); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${wTd} SELL EXH</span>`;
+                        } else if (wTd > 12) {
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (+${wTd})</span>`;
+                        } else if (wTd <= -8 && wTd >= -12) {
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-green); color:var(--accent-green); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${Math.abs(wTd)} BUY EXH</span>`;
+                        } else if (wTd < -12) {
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (${wTd})</span>`;
+                        }
+                    }
+
                     gridHtml += `
                     <div class="asset-column">
                         <div class="asset-header">
-                            <span class="asset-title">${asset} // ${asset === 'BTC' ? 'BITCOIN' : (asset === 'ETH' ? 'ETHEREUM' : 'HYPERLIQUID')}</span>
+                            <span class="asset-title">${asset} // ${asset === 'BTC' ? 'BITCOIN' : (asset === 'ETH' ? 'ETHEREUM' : 'HYPERLIQUID')}${wBadge}</span>
                             <span class="asset-live-price" id="price-${asset}">${assetPriceStr}</span>
                         </div>
                     `;
@@ -767,13 +783,16 @@
                 document.getElementById('main-grid').innerHTML = gridHtml;
 
                 // UPDATE KPI HEADER
-                let baseCapital = 18 * 10000.0;
+                let totalBots = assets.length * timeframes.length * variants.length;
+                let baseCapital = totalBots * 10000.0;
                 totalRealizedPnl = totalBank - baseCapital;
                 let currentEquity = totalBank + totalUnrealizedPnl;
                 let globalRoi = ((currentEquity - baseCapital) / baseCapital) * 100;
                 let roiColor = globalRoi >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                 let roiSign = globalRoi >= 0 ? '+' : '';
 
+                let titleEl = document.getElementById('global-equity-title');
+                if (titleEl) titleEl.innerText = `GLOBAL EQUITY (${totalBots} BOTS)`;
                 document.getElementById('global-equity').innerHTML = `$${currentEquity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} <span style="color:${roiColor}; font-size:11px;">(${roiSign}${globalRoi.toFixed(2)}%)</span>`;
                 
                 let rSign = totalRealizedPnl >= 0 ? '+' : '';
@@ -784,14 +803,16 @@
                 let uColor = totalUnrealizedPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                 document.getElementById('global-unrealized').innerHTML = `<span style="color:${uColor}">${uSign}$${Math.abs(totalUnrealizedPnl).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`;
 
-                document.getElementById('active-trades-kpi').innerText = `${activeTradesCount} / 18`;
+                document.getElementById('active-trades-kpi').innerText = `${activeTradesCount} / ${totalBots}`;
 
                 // RENDER LEADERBOARD
                 let lbHtml = '';
+                let botsPerVariant = assets.length * timeframes.length;
+                let variantBaseCapital = botsPerVariant * 10000.0;
                 variants.forEach(v => {
                     let st = strategyStats[v];
-                    let rPnl = st.bank - (6 * 10000.0);
-                    let roi = (rPnl / (6 * 10000.0)) * 100;
+                    let rPnl = st.bank - variantBaseCapital;
+                    let roi = (rPnl / variantBaseCapital) * 100;
                     let wr = st.trades > 0 ? (st.wins / st.trades) * 100 : 0;
                     let pCol = rPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
                     let pSign = rPnl >= 0 ? '+' : '';

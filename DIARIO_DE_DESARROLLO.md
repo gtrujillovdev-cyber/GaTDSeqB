@@ -557,6 +557,28 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - **Corrección Algorítmica:** Se sincronizó en `bot.py` y `backtesting/indicators.py` para registrar el valor `13` (o `-13`) en la vela de agotamiento antes de desactivar la bandera y resetear el contador a cero.
 - **Despliegue y Reinicio:** Sincronizado a producción y reiniciados `gatdseq-bot` y `gatdseq-server`.
 
+### 10. Expansión a 27 Bots: Cobertura de Temporalidad Semanal (1W) y Top-Down Macro Confluence Gate
+- **Arquitectura Macro Top-Down (Multi-Timeframe Hierarchy):**
+  - **Problema Cuantitativo Resuelto:** Para capitalizar los agotamientos mayores del mercado (como el Setup 9 de Venta semanal en Bitcoin tras meses de subida continua) sin caer en el error de crear un bot aislado que apenas opere 1 vez al año con stops gigantescos, se diseñó una arquitectura jerárquica *Top-Down*.
+  - **Pre-Cálculo de Contexto Semanal (`weekly_context_cache`):** Al inicio de cada ciclo de escaneo en `bot.py`, el motor descarga y calcula las métricas de DeMark (`calculate_td_sequential`) y RSI de las velas semanales (`1w`) de BTC, ETH y HYPE una sola vez, reutilizando el DataFrame en memoria para no saturar las tasas de peticiones (Rate Limits) de Binance.
+- **Top-Down Confluence en el Funnel Gate (`calculate_confidence_score`):**
+  - Se añadió la 7ª dimensión al vector de convicción institucional modulada con **Anti-Bias Shields**:
+    - **Ponderación Suave Institucional (`±0.06` en vez de `±0.15`):** Modula eficazmente trades marginales o dudosos sin asfixiar jamás una operación de alta convicción en 4h (ej: $0.65 - 0.06 = 0.59 \ge 0.55$).
+    - **Ventana de Caducidad DeMark (Max 4 Barras / Decay Guard):** El sesgo solo opera en barras 9 a 12 ($9 \le TD \le 12$). Si el conteo supera 12 (13, 14, 15...), el sistema reconoce una tendencia parabólica desbocada (*Runaway Trend*) y desactiva el sesgo de agotamiento automáticamente.
+    - **Price Flip & Invalidation Guard:** Si el precio vivo rompe por encima del máximo de la vela 9, el sesgo de venta se apaga de inmediato, impidiendo intentar frenar un breakout alcista.
+- **Escudo Preventivo Confluyente Macro (`check_exit_conditions`):**
+  - Si un bot mantiene una posición `LONG` abierta y en beneficio, y se confirma un agotamiento semanal activo sin invalidar, el sistema eleva de forma inmediata el Stop Loss al precio de entrada (`Break-Even Shield`), blindando las ganancias acumuladas frente a giros violentos de ciclo.
+- **Escalado de Flota a 27 Bots Concurrentes:**
+  - Inclusión de `'1w'` en la matriz de timeframes (`timeframes = ['4h', '1d', '1w']`), elevando la flota forward-test a 27 bots algorítmicos (3 activos $\times$ 3 timeframes $\times$ 3 variantes A/B/C).
+  - Escalado proporcional de los límites del Portfolio Shield: `MAX_TOTAL_FLEET_TRADES = 9` (33% de utilización), `MAX_DIRECTIONAL_TRADES = 6` y `MAX_TRADES_PER_SYMBOL = 3`.
+  - Calibración de ATR dinámico para `'1w'`: multiplicador `tf_mult = 0.8` y suelo de volatilidad `min_atr_pct = 0.025` adaptados al rango de precio semanal.
+- **Actualización de Telemetría y Kiosko Bloomberg (`server.py`, `lite.html`, `templates/lite.html`):**
+  - `server.py`: El agregador `/api/fleet` lee y expone los estados `state_*_1w.json` y operaciones de la compresión semanal.
+  - `lite.html` / `templates/lite.html`:
+    - Incorporación de `1w` en el bucle de renderizado del Kiosko UltraGear 21:9.
+    - Indicador de Conciencia Situacional Macro: Renderizado dinámico de badges distinguiendo agotamiento activo (`[1W: TD9 SELL EXH]`) frente a extensión de tendencia (`[1W: EXT (+14)]`).
+    - Dinamización de KPIs: Encabezados y cálculos de capital base calculados de forma modular en base a los 27 bots (`$270.000` base global; `$90.000` por variante en Leaderboard).
+
 
 
 
