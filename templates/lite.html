@@ -637,12 +637,15 @@
                     let wTd = wState && wState.td_count !== undefined ? wState.td_count : null;
                     let wBadge = '';
                     if (wTd !== null) {
+                        let wPerf = wState && wState.td_perfected ? ' [PERF]' : (wState && Math.abs(wTd) >= 9 ? ' [UNPERF]' : '');
+                        let wTdst = (wState && wState.tdst_res > 0) ? ` | TDST:$${Math.round(wState.tdst_res)}` : '';
                         if (wTd >= 8 && wTd <= 12) {
-                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-red); color:var(--accent-red); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${wTd} SELL EXH</span>`;
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-red); color:var(--accent-red); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${wTd}${wPerf}${wTdst}</span>`;
                         } else if (wTd > 12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (+${wTd})</span>`;
                         } else if (wTd <= -8 && wTd >= -12) {
-                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-green); color:var(--accent-green); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${Math.abs(wTd)} BUY EXH</span>`;
+                            let wTdstSup = (wState && wState.tdst_sup > 0) ? ` | TDST:$${Math.round(wState.tdst_sup)}` : '';
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-green); color:var(--accent-green); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${Math.abs(wTd)}${wPerf}${wTdstSup}</span>`;
                         } else if (wTd < -12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (${wTd})</span>`;
                         }
@@ -705,10 +708,12 @@
                                 let tdVal = st.td_count !== undefined ? st.td_count : '--';
                                 let tdCol = tdVal > 0 ? 'var(--accent-red)' : (tdVal < 0 ? 'var(--accent-green)' : 'var(--text-muted)');
                                 let cdInfo = st.td_countdown ? ` | CD: ${st.td_countdown}` : '';
+                                let perfBadge = (Math.abs(tdVal) >= 8) ? (st.td_perfected ? '<span style="font-size:7px; color:var(--accent-green); margin-left:1px;" title="DeMark Setup Perfected">P</span>' : '<span style="font-size:7px; color:var(--text-dim); margin-left:1px;" title="DeMark Setup Unperfected">U</span>') : '';
+                                let tdstTooltip = st.tdst_res ? ` | TDST Res: $${st.tdst_res}` : '';
                                 gridHtml += `
-                                    <div class="variant-pill" title="TD Setup: ${tdVal}${cdInfo}">
+                                    <div class="variant-pill" title="TD Setup: ${tdVal}${cdInfo}${tdstTooltip}">
                                         <span class="variant-name">${v}</span>
-                                        <span style="color:${tdCol}; font-weight:900;">${tdVal}</span>
+                                        <span style="color:${tdCol}; font-weight:900;">${tdVal}${perfBadge}</span>
                                     </div>
                                 `;
                             });
@@ -862,11 +867,26 @@
             }
         }
 
+        // ASYNC FLEET FETCHER (Guaranteed initial render + HTTP fallback)
+        async function fetchFleet() {
+            try {
+                let res = await fetch('/api/fleet');
+                if (res.ok) {
+                    let data = await res.json();
+                    renderFleet(data);
+                }
+            } catch(e) {
+                console.error("fetchFleet error:", e);
+            }
+        }
+
         // POLLING INTERVALS
+        setInterval(fetchFleet, 5000);   // Fallback fleet polling every 5s
         setInterval(fetchSystem, 4000);
         setInterval(fetchTicker, 5000);
         setInterval(fetchFnG, 600000);
         
+        fetchFleet();
         fetchSystem();
         fetchTicker();
         fetchFnG();

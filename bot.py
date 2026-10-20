@@ -162,17 +162,27 @@ def calculate_td_sequential(df):
     
     td_counts = []
     td_countdowns = []
+    td_perfected_list = []
+    tdst_res_list = []
+    tdst_sup_list = []
+    
+    last_tdst_res = 0.0
+    last_tdst_sup = 0.0
+    last_perfected = False
     
     for i in range(len(df)):
         if i < 4:
             td_counts.append(0)
             td_countdowns.append(0)
+            td_perfected_list.append(False)
+            tdst_res_list.append(0.0)
+            tdst_sup_list.append(0.0)
             continue
             
         close = df['close'].iloc[i]
         close_4_ago = df['close'].iloc[i-4]
         
-        # 1. SETUP PHASE
+        # 1. SETUP PHASE (Tom DeMark Setup)
         if close > close_4_ago:
             setup_up += 1
             setup_down = 0
@@ -181,6 +191,23 @@ def calculate_td_sequential(df):
                 setup_up_active = True
                 setup_down_active = False
                 countdown_up = 0
+                # DeMark Setup Perfection: High de barra 8 o 9 >= max(High barra 6, High barra 7)
+                if i >= 3:
+                    h6 = df['high'].iloc[i-3]
+                    h7 = df['high'].iloc[i-2]
+                    h8 = df['high'].iloc[i-1]
+                    h9 = df['high'].iloc[i]
+                    last_perfected = bool((h8 >= max(h6, h7)) or (h9 >= max(h6, h7)))
+                else:
+                    last_perfected = False
+                # TDST Levels: True High y True Low del bloque de 9 barras
+                start_idx = max(0, i - 8)
+                last_tdst_res = float(df['high'].iloc[start_idx:i+1].max())
+                last_tdst_sup = float(df['low'].iloc[start_idx:i+1].min())
+            elif setup_up > 9:
+                pass
+            else:
+                last_perfected = False
         elif close < close_4_ago:
             setup_down += 1
             setup_up = 0
@@ -189,10 +216,32 @@ def calculate_td_sequential(df):
                 setup_down_active = True
                 setup_up_active = False
                 countdown_down = 0
+                # DeMark Setup Perfection: Low de barra 8 o 9 <= min(Low barra 6, Low barra 7)
+                if i >= 3:
+                    l6 = df['low'].iloc[i-3]
+                    l7 = df['low'].iloc[i-2]
+                    l8 = df['low'].iloc[i-1]
+                    l9 = df['low'].iloc[i]
+                    last_perfected = bool((l8 <= min(l6, l7)) or (l9 <= min(l6, l7)))
+                else:
+                    last_perfected = False
+                # TDST Levels: True High y True Low del bloque de 9 barras
+                start_idx = max(0, i - 8)
+                last_tdst_res = float(df['high'].iloc[start_idx:i+1].max())
+                last_tdst_sup = float(df['low'].iloc[start_idx:i+1].min())
+            elif setup_down > 9:
+                pass
+            else:
+                last_perfected = False
         else:
             setup_up = 0
             setup_down = 0
             td_counts.append(0)
+            last_perfected = False
+            
+        td_perfected_list.append(last_perfected)
+        tdst_res_list.append(last_tdst_res)
+        tdst_sup_list.append(last_tdst_sup)
             
         # 2. COUNTDOWN PHASE
         if i >= 2:
@@ -220,6 +269,9 @@ def calculate_td_sequential(df):
             
     df['td_count'] = td_counts
     df['td_countdown'] = td_countdowns
+    df['td_perfected'] = td_perfected_list
+    df['tdst_res'] = tdst_res_list
+    df['tdst_sup'] = tdst_sup_list
     return df
 
 
@@ -380,25 +432,22 @@ def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng
             if funding_rate < -0.0004: score -= 0.05  # Shorts pagando funding caro
             elif funding_rate > 0.0002: score += 0.05  # Longs pagando a shorts (carry positivo)
 
-    # 7. Top-Down Macro Alignment: DeMark Semanal [1W] (Anti-Bias Shield Ponderado)
+    # 7. Top-Down Macro Alignment: DeMark Semanal [1W] (Anti-Bias Shield Ponderado con Perfección)
     if weekly_context:
         is_sell_exh = weekly_context.get('is_sell_exhaustion_active', False)
         is_buy_exh = weekly_context.get('is_buy_exhaustion_active', False)
-        
-        # Ponderación suave institucional (±0.06): Modula operaciones marginales,
-        # pero NUNCA asfixia una señal de alta convicción en 4h (ej: 0.65 - 0.06 = 0.59 >= 0.55).
-        MACRO_MODULATOR = 0.06
+        macro_modulator = weekly_context.get('macro_weight', 0.06)
         
         if is_sell_exh:
             if action == "SELL":
-                score += MACRO_MODULATOR  # Viento a favor macro verificado
+                score += macro_modulator  # Viento a favor macro verificado
             elif action == "BUY":
-                score -= MACRO_MODULATOR  # Leve filtro de prudencia en compras cerca de resistencia semanal
+                score -= macro_modulator  # Leve filtro de prudencia en compras cerca de resistencia semanal
         elif is_buy_exh:
             if action == "BUY":
-                score += MACRO_MODULATOR  # Viento a favor macro verificado
+                score += macro_modulator  # Viento a favor macro verificado
             elif action == "SELL":
-                score -= MACRO_MODULATOR  # Leve filtro de prudencia en ventas cerca de soporte semanal
+                score -= macro_modulator  # Leve filtro de prudencia en ventas cerca de soporte semanal
 
     return round(score, 2)
 
@@ -469,6 +518,10 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
     new_countdown = int(countdown)
     div_str = divergence or "NONE"
     
+    td_perf = bool(closed_candle.get('td_perfected', False))
+    tdst_res_val = round(float(closed_candle.get('tdst_res', 0.0)), 2)
+    tdst_sup_val = round(float(closed_candle.get('tdst_sup', 0.0)), 2)
+    
     state_dirty = False
     if state.get("poc") != poc:
         state["poc"] = poc
@@ -481,6 +534,15 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
         state_dirty = True
     if state.get("td_countdown") != new_countdown:
         state["td_countdown"] = new_countdown
+        state_dirty = True
+    if state.get("td_perfected") != td_perf:
+        state["td_perfected"] = td_perf
+        state_dirty = True
+    if state.get("tdst_res") != tdst_res_val:
+        state["tdst_res"] = tdst_res_val
+        state_dirty = True
+    if state.get("tdst_sup") != tdst_sup_val:
+        state["tdst_sup"] = tdst_sup_val
         state_dirty = True
         
     if state_dirty:
@@ -1031,37 +1093,54 @@ if __name__ == "__main__":
                     w_td = int(w_closed.get('td_count', 0))
                     
                     # 1. ANTI-BIAS SHIELD: Ventana de Caducidad DeMark (Max 4 Barras / 1 to 4 bars decay)
-                    # En la teoría DeMark, la corrección esperada dura entre 1 y 4 velas (barras 9, 10, 11, 12).
-                    # Si el conteo supera 12 (13, 14, 15...), estamos ante una tendencia desbocada (runaway trend),
-                    # por lo que el sesgo de agotamiento se desactiva para no ponerse delante de un tren.
                     is_within_sell_window = (9 <= w_td <= 12)
                     is_within_buy_window = (-12 <= w_td <= -9)
                     
-                    # 2. ANTI-BIAS SHIELD: Price Flip & Invalidation Guard
-                    # Si el precio vivo rompe por encima del máximo de la vela de Setup 9, el agotamiento se invalida.
+                    # 2. ANTI-BIAS SHIELD: Price Flip & TDST Risk Line Invalidation Guard
                     w_closed_high = float(w_closed.get('high', float('inf')))
                     w_closed_low = float(w_closed.get('low', 0.0))
                     w_live_price = float(w_live.get('close', w_closed.get('close', 0.0)))
+                    w_perf = bool(w_closed.get('td_perfected', False))
+                    w_tdst_res = float(w_closed.get('tdst_res', 0.0))
+                    w_tdst_sup = float(w_closed.get('tdst_sup', 0.0))
                     
-                    # Para Venta: activo solo si está dentro de la ventana de 4 barras y NO está rompiendo a nuevos máximos
-                    is_sell_exhaustion_active = is_within_sell_window and (w_live_price <= w_closed_high)
-                    # Para Compra: activo solo si está dentro de la ventana de 4 barras y NO está rompiendo a nuevos mínimos
-                    is_buy_exhaustion_active = is_within_buy_window and (w_live_price >= w_closed_low)
+                    tdst_invalidated = False
+                    if w_td >= 9 and w_tdst_res > 0 and w_live_price > w_tdst_res:
+                        tdst_invalidated = True
+                    elif w_td <= -9 and w_tdst_sup > 0 and w_live_price < w_tdst_sup:
+                        tdst_invalidated = True
+                    
+                    # Para Venta: activo solo si está dentro de la ventana de 4 barras, precio <= max vela 9 y NO invalidado por TDST
+                    is_sell_exhaustion_active = is_within_sell_window and (w_live_price <= w_closed_high) and not tdst_invalidated
+                    # Para Compra: activo solo si está dentro de la ventana de 4 barras, precio >= min vela 9 y NO invalidado por TDST
+                    is_buy_exhaustion_active = is_within_buy_window and (w_live_price >= w_closed_low) and not tdst_invalidated
+
+                    # Modulador dinámico de convicción DeMark:
+                    # Perfeccionado = ±0.06 (alta probabilidad de reversión según DeMark)
+                    # No perfeccionado = ±0.03 (impulso no culminado, sesgo atenuado para no bloquear longs)
+                    macro_weight = 0.06 if w_perf else 0.03
 
                     weekly_context_cache[symbol] = {
                         'td_count': w_td,
                         'td_countdown': int(w_closed.get('td_countdown', 0)),
+                        'td_perfected': w_perf,
+                        'tdst_res': w_tdst_res,
+                        'tdst_sup': w_tdst_sup,
+                        'macro_weight': macro_weight,
                         'rsi': float(w_closed.get('rsi', 50.0)),
                         'is_sell_exhaustion_active': is_sell_exhaustion_active,
                         'is_buy_exhaustion_active': is_buy_exhaustion_active,
                         'df': w_df
                     }
+                    perf_str = "PERF" if w_perf else "UNPERF"
                     if is_sell_exhaustion_active:
-                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD Count: {w_td} | Sesgo Correctivo Activo (Ventana: {w_td}/12)")
+                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD: {w_td} [{perf_str}] | TDST Res: ${w_tdst_res:.2f} | Sesgo Correctivo Activo (Ventana: {w_td}/12, Mod: ±{macro_weight})")
                     elif is_buy_exhaustion_active:
-                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD Count: {w_td} | Sesgo Acumulativo Activo (Ventana: {abs(w_td)}/12)")
+                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD: {w_td} [{perf_str}] | TDST Sup: ${w_tdst_sup:.2f} | Sesgo Acumulativo Activo (Ventana: {abs(w_td)}/12, Mod: ±{macro_weight})")
+                    elif tdst_invalidated:
+                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD: {w_td} | Sesgo Invalidado por Ruptura TDST (${w_live_price:.2f} vs TDST ${w_tdst_res:.2f})")
                     elif abs(w_td) >= 7:
-                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD Count: {w_td} | Sesgo Neutralizado (Runaway Trend / Extensión)")
+                        print(f"🏛 MACRO CONFLUENCE [1W] | {symbol} | TD: {w_td} | Sesgo Neutralizado (Runaway Trend / Extensión)")
             except Exception as e:
                 print(f"Error fetching weekly context for {symbol}: {e}")
 

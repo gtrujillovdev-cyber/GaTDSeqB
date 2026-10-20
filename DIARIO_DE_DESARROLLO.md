@@ -577,7 +577,38 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - `lite.html` / `templates/lite.html`:
     - Incorporación de `1w` en el bucle de renderizado del Kiosko UltraGear 21:9.
     - Indicador de Conciencia Situacional Macro: Renderizado dinámico de badges distinguiendo agotamiento activo (`[1W: TD9 SELL EXH]`) frente a extensión de tendencia (`[1W: EXT (+14)]`).
-    - Dinamización de KPIs: Encabezados y cálculos de capital base calculados de forma modular en base a los 27 bots (`$270.000` base global; `$90.000` por variante en Leaderboard).
+### 11. Diagnóstico de Saturación Xorg en Kiosko, Ingeniería Inversa de @BtcAndres y Perfección DeMark (TDST & Perfection)
+- **Diagnóstico y Reparación Crítica de Hardware (Raspberry Pi MicroSD Full):**
+  - **Causa Raíz:** Se detectó que la tarjeta MicroSD de la Raspberry Pi se encontraba al 100% de capacidad (0 bytes disponibles). El archivo `/var/log/Xorg.0.log` había alcanzado más de 7 GB debido a un bucle infinito en el driver `modesetting` de Xorg que sondeaba el EDID de la pantalla LG UltraGear cada 500 ms (~2.000 líneas/segundo).
+  - La saturación del disco impedía la creación de sockets de Chromium y provocaba fallos en las escrituras atómicas de `state_*.json.tmp`, congelando la interfaz del Kiosko.
+  - **Solución Definitiva:**
+    - Truncado inmediato de logs, liberando **9.6 GB** de almacenamiento (uso reducido del 100% al 29%).
+    - Inyección del parámetro del kernel `options drm_kms_helper poll=0` en `/etc/modprobe.d/drm.conf` para desactivar el sondeo forzado HDMI de conectores inestables, deteniendo en seco la tasa de escritura a 0 líneas/s y reduciendo el consumo de CPU.
+    - Relanzamiento limpio del navegador Chromium en modo Kiosko en el display `:0`.
+- **Ingeniería Inversa Metodológica de @BtcAndres (`zoitreider.com`):**
+  - Se decompilaron los bundles estáticos de Next.js (`page-58bbda90fe46f3cc.js`) y se analizaron los endpoints en vivo de su plataforma (`/api/bitcoin/price`, `/api/liquidation-heatmap`).
+  - **Hallazgos Técnicos:**
+    - La app de Andrés utiliza exclusivamente velas diarias de Kraken para construir la temporalidad semanal.
+    - Su cálculo de TD Sequential se limita al TD Setup estándar (1 a 9) **sin verificación de Perfección de DeMark** y sin seguimiento del TD Countdown (13).
+    - Los disparos de señal (`VENTA` en 1w) ocurren de forma puramente ordinal al marcar la barra 9, sin líneas de riesgo formalizadas ni gestión de invalidación cuantitativa.
+- **Implementación de Ventajas Cuantitativas (Alpha) en GaTDSEQ:**
+  - **Filtro de Perfección DeMark (`td_perfected`):**
+    - En `calculate_td_sequential(df)`, se incorporó la regla matemática estricta de Tom DeMark:
+      - Para Sell Setup: $\text{High}[8] \ge \max(\text{High}[6], \text{High}[7]) \lor \text{High}[9] \ge \max(\text{High}[6], \text{High}[7])$.
+      - Para Buy Setup: $\text{Low}[8] \le \min(\text{Low}[6], \text{Low}[7]) \lor \text{Low}[9] \le \min(\text{Low}[6], \text{Low}[7])$.
+    - **Ponderación Dinámica:** Si un Setup semanal no está perfeccionado (como el actual TD9 semanal de BTC donde el High de 8/9 no superó a la barra 6), el sesgo correctivo macro se modula al 50% (`±0.03` en lugar de `±0.06`), evitando que el sistema quede atrapado en pausas leves de una tendencia parabólica.
+  - **Líneas de Riesgo TDST (True Setup Trend Invalidation):**
+    - Se calculan de forma continua `tdst_res` ($\max(\text{High}_{1..9})$) y `tdst_sup` ($\min(\text{Low}_{1..9})$).
+    - Si el precio vivo rompe por encima del TDST Resistance ($87.395,67 en el Setup semanal actual de BTC), el sesgo correctivo se **invalida automáticamente** (Kill-Switch inmediato), protegiendo al sistema de mantener un sesgo bajista obsoleto.
+- **Actualización de la Interfaz Bloomberg y Servidor:**
+  - `server.py`: El agregador `/api/fleet` propaga automáticamente los campos `td_perfected`, `tdst_res` y `tdst_sup`.
+  - `lite.html` / `templates/lite.html`:
+    - El badge macro semanal renderiza la perfección y el nivel TDST: `1W: TD9 [UNPERF] | TDST:$87396`.
+    - Los pills de variantes de la flota muestran indicadores compactos de perfección (`P` en verde para perfeccionado, `U` en ámbar para no perfeccionado) y tooltips con los niveles TDST exactos.
+- **Auditoría y Liberación de Memoria en el Host (Mac):**
+  - Detección de una instancia zombie del simulador de iOS (`iPhone 17 Pro`) en segundo plano ejecutando más de 20 daemons (`SpringBoard`, `sirittsd`, `healthd`, etc.).
+  - Ejecución de `xcrun simctl shutdown all` y baja de `CoreSimulatorService`, liberando inmediatamente más de **2.4 GB de RAM física** y descongestionando **3.8 GB de memoria comprimida** en el kernel de macOS.
+- **Despliegue:** Sincronizado a producción mediante `rsync` y reiniciados los servicios `gatdseq-bot.service` y `gatdseq-server.service` en la Raspberry Pi.
 
 
 

@@ -315,20 +315,26 @@ def api_force_reload():
 def websocket_monitor_loop():
     last_mtimes = {}
     loop_count = 0
+    last_broadcast_time = 0
     while True:
-        if clients > 0:
-            changed = False
-            for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
-                for tf in ['4h', '1d']:
-                    state_file = f"state_{asset}_{tf}.json"
-                    if os.path.exists(state_file):
-                        m = os.path.getmtime(state_file)
-                        if last_mtimes.get(state_file) != m:
-                            last_mtimes[state_file] = m
-                            changed = True
-            
-            if changed:
+        now_ts = time.time()
+        changed = False
+        for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
+            for tf in ['4h', '1d', '1w']:
+                state_file = f"state_{asset}_{tf}.json"
+                if os.path.exists(state_file):
+                    m = os.path.getmtime(state_file)
+                    if last_mtimes.get(state_file) != m:
+                        last_mtimes[state_file] = m
+                        changed = True
+        
+        # Emit immediately on file change or every 10s as a guaranteed heartbeat
+        if changed or (now_ts - last_broadcast_time > 10):
+            try:
                 socketio.emit('fleet_update', get_fleet_data())
+            except Exception:
+                pass
+            last_broadcast_time = now_ts
         
         loop_count += 1
         if loop_count % 300 == 0:
