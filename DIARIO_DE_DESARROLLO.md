@@ -610,6 +610,22 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Ejecución de `xcrun simctl shutdown all` y baja de `CoreSimulatorService`, liberando inmediatamente más de **2.4 GB de RAM física** y descongestionando **3.8 GB de memoria comprimida** en el kernel de macOS.
 - **Despliegue:** Sincronizado a producción mediante `rsync` y reiniciados los servicios `gatdseq-bot.service` y `gatdseq-server.service` en la Raspberry Pi.
 
+### 12. Motor F5 Táctico y Ciclo de Vida Móvil (iPhone/Safari Sleep & Cache Fix)
+- **Diagnóstico del Fallo de Refresco en iPhone (Safari / PWA / WebClip):**
+  - **Problema:** En dispositivos iPhone / iOS, cuando el usuario abre el Kiosko como WebClip o en Safari, no existe la tecla física `F5`, y el navegador en modo pantalla completa carece de barra de URL o botón de recarga.
+  - Al bloquear el iPhone o alternar entre aplicaciones, iOS suspende la ejecución de JavaScript (`setInterval`) y desconecta los WebSockets. Al reanudar la pantalla, Safari mantiene el renderizado con datos congelados y almacena las peticiones HTTP `fetch()` en la caché BFCache de WebKit sin solicitar datos frescos al servidor.
+- **Solución Técnica Implementada (`lite.html` y `templates/lite.html`):**
+  - **Botón F5 Bloomberg Táctico en Cabecera:**
+    - Se incorporó un botón minimalista de control `[ ↻ F5 ]` en la barra superior junto al selector de modo solar.
+    - **Tap Simple:** Activa una animación de giro (`spinRefresh`), fuerza la descarga inmediata en paralelo de todos los endpoints (`fetchFleet`, `fetchSystem`, `fetchTicker`, `fetchFnG`) y re-engancha el túnel WebSocket si estaba cerrado.
+    - **Doble Tap Rápido (< 450 ms):** Dispara una recarga forzada del documento completo (`window.location.reload(true)`).
+  - **Manejador de Ciclo de Vida y Despertar Móvil (iOS Resume Listeners):**
+    - Se registraron eventos globales `visibilitychange`, `pageshow` y `focus`. En el instante en que el usuario desbloquea el iPhone o vuelve a la pestaña, el frontend detecta el estado visible y ejecuta automáticamente una sincronización completa de la flota y del WebSocket.
+  - **Cache-Busting Anti-WebKit:**
+    - Todas las llamadas `fetch()` ahora incluyen un timestamp dinámico de parámetro (`?_t=Date.now()`) y la directiva `{ cache: 'no-store' }`, impidiendo que iOS sirva respuestas 304 obsoletas.
+    - Metadatos PWA añadidos en el `<head>`: `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` y `apple-mobile-web-app-title`.
+- **Despliegue:** Archivos sincronizados a `/home/raspberry/GaTDSEQ/` y servidor reiniciado.
+
 
 
 

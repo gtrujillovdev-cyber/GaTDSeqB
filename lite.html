@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GaTDSEQ">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -74,8 +77,13 @@
         .hw-stats { font-size: 11px; font-weight: bold; color: var(--text-primary); display: flex; gap: 12px; }
         .hw-stats span { color: var(--accent-green); }
 
-        /* THEME TOGGLE BUTTON */
-        .theme-pill-btn {
+        /* HEADER CONTROLS (F5 REFRESH + THEME TOGGLE) */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .refresh-pill-btn, .theme-pill-btn {
             background: var(--topbar-btn-bg);
             border: 1px solid var(--border-bright);
             color: var(--text-primary);
@@ -85,12 +93,25 @@
             padding: 3px 8px;
             cursor: pointer;
             text-transform: uppercase;
-            display: flex;
+            display: inline-flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
             transition: all 0.2s;
             white-space: nowrap;
             flex-shrink: 0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .refresh-pill-btn:hover, .refresh-pill-btn:active {
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+        .refresh-pill-btn.spinning #f5-icon {
+            display: inline-block;
+            animation: spinRefresh 0.6s linear infinite;
+        }
+        @keyframes spinRefresh {
+            100% { transform: rotate(360deg); }
         }
         .theme-pill-btn:hover {
             background: var(--border-bright);
@@ -292,16 +313,19 @@
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 6px;
-                padding-right: 48px;
+                padding-right: 90px;
             }
-            .top-bar h1 { font-size: 16px; }
-            .theme-pill-btn {
+            .top-bar h1 { font-size: 15px; }
+            .header-controls {
                 position: absolute;
                 top: 0;
                 right: 0;
-                padding: 4px 8px;
             }
-            .theme-label-text {
+            .theme-pill-btn, .refresh-pill-btn {
+                padding: 4px 6px;
+                font-size: 10px;
+            }
+            .theme-label-text, .refresh-label-text {
                 display: none;
             }
             .hw-stats {
@@ -327,9 +351,14 @@
                 <div>LOC: <span id="clock-local" style="color:var(--text-white);">--:--:--</span></div>
                 <div>UTC: <span id="clock-utc" style="color:var(--text-muted);">--:--:--</span></div>
             </div>
-            <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light / Auto Solar Mode">
-                <span id="theme-icon">☀️</span> <span id="theme-label" class="theme-label-text">AUTO [SOLAR]</span>
-            </button>
+            <div class="header-controls">
+                <button class="refresh-pill-btn" id="f5-refresh-btn" onclick="triggerManualF5()" title="Tap: Refresh Data | Double-Tap: Hard Reload">
+                    <span id="f5-icon">↻</span> <span class="refresh-label-text">F5</span>
+                </button>
+                <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light / Auto Solar Mode">
+                    <span id="theme-icon">☀️</span> <span id="theme-label" class="theme-label-text">AUTO [SOLAR]</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -548,7 +577,7 @@
         // SYSTEM TELEMETRY
         async function fetchSystem() {
             try {
-                let res = await fetch('/api/system');
+                let res = await fetch('/api/system?_t=' + Date.now(), { cache: 'no-store' });
                 let data = await res.json();
                 document.getElementById('sys-cpu').innerText = `${parseFloat(data.cpu).toFixed(1)}%`;
                 document.getElementById('sys-ram').innerText = `${parseFloat(data.ram).toFixed(1)}%`;
@@ -559,7 +588,7 @@
         // TICKER TAPE
         async function fetchTicker() {
             try {
-                let res = await fetch('/api/ticker');
+                let res = await fetch('/api/ticker?_t=' + Date.now(), { cache: 'no-store' });
                 if (res.ok) {
                     let data = await res.json();
                     for (let sym of ['BTC', 'ETH', 'HYPE', 'BTCD', 'DXY', 'VIX', 'SP500', 'NASDAQ']) {
@@ -870,7 +899,7 @@
         // ASYNC FLEET FETCHER (Guaranteed initial render + HTTP fallback)
         async function fetchFleet() {
             try {
-                let res = await fetch('/api/fleet');
+                let res = await fetch('/api/fleet?_t=' + Date.now(), { cache: 'no-store' });
                 if (res.ok) {
                     let data = await res.json();
                     renderFleet(data);
@@ -879,6 +908,53 @@
                 console.error("fetchFleet error:", e);
             }
         }
+
+        // MANUAL F5 REFRESH ENGINE (TAP TO SYNC / DOUBLE-TAP FOR HARD RELOAD)
+        let lastF5Tap = 0;
+        function triggerManualF5() {
+            let now = Date.now();
+            let btn = document.getElementById('f5-refresh-btn');
+            
+            // Double-tap detection within 450ms -> Complete Hard Reload of Document
+            if (now - lastF5Tap < 450) {
+                if (btn) btn.style.borderColor = 'var(--accent-red)';
+                window.location.reload(true);
+                return;
+            }
+            lastF5Tap = now;
+            
+            if (btn) btn.classList.add('spinning');
+            
+            Promise.all([
+                fetchFleet(),
+                fetchSystem(),
+                fetchTicker(),
+                fetchFnG()
+            ]).finally(() => {
+                setTimeout(() => {
+                    if (btn) btn.classList.remove('spinning');
+                }, 500);
+            });
+            
+            if (typeof socket !== 'undefined' && socket && !socket.connected) {
+                socket.connect();
+            }
+        }
+
+        // IOS / MOBILE LIFECYCLE RESUME LISTENER (WAKES UP FROM SLEEP / TAB SWITCH)
+        function handleMobileResume() {
+            if (!document.hidden && document.visibilityState === 'visible') {
+                fetchFleet();
+                fetchSystem();
+                fetchTicker();
+                if (typeof socket !== 'undefined' && socket && !socket.connected) {
+                    socket.connect();
+                }
+            }
+        }
+        document.addEventListener('visibilitychange', handleMobileResume);
+        window.addEventListener('pageshow', handleMobileResume);
+        window.addEventListener('focus', handleMobileResume);
 
         // POLLING INTERVALS
         setInterval(fetchFleet, 5000);   // Fallback fleet polling every 5s
