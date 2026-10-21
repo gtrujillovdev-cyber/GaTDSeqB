@@ -699,6 +699,15 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Garantía de Reconexión Headless sin Intervención Manual:**
   - Se auditó la cadena de arranque: FileVault desactivado (`FileVault is Off`), perfiles Wi-Fi persistidos en `System.keychain` y arranque anticipado de `tailscaled` y `sshd` a nivel de LaunchDaemon. El Mac queda listo y accesible por SSH inmediatamente tras cada reinicio automático.
 
+### 18. Formalización de la Documentación Integral de Infraestructura y Red Mesh
+- **Actualización Mayor de `manual_infraestructura.md` (Versión 2.0 Institucional):**
+  - Diagrama ASCII de arquitectura de red con direccionamiento RFC 1123 MagicDNS y CGNAT (100.64.0.0/10) a través de Tailscale (WireGuard) para los 5 nodos físicos (`gtrujillo-raspberry-pi-3b`, `gtrujillo-macbook-pro`, `gtrujillo-macbook-air-m4`, `iphone16`, `tv`).
+  - Especificaciones técnicas completas, optimizaciones de hardware (ZRAM, `drm_kms_helper.poll=0`, Apple Silicon M4 vs Intel Haswell OpenMP).
+  - Explicación de la Cadena de Arranque Desatendido (*Headless Bootstrap Chain*) y la Suite de Auto-Curación con LaunchDaemons de nivel raíz.
+  - Cheat Sheet de comandos operacionales, macros (`auditoria`, `evalua`) y runbooks de emergencia.
+- **Integración en `README.md`:**
+  - Indexación del Manual de Infraestructura en la tabla de contenidos y adición del árbol de scripts de mantenimiento al mapa del repositorio.
+
 
 
 

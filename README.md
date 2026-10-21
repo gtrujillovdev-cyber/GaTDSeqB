@@ -19,6 +19,7 @@
 7. [Repository Structure](#-repository-structure)
 8. [Installation & Deployment](#-installation--deployment)
 9. [Telemetry & Operational Verification](#-telemetry--operational-verification)
+10. [Distributed Infrastructure & SecOps Manual (Tailscale Mesh)](manual_infraestructura.md)
 
 ---
 
@@ -162,6 +163,12 @@ GaTDSEQ/
 │   └── gatdseq_core.pine   # TradingView Pine Script v5 official indicator
 ├── auto_clean.sh           # Hardware maintenance cron script (cache drops, RAM defragmentation)
 ├── requirements.txt        # Python dependency manifest
+├── manual_infraestructura.md # Distributed architecture manual (Tailscale Mesh, Edge-Worker hybrid, SecOps)
+├── scripts/                # Self-healing maintenance suite & LaunchDaemons for Mac Worker
+│   ├── worker_maintenance.sh # Self-healing RAM purge, cache sweep, and telemetry daemon
+│   ├── com.gatdseq.maintenance.plist # Scheduled daily maintenance LaunchDaemon (04:30 AM)
+│   ├── com.gatdseq.caffeinate.plist  # Root LaunchDaemon anti-sleep clamshell persistence
+│   └── install_worker_maintenance.sh # One-click installer for macOS worker nodes
 ├── GEMINI.md               # Project development rules, conventions, and operational macro protocols
 ├── DIARIO_DE_DESARROLLO.md # Chronological technical development diary
 └── README.md               # Institutional documentation (this file)
