@@ -626,6 +626,20 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
     - Metadatos PWA añadidos en el `<head>`: `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` y `apple-mobile-web-app-title`.
 - **Despliegue:** Archivos sincronizados a `/home/raspberry/GaTDSEQ/` y servidor reiniciado.
 
+### 13. Auditoría de Producción, Hardening de Kernel en Boot y Vinculación SSH de MacBook Pro como Nodo Worker
+- **Hardening del Kernel en Raspberry Pi (Persistencia Real `drm_kms_helper.poll=0`):**
+  - **Problema Detectado en Auditoría:** Tras el reinicio del sistema, `Xorg.0.log.old` y el log activo acumulaban espacio debido a que en Debian 12 Bookworm `drm_kms_helper` está compilado directamente dentro de la imagen del kernel (`kernel8.img`), por lo que `/etc/modprobe.d/drm.conf` era ignorado al arrancar.
+  - **Corrección Definitiva:** Se inyectó `drm_kms_helper.poll=0` en el archivo de arranque del firmware (`/boot/firmware/cmdline.txt`), garantizando que el sondeo EDID permanezca desactivado a 0 líneas/s de forma permanente a nivel de kernel.
+  - **Tratamiento de Seguridad (`auto_clean.sh`):** Se añadió una regla `find /var/log -type f -name "*log*" -size +50M -exec truncate -s 0 {} +` en la rutina diaria de mantenimiento para evitar cualquier desbordamiento de almacenamiento por servicios auxiliares. Espacio en disco estabilizado en **9.5 GB libres (29% de uso)**.
+- **Evaluación Táctica de Flota (27 Bots):**
+  - **Posiciones Activas:** 2 bots en trade (`HYPE_HYB [1d]` y `HYPE_WYK [1d]` en posición LONG desde \$81.81, SL en \$75.38 y TP en \$90.38, flotando cerca del precio de entrada de forma segura).
+  - **Proximidad a Disparo:** 3 bots en TD 9 (`BTC_HYB`, `BTC_TD9`, `BTC_WYK` en 1w con Setup no perfeccionado `[UNPERF]` y resistencia TDST en \$87.395,67, aplicando el modulador suave de $\pm 0.03$).
+- **Integración de Infraestructura: MacBook Pro (`GtrujilloMac`):**
+  - Conectividad SSH verificada con autenticación por clave asimétrica ED25519 sin contraseña hacia `gabrieltrujillovallejo@192.168.1.193` (latencia 6.6 ms).
+  - Especificaciones detectadas: CPU Intel Core i5-4278U @ 2.60 GHz (2 cores / 4 threads), 8 GB de RAM y 43 GB de disco SSD libre.
+  - Configurado como nodo de computación de alto rendimiento para futuros módulos de backtesting distribuido, optimización bayesiana de hiperparámetros y modelos de machine learning.
+
+
 
 
 
