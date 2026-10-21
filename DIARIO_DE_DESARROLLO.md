@@ -708,6 +708,17 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Integración en `README.md`:**
   - Indexación del Manual de Infraestructura en la tabla de contenidos y adición del árbol de scripts de mantenimiento al mapa del repositorio.
 
+### 19. Sincronización Integral del Pipeline Cuantitativo Distribuido en README.md
+- **Diagrama de Arquitectura Distribuida de 3 Capas:**
+  - Sustitución del diagrama monolítico anterior por el nuevo flujo desacoplado: Compute Worker (`optimize_fleet.py` en MacBook Pro), Edge Core (`bot.py` dinámico en Raspberry Pi 3B) y Telemetría WebSockets hacia Kiosko UltraGear 21:9, Xiaomi TV y terminales iSH.
+- **Documentación del Cargador Dinámico de Hiperparámetros:**
+  - Explicación de la función `get_bot_params()` con caché TTL de 60 segundos, permitiendo la recarga en caliente (*zero-downtime hot swapping*) de `fleet_optimized.json` sin reiniciar servicios ni alterar posiciones activas.
+  - Registro de la prueba empírica en `BTC/USDT [1h]` (+15.16% de beneficio neto y Sharpe 7.11 calibrando Break-Even a 0.5x ATR).
+- **Actualización del Árbol de Archivos:**
+  - Adición formal de `optimize_fleet.py` y `fleet_optimized.json` a la estructura del repositorio.
+- **Sección 10 en Cuerpo Principal:**
+  - Desglose de los 5 nodos físicos de la red mesh de Tailscale, suites de auto-curación y enlace directo al manual técnico de infraestructura.
+
 
 
 
