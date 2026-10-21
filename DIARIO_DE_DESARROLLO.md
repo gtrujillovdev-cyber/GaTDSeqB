@@ -680,6 +680,14 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Sincronización mediante `rsync` hacia `/home/raspberry/GaTDSEQ/` de `bot.py` y `fleet_optimized.json`.
   - Reinicio del demonio `gatdseq-bot.service` (`systemctl restart gatdseq-bot`), confirmando arranque limpio y ejecución en vivo de los 27 bots con los parámetros optimizados.
 
+### 16. Adopción de Directrices SecOps Zero-Trust y Hardening de Endpoints
+- **Directrices de Seguridad Institucional (`GEMINI.md` - Regla 10):**
+  - **Zero Password Exposure:** Prohibición estricta de manejar contraseñas o credenciales en texto plano en prompts de IA, scripts temporales, commits o logs. Gestión descentralizada y local mediante comandos interactivos del sistema operativo (`passwd`).
+  - **Zero Public Surface (Sin Apertura de Puertos):** Confirmación de política de cero puertos abiertos en el router hacia la WAN pública. Todo el acceso remoto, telemetría y terminales (SSH/VNC) discurre cifrado de extremo a extremo mediante Tailscale (túnel WireGuard).
+  - **Hardening de Endpoints:** Activación del Application Firewall en macOS (`socketfilterfw`) en nodos de trabajo y directriz de doble factor de autenticación (2FA) en la cuenta de control de la red privada.
+- **Auditoría de Acceso Móvil Seguro (iSH iOS):**
+  - Configuración de aliases y directivas de persistencia SSH (`ServerAliveInterval 15`) en el cliente iSH para un acceso ágil sin comprometer puertos ni credenciales maestras.
+
 
 
 

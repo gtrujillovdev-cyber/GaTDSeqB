@@ -43,3 +43,8 @@ Dado que el usuario es un estudiante de DAM en proceso de aprendizaje, **DEBES a
 - Durante la resolución de cualquier tarea, explica brevemente el *porqué* de las decisiones de diseño, patrones de código o comandos de terminal.
 - Recomienda activamente "Buenas Prácticas" de la industria (Clean Code, principios SOLID, seguridad, manejo de repositorios Git, estructura de carpetas) siempre que el contexto lo permita.
 - Corrige amablemente los malos hábitos de desarrollo explicándole la alternativa profesional.
+
+### 10. Directrices de Ciberseguridad y SecOps (Zero-Trust Standard)
+- **Privacidad y Credenciales:** Jamás solicitar ni registrar contraseñas de usuario en chats, scripts temporales, commits o logs. El usuario siempre debe gestionarlas de forma local y privada mediante `passwd` o el llavero del sistema.
+- **Cero Exposición Pública (Zero Port Forwarding):** Prohibido abrir puertos WAN en el router doméstico. Todo el tráfico de control, telemetría y terminal remota debe enrutarse exclusivamente por la malla privada cifrada de Tailscale (WireGuard).
+- **Hardening de Dispositivos:** Mantener el Firewall de macOS activo en todos los nodos portátiles y promover el uso de autenticación de doble factor (2FA) en la cuenta de gestión de la red mesh.
