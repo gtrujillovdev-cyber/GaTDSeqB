@@ -667,6 +667,20 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Verificación del puerto 5900 (VNC) activo y respondiendo tanto en el MacBook Pro como en la Raspberry Pi (`x11vnc` en `:0`).
   - Calibración de energía en MacBook Air M4: desactivación de `SleepDisabled` para permitir reposo al cerrar la tapa en batería (`sleep 1`) y servicio continuo en corriente (`displaysleep 3` / `sleep 0`).
 
+### 15. Integración del Cargador Dinámico de Hiperparámetros y Calibración Sistemática de la Flota
+- **Cierre del Bucle Cuantitativo (Motor Dinámico en `bot.py`):**
+  - Se eliminaron todos los valores estáticos (*hardcoded*) de Stop Loss, Take Profit y Break-Even en `bot.py`.
+  - Implementación de la función `get_bot_params(symbol, timeframe, strategy)` con caché de memoria (TTL 60s) que lee en tiempo real la matriz `fleet_optimized.json`.
+  - Los niveles de entrada y de gestión de riesgo (`atr_sl_trend`, `atr_tp_trend`, `be_threshold_atr`, `scale_out_atr`, `enable_scale_out`) ahora se modulan de forma puramente matemática según las pruebas empíricas del Worker.
+- **Ejecución del Barrido Multi-Activo en MacBook Pro (`gtrujillo-macbook-pro`):**
+  - Ejecución de `optimize_fleet.py` sobre los 3 activos del portafolio (BTC, ETH, HYPE) en timeframes de 1h, 4h y 1d (54 combinaciones por variante).
+  - Almacenamiento de datasets históricos Parquet ultraligeros en el SSD interno del Mac (`~/GaTDSEQ_Worker/backtesting/data/`).
+  - Generación de la primera matriz formal `fleet_optimized.json`.
+- **Despliegue y Verificación en Producción (Raspberry Pi):**
+  - Sincronización mediante `rsync` hacia `/home/raspberry/GaTDSEQ/` de `bot.py` y `fleet_optimized.json`.
+  - Reinicio del demonio `gatdseq-bot.service` (`systemctl restart gatdseq-bot`), confirmando arranque limpio y ejecución en vivo de los 27 bots con los parámetros optimizados.
+
+
 
 
 

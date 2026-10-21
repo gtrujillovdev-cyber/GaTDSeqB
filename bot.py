@@ -88,6 +88,59 @@ def save_trades(trades, filepath=None):
     except Exception as e:
         print(f"Error en escritura atómica de {target}: {e}")
 
+# --- DYNAMIC QUANTITATIVE PARAMETER LOADER (Worker Cluster Synchronization) ---
+FLEET_OPTIMIZED_FILE = "fleet_optimized.json"
+_FLEET_PARAMS_CACHE = {"timestamp": 0, "data": {}}
+
+def get_bot_params(symbol="BTC", timeframe="1h", strategy="HYB"):
+    """
+    Carga dinámicamente los parámetros de Stop Loss, Take Profit y Break-Even
+    desde fleet_optimized.json si el Worker Node los ha calibrado.
+    Fallback seguro a los defaults institucionales si el archivo no existe.
+    """
+    global _FLEET_PARAMS_CACHE
+    defaults = {
+        "atr_sl_trend": 1.5,
+        "atr_tp_trend": 2.5,
+        "atr_sl_counter": 1.5,
+        "atr_tp_counter": 2.0,
+        "atr_sl_wyckoff": 1.5,
+        "atr_tp_wyckoff": 2.0,
+        "be_threshold_atr": 1.0,
+        "scale_out_atr": 1.0,
+        "scale_out_pct": 0.5,
+        "enable_scale_out": True
+    }
+    
+    now = time.time()
+    # Cache con TTL de 60s para no saturar I/O de disco en bucle continuo
+    if now - _FLEET_PARAMS_CACHE["timestamp"] > 60:
+        if os.path.exists(FLEET_OPTIMIZED_FILE):
+            try:
+                with open(FLEET_OPTIMIZED_FILE, "r") as f:
+                    _FLEET_PARAMS_CACHE["data"] = json.load(f)
+                    _FLEET_PARAMS_CACHE["timestamp"] = now
+            except Exception as e:
+                print(f"⚠️ Error cargando {FLEET_OPTIMIZED_FILE}: {e}")
+        else:
+            _FLEET_PARAMS_CACHE["data"] = {}
+            _FLEET_PARAMS_CACHE["timestamp"] = now
+
+    data = _FLEET_PARAMS_CACHE.get("data", {})
+    if not data:
+        return defaults
+
+    clean_sym = symbol.replace("/", "_").replace(":USDT", "")
+    for key, val in data.items():
+        k_clean = key.replace("/", "_").replace(":USDT", "")
+        if clean_sym in k_clean and f"_{timeframe}_" in k_clean and f"_{strategy}" in k_clean:
+            bp = val.get("best_params", {})
+            merged = dict(defaults)
+            merged.update(bp)
+            return merged
+
+    return defaults
+
 # Inicializar Binance
 exchange = ccxt.binance({
     'enableRateLimit': True,
@@ -600,21 +653,29 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
+                    bot_params = get_bot_params(SYMBOL, TIMEFRAME, STRATEGY)
+                    sl_trend = bot_params.get("atr_sl_trend", 1.5)
+                    tp_trend = bot_params.get("atr_tp_trend", 2.5)
+                    sl_counter = bot_params.get("atr_sl_counter", 1.5)
+                    tp_counter = bot_params.get("atr_tp_counter", 2.0)
+                    sl_wyk = bot_params.get("atr_sl_wyckoff", 1.5)
+                    tp_wyk = bot_params.get("atr_tp_wyckoff", 2.0)
+
                     if "TD9" in reason_buy:
                         if is_counter_trend:
-                            print(">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia)")
-                            stop_loss = current_live_price - (atr * 1.5)
-                            take_profit = current_live_price + (atr * 2.0)
+                            print(f">>> ALERTA DE COMPRA <<< (TD9 Contra Tendencia) [SL:{sl_counter:.1f}x TP:{tp_counter:.1f}x ATR]")
+                            stop_loss = current_live_price - (atr * sl_counter)
+                            take_profit = current_live_price + (atr * tp_counter)
                             reason = f"TD9 Buy (Counter-Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                         else:
-                            print(">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia)")
-                            stop_loss = current_live_price - (atr * 1.5)
-                            take_profit = current_live_price + (atr * 2.5)
+                            print(f">>> ALERTA DE COMPRA <<< (TD9 A Favor de Tendencia) [SL:{sl_trend:.1f}x TP:{tp_trend:.1f}x ATR]")
+                            stop_loss = current_live_price - (atr * sl_trend)
+                            take_profit = current_live_price + (atr * tp_trend)
                             reason = f"TD9 Buy (Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                     else:
-                        print(">>> ALERTA DE COMPRA <<< (Wyckoff)")
-                        stop_loss = current_live_price - (atr * 1.5)
-                        take_profit = current_live_price + (atr * 2.0)
+                        print(f">>> ALERTA DE COMPRA <<< (Wyckoff) [SL:{sl_wyk:.1f}x TP:{tp_wyk:.1f}x ATR]")
+                        stop_loss = current_live_price - (atr * sl_wyk)
+                        take_profit = current_live_price + (atr * tp_wyk)
                         reason = f"Wyckoff Spring + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
                     risk_matrix = {"1w": 0.20, "1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
@@ -648,21 +709,29 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
+                    bot_params = get_bot_params(SYMBOL, TIMEFRAME, STRATEGY)
+                    sl_trend = bot_params.get("atr_sl_trend", 1.5)
+                    tp_trend = bot_params.get("atr_tp_trend", 2.5)
+                    sl_counter = bot_params.get("atr_sl_counter", 1.5)
+                    tp_counter = bot_params.get("atr_tp_counter", 2.0)
+                    sl_wyk = bot_params.get("atr_sl_wyckoff", 1.5)
+                    tp_wyk = bot_params.get("atr_tp_wyckoff", 2.0)
+
                     if "TD9" in reason_sell:
                         if is_counter_trend:
-                            print(">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia)")
-                            stop_loss = current_live_price + (atr * 1.5)
-                            take_profit = current_live_price - (atr * 2.0)
+                            print(f">>> ALERTA DE VENTA <<< (TD9 Contra Tendencia) [SL:{sl_counter:.1f}x TP:{tp_counter:.1f}x ATR]")
+                            stop_loss = current_live_price + (atr * sl_counter)
+                            take_profit = current_live_price - (atr * tp_counter)
                             reason = f"TD9 Sell (Counter-Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                         else:
-                            print(">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia)")
-                            stop_loss = current_live_price + (atr * 1.5)
-                            take_profit = current_live_price - (atr * 2.5)
+                            print(f">>> ALERTA DE VENTA <<< (TD9 A Favor de Tendencia) [SL:{sl_trend:.1f}x TP:{tp_trend:.1f}x ATR]")
+                            stop_loss = current_live_price + (atr * sl_trend)
+                            take_profit = current_live_price - (atr * tp_trend)
                             reason = f"TD9 Sell (Trend) [Conf: {conf_score:.2f} | F&G: {fng_val}]"
                     else:
-                        print(">>> ALERTA DE VENTA <<< (Wyckoff)")
-                        stop_loss = current_live_price + (atr * 1.5)
-                        take_profit = current_live_price - (atr * 2.0)
+                        print(f">>> ALERTA DE VENTA <<< (Wyckoff) [SL:{sl_wyk:.1f}x TP:{tp_wyk:.1f}x ATR]")
+                        stop_loss = current_live_price + (atr * sl_wyk)
+                        take_profit = current_live_price - (atr * tp_wyk)
                         reason = f"Wyckoff Upthrust + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
                     risk_matrix = {"1w": 0.20, "1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
@@ -875,25 +944,31 @@ def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context
             print(f"🛡 MACRO SHIELD: Rebote semanal activo en {SYMBOL}. Bajando Stop de SHORT a Break-Even (${updated_sl:.2f}).")
             send_telegram(f"🛡 <b>MACRO SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nActive weekly rebound confirmed on {SYMBOL}. Immediate Break-Even shield activated on SHORT position.")
 
-    # --- BREAK EVEN LOGIC (1.0 ATR INSTITUTIONAL SHIELD) ---
-    if action == "BUY" and live_candle['high'] >= (entry + (atr * 1.0)):
+    # --- BREAK EVEN & SCALE-OUT PARAMETERS (Dynamic Worker Optimization) ---
+    bot_params = get_bot_params(SYMBOL, TIMEFRAME, STRATEGY)
+    be_mult = bot_params.get("be_threshold_atr", 1.0)
+    so_mult = bot_params.get("scale_out_atr", 1.0)
+    enable_so = bot_params.get("enable_scale_out", True)
+
+    # --- BREAK EVEN LOGIC (DYNAMIC ATR INSTITUTIONAL SHIELD) ---
+    if action == "BUY" and live_candle['high'] >= (entry + (atr * be_mult)):
         if updated_sl < entry:
             updated_sl = entry
             state["stop_loss"] = updated_sl
-            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss subido a ${updated_sl:.2f} (+1.0 ATR favorable)")
-            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 1.0 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
-    elif action == "SELL" and live_candle['low'] <= (entry - (atr * 1.0)):
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss subido a ${updated_sl:.2f} (+{be_mult:.2f} ATR favorable)")
+            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced {be_mult:.2f} ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
+    elif action == "SELL" and live_candle['low'] <= (entry - (atr * be_mult)):
         if updated_sl > entry:
             updated_sl = entry
             state["stop_loss"] = updated_sl
-            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss bajado a ${updated_sl:.2f} (+1.0 ATR favorable)")
-            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced 1.0 ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
+            print(f"✅ BREAK EVEN ACTIVADO! Stop Loss bajado a ${updated_sl:.2f} (+{be_mult:.2f} ATR favorable)")
+            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nPrice advanced {be_mult:.2f} ATR in favor. Risk neutralized.\n\n<b>Stop Loss:</b> Moved to Entry (${entry:,.2f})")
     # ----------------------------------------------------
 
     
     if action == "BUY":
-        # Scale-Out Parcial (Asegurar 50% de Ganancias en 1.0 ATR)
-        if current_live_price >= entry + (atr * 1.0) and not state.get("scaled_out", False):
+        # Scale-Out Parcial (Asegurar 50% de Ganancias en dynamic ATR)
+        if enable_so and current_live_price >= entry + (atr * so_mult) and not state.get("scaled_out", False):
             import datetime as dt_mod
             print("💰 SCALE-OUT: Asegurando 50% de las ganancias (BUY a +1.0 ATR).")
             partial_pnl = ((current_live_price - entry) * (size_btc * 0.5)) - (state.get("entry_fee_usd", 0) * 0.5) - (current_live_price * (size_btc * 0.5) * 0.0004)
@@ -956,8 +1031,8 @@ def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context
                 current_live_price = tp # For closing log
             
     elif action == "SELL":
-        # Scale-Out Parcial (Asegurar 50% de Ganancias en 1.0 ATR)
-        if current_live_price <= entry - (atr * 1.0) and not state.get("scaled_out", False):
+        # Scale-Out Parcial (Asegurar 50% de Ganancias en dynamic ATR)
+        if enable_so and current_live_price <= entry - (atr * so_mult) and not state.get("scaled_out", False):
             import datetime as dt_mod
             print("💰 SCALE-OUT: Asegurando 50% de las ganancias (SELL a -1.0 ATR).")
             partial_pnl = ((entry - current_live_price) * (size_btc * 0.5)) - (state.get("entry_fee_usd", 0) * 0.5) - (current_live_price * (size_btc * 0.5) * 0.0004)
