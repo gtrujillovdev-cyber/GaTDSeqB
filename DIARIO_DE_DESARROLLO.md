@@ -688,6 +688,17 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Auditoría de Acceso Móvil Seguro (iSH iOS):**
   - Configuración de aliases y directivas de persistencia SSH (`ServerAliveInterval 15`) en el cliente iSH para un acceso ágil sin comprometer puertos ni credenciales maestras.
 
+### 17. Suite de Auto-Curación (Self-Healing), Purga de RAM y Reinicio Headless Autónomo en MacBook Pro
+- **Protocolo de Protección del Hardware (24/7 Clamshell Worker):**
+  - Para evitar fatiga térmica, degradación de celdas de batería y fragmentación de memoria (Memory Leaks / Inactive RAM) en el MacBook Pro con tapa cerrada, se diseñó e implementó una suite integral de auto-mantenimiento.
+- **Componentes de la Suite (`scripts/`):**
+  - `worker_maintenance.sh`: Orquestador de limpieza que verifica si hay cálculos activos de ML/Backtesting antes de proceder. Purga la memoria inactiva del sistema con `/usr/sbin/purge`, limpia cachés `__pycache__`, rota logs de más de 25 MB y recolecta telemetría (carga, RAM, SSD, batería).
+  - `com.gatdseq.maintenance.plist`: LaunchDaemon del sistema que programa la ejecución diaria del mantenimiento y reinicio controlado a las 04:30 AM (`StartCalendarInterval`).
+  - `com.gatdseq.caffeinate.plist`: LaunchDaemon del sistema que eleva `caffeinate -s -i -m -u` a nivel de raíz (`root:wheel`). Garantiza que tras cualquier reinicio sin login gráfico interactivo, el sistema impida el reposo con la tapa cerrada.
+  - `install_worker_maintenance.sh`: Script automatizado de despliegue que instala los daemons en `/Library/LaunchDaemons/`, purga agentes antiguos y activa `pmset -a autorestart 1` ante cortes de suministro eléctrico.
+- **Garantía de Reconexión Headless sin Intervención Manual:**
+  - Se auditó la cadena de arranque: FileVault desactivado (`FileVault is Off`), perfiles Wi-Fi persistidos en `System.keychain` y arranque anticipado de `tailscaled` y `sshd` a nivel de LaunchDaemon. El Mac queda listo y accesible por SSH inmediatamente tras cada reinicio automático.
+
 
 
 
