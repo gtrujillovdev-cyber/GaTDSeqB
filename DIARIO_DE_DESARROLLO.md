@@ -639,6 +639,35 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Especificaciones detectadas: CPU Intel Core i5-4278U @ 2.60 GHz (2 cores / 4 threads), 8 GB de RAM y 43 GB de disco SSD libre.
   - Configurado como nodo de computación de alto rendimiento para futuros módulos de backtesting distribuido, optimización bayesiana de hiperparámetros y modelos de machine learning.
 
+### 14. Despliegue de Arquitectura Híbrida Edge-Worker, Validación de Alpha por Grid Search y Unificación MagicDNS
+- **Entorno Cuantitativo y Machine Learning en MacBook Pro:**
+  - Construcción del entorno virtual nativo `~/GaTDSEQ_Worker/venv` con **Python 3.11.11**.
+  - Instalación del stack matemático precompilado: `pandas` (3.0.6), `numpy` (2.4.6), `ccxt` (4.5.64), `scipy` (1.17.1), `fastparquet` (2026.9.0), `scikit-learn` (1.9.1) y `xgboost` (3.2.0).
+  - Resolución del enlazado dinámico de `libomp.dylib` (OpenMP) para paralelismo multi-hilo en macOS Haswell mediante enlace simbólico en `/usr/local/opt/libomp/lib` hacia LLVM.
+- **Modo Servidor Autónomo 24/7 (Clamshell Mode):**
+  - Inyección de `SleepDisabled 1` y `displaysleep 5` en `pmset` para permitir ejecución continua con la tapa física cerrada.
+  - Despliegue del daemon `caffeinate` supervisado por `launchd` en `~/Library/LaunchAgents/com.gatdseq.caffeinate.plist`.
+  - Compilación e instalación nativa de los binarios de servidor de Tailscale CLI (`tailscale` y `tailscaled`) con Go 1.24 local, sorteando incompatibilidades de AppKit en macOS Big Sur.
+- **Aislamiento y Seguridad de Datos (Disco Seagate):**
+  - Análisis técnico del almacenamiento: se determinó que los datasets Parquet ocupan menos de 150 MB, haciendo innecesario el uso del disco mecánico Seagate.
+  - Se eliminaron carpetas temporales del disco externo, dejándolo 100% aislado para preservar la integridad de Time Machine y fotos personales. Todo el almacenamiento de trading opera sobre el SSD interno (43 GB disponibles).
+- **Validación Cuantitativa de Rentabilidad (Alpha Real):**
+  - Ejecución de Grid Search de 54 combinaciones sobre 30 días de `BTC/USDT [1h]`.
+  - **Resultado:** Demostración empírica de conversión de estrategia perdedora (PnL: -\$503.64, Sharpe: -1.71, MDD: -16.17%) a fuertemente rentable (**PnL: +\$1,515.97, Sharpe: 7.11, MDD: -4.00%**) al calibrar el umbral de Break-Even a `0.5x ATR`.
+  - Creación del orquestador `optimize_fleet.py` en el repositorio para automatizar barridos paralelos en BTC, ETH y HYPE.
+- **Unificación de Red y Nombres Institucionales (Tailscale MagicDNS):**
+  - Normalización de nombres de red bajo el estándar RFC 1123:
+    - `gtrujillo-macbook-pro` (MacBook Pro / Worker Node)
+    - `gtrujillo-raspberry-pi-3b` (Raspberry Pi / Edge Core)
+    - `gtrujillo-macbook-air-m4` (MacBook Air M4 / Workstation)
+    - `iphone16` (Kiosko Móvil)
+    - `tv` (Xiaomi TV A1 Pro)
+- **Corrección de Conectividad Gráfica y Perfiles de Energía:**
+  - Diagnóstico del fallo de *Compartir Pantalla* desde ubicaciones remotas: purga de archivos `.vncloc` locales obsoletos vinculados a mDNS (`.local`) y creación de accesos directos remotos de escritorio con MagicDNS (`MacBook Pro (Remoto).vncloc` y `Raspberry Pi (Remoto).vncloc`).
+  - Verificación del puerto 5900 (VNC) activo y respondiendo tanto en el MacBook Pro como en la Raspberry Pi (`x11vnc` en `:0`).
+  - Calibración de energía en MacBook Air M4: desactivación de `SleepDisabled` para permitir reposo al cerrar la tapa en batería (`sleep 1`) y servicio continuo en corriente (`displaysleep 3` / `sleep 0`).
+
+
 
 
 
