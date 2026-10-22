@@ -139,19 +139,19 @@ Para prevenir la degradación física del hardware del MacBook Pro operando de f
 ```
 
 ### Componentes de la Suite (`scripts/`):
-1. **[`worker_maintenance.sh`](scripts/worker_maintenance.sh):**
+1. **[`worker_maintenance.sh`](../scripts/worker_maintenance.sh):**
    - **Detección de Tareas Críticas:** Examina la tabla de procesos (`pgrep`) en busca de `optimize_fleet.py`, `run_backtest.py` o `xgboost_gate.py`. Si hay cómputo activo, pospone el reinicio para proteger el cálculo.
    - **Purga de Memoria Inactiva:** Ejecuta `/usr/sbin/purge`, liberando gigabytes de memoria inactiva y cachés de disco acumuladas.
    - **Limpieza de Caches:** Elimina carpetas `__pycache__`, archivos `.pyc` y archivos temporales `/tmp/*.tmp` huérfanos.
    - **Rotación Preventiva de Logs:** Trunca archivos de log superiores a 25 MB (`maintenance.log`, `tailscaled.log`).
    - **Registro Telemétrico:** Guarda en `~/GaTDSEQ_Worker/logs/maintenance.log` el Uptime, Load Average, RAM libre/inactiva, espacio en SSD y estado térmico/batería.
-2. **[`com.gatdseq.maintenance.plist`](scripts/com.gatdseq.maintenance.plist):**
+2. **[`com.gatdseq.maintenance.plist`](../scripts/com.gatdseq.maintenance.plist):**
    - Registrado en `/Library/LaunchDaemons/` con permisos `root:wheel 644`.
    - Programa la ejecución automática del script con el flag `--reboot` todos los días a las **04:30 AM**.
-3. **[`com.gatdseq.caffeinate.plist`](scripts/com.gatdseq.caffeinate.plist):**
+3. **[`com.gatdseq.caffeinate.plist`](../scripts/com.gatdseq.caffeinate.plist):**
    - Registrado como LaunchDaemon de sistema de nivel raíz (`root:wheel`).
    - Mantiene activo el binario `/usr/bin/caffeinate -s -i -m -u` permanentemente, asegurando que el Mac jamás entre en suspensión con la tapa cerrada, incluso antes de que ningún usuario inicie sesión gráfica.
-4. **[`install_worker_maintenance.sh`](scripts/install_worker_maintenance.sh):**
+4. **[`install_worker_maintenance.sh`](../scripts/install_worker_maintenance.sh):**
    - Script de instalación unificada que despliega los plists, ajusta permisos y habilita `pmset -a autorestart 1` (reinicio automático por hardware ante caídas del suministro eléctrico).
 
 ---
@@ -233,7 +233,7 @@ En las pruebas sistemáticas sobre datos reales de Binance Futures (`BTC/USDT [1
 
 ## 6. Directrices de Ciberseguridad y SecOps (Zero-Trust Standard)
 
-Formalizadas como directriz obligatoria en el archivo [GEMINI.md](GEMINI.md) (Regla 10):
+Formalizadas como directriz obligatoria en el archivo [GEMINI.md](../GEMINI.md) (Regla 10):
 
 1. **Privacidad y Credenciales (Zero Password Exposure):**
    - Prohibición estricta de escribir o solicitar contraseñas en chats de IA, scripts temporales, commits o logs.

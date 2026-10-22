@@ -19,7 +19,7 @@
 7. [Repository Structure](#-repository-structure)
 8. [Installation & Deployment](#-installation--deployment)
 9. [Telemetry & Operational Verification](#-telemetry--operational-verification)
-10. [Distributed Infrastructure & SecOps Manual (Tailscale Mesh)](manual_infraestructura.md)
+10. [Distributed Infrastructure & SecOps Manual (Tailscale Mesh)](docs/manual_infraestructura.md)
 
 ---
 
@@ -148,26 +148,37 @@ GaTDSEQ/
 ├── optimize_fleet.py       # High-performance parallel Grid Search optimizer (Mac worker)
 ├── fleet_optimized.json    # Calibrated dynamic risk matrix loaded dynamically by production bots
 ├── run_backtest.py         # Institutional backtesting CLI (Terminal Bloomberg reports)
+├── volume_profile.py       # Vectorized volume distribution calculator (POC / VAH / VAL)
+├── wycoff_logic.py         # Wyckoff market phase detector and volume divergence analyzer
+├── portfolio.json          # Portfolio asset allocation definitions for live Kiosk display
+├── requirements.txt        # Python dependency manifest
+├── auto_clean.sh -> scripts/auto_clean.sh # Backward-compatible maintenance symlink
 ├── backtesting/            # High-performance local backtesting suite for Mac (Parquet, event-driven)
 │   ├── data_manager.py     # Paged CCXT fetcher & local Parquet caching
 │   ├── indicators.py       # Vectorized Wilder's RMA indicators & Volume Profile
 │   ├── engine.py           # Bar-by-bar simulation engine with fees & dynamic leverage
 │   ├── analytics.py        # Financial metrics (Sharpe, Sortino, MaxDD, Profit Factor)
 │   └── optimizer.py        # Multi-parameter Grid Search engine
-├── docs/
+├── docs/                   # Institutional documentation & system manuals
+│   ├── manual_infraestructura.md # Distributed architecture manual (Tailscale Mesh, Edge-Worker hybrid)
 │   └── RESEARCH_FUNNEL_ARCHITECTURE.md # Quantitative whitepaper on Multi-Stage Funnel Design
-├── templates/
-│   └── lite.html           # Institutional Bloomberg Kiosk UI (UltraGear 21:9 zero-scroll dashboard)
-├── pinescript/
-│   └── gatdseq_core.pine   # TradingView Pine Script v5 official indicator
-├── auto_clean.sh           # Hardware maintenance cron script (cache drops, RAM defragmentation)
-├── requirements.txt        # Python dependency manifest
-├── manual_infraestructura.md # Distributed architecture manual (Tailscale Mesh, Edge-Worker hybrid, SecOps)
-├── scripts/                # Self-healing maintenance suite & LaunchDaemons for Mac Worker
+├── scripts/                # Operations, DevOps, and Self-Healing Maintenance Suite
+│   ├── auto_clean.sh       # Edge maintenance script (RAM drop_caches, log truncation)
+│   ├── start.sh            # Local development environment launcher
 │   ├── worker_maintenance.sh # Self-healing RAM purge, cache sweep, and telemetry daemon
+│   ├── install_worker_maintenance.sh # One-click installer for macOS worker nodes
 │   ├── com.gatdseq.maintenance.plist # Scheduled daily maintenance LaunchDaemon (04:30 AM)
-│   ├── com.gatdseq.caffeinate.plist  # Root LaunchDaemon anti-sleep clamshell persistence
-│   └── install_worker_maintenance.sh # One-click installer for macOS worker nodes
+│   └── com.gatdseq.caffeinate.plist  # Root LaunchDaemon anti-sleep clamshell persistence
+├── templates/              # Institutional Bloomberg Kiosk Frontend
+│   └── lite.html           # Zero-scroll UltraGear 21:9 dashboard (V8 Vanilla JS math engine)
+├── tests/                  # Test suites & connectivity diagnostics
+│   ├── __init__.py
+│   └── test_binance.py     # Binance Futures API and authentication test script
+├── legacy/                 # Historical prototypes and deprecated development files
+│   ├── README.md           # Archive rationale & provenance documentation
+│   ├── backtest.py         # Day 1 prototype single-asset backtesting script
+│   ├── dashboard.py        # Day 1 Streamlit prototype web interface
+│   └── index.html          # Early prototype Tailwind CSS dashboard template
 ├── GEMINI.md               # Project development rules, conventions, and operational macro protocols
 ├── DIARIO_DE_DESARROLLO.md # Chronological technical development diary
 └── README.md               # Institutional documentation (this file)
@@ -243,7 +254,7 @@ To prevent thermal stress, battery swelling, and RAM fragmentation on the 24/7 C
 - **Root LaunchDaemons:** `com.gatdseq.maintenance.plist` executes daily at **04:30 AM** to purge inactive memory (`/usr/sbin/purge`), sweep bytecode caches, and perform safe reboots (automatically deferred if a backtest or ML job is actively executing).
 - **Headless Auto-Recovery:** With FileVault disabled, Wi-Fi keys in `System.keychain`, and `caffeinate -s -i -m -u` running as a root daemon, the worker reboots in 35s and reconnects to Tailscale and SSH without graphical user login.
 
-*For full operational details, network mapping, and emergency runbooks, consult the [Comprehensive Infrastructure Manual](manual_infraestructura.md).*
+*For full operational details, network mapping, and emergency runbooks, consult the [Comprehensive Infrastructure Manual](docs/manual_infraestructura.md).*
 
 ---
 

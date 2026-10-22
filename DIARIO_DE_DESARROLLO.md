@@ -719,6 +719,19 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Sección 10 en Cuerpo Principal:**
   - Desglose de los 5 nodos físicos de la red mesh de Tailscale, suites de auto-curación y enlace directo al manual técnico de infraestructura.
 
+### 20. Reestructuración Profesional del Repositorio (Industry-Standard Clean Layout)
+- **Eliminación de Metadatos de Sistema Operativo:**
+  - Purgado y eliminación del archivo invisible `.DS_Store` del control de versiones.
+  - Fortalecimiento de `.gitignore` con filtros globales para macOS/Linux (`.DS_Store`, `._*`, `.Spotlight-V100`, `.Trashes`) y scripts temporales de desarrollo (`patch_*.py`, `temp_*.py`).
+- **Separación de Responsabilidades por Directorios (Standard Project Layout):**
+  - **`docs/`:** Migración de `manual_infraestructura.md` junto a `RESEARCH_FUNNEL_ARCHITECTURE.md`. La raíz conserva únicamente los archivos globales estándar del repositorio.
+  - **`scripts/`:** Centralización de scripts operativos (`start.sh`, `auto_clean.sh`, `worker_maintenance.sh`, instalador y LaunchDaemons). Creación de enlace simbólico retrocompatible `auto_clean.sh -> scripts/auto_clean.sh` en la raíz para garantizar compatibilidad absoluta con cron y systemd en la Raspberry Pi.
+  - **`tests/`:** Creación formal del paquete de pruebas y migración de `test_binance.py`.
+  - **`legacy/`:** Archivo histórico para scripts obsoletos del prototipado inicial (`backtest.py`, `dashboard.py` y `templates/index.html`), acompañados de un `README.md` de procedencia.
+  - **`templates/`:** Eliminación del archivo duplicado `lite.html` en la raíz, consolidando `templates/lite.html` como única fuente canónica del frontend Bloomberg.
+- **Sincronización:**
+  - Actualización de `README.md` y enlaces relativos en `docs/manual_infraestructura.md`.
+
 
 
 

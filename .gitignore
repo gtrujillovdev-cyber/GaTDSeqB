@@ -186,4 +186,18 @@ backtesting/data/
 # Production Snapshots & Backups
 backups/
 
+# Operating System Metadata (macOS / Linux)
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary Developer Patch Scripts (Rule 2)
+patch_*.py
+temp_*.py
+scratch/
+
 
