@@ -732,6 +732,12 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Sincronización:**
   - Actualización de `README.md` y enlaces relativos en `docs/manual_infraestructura.md`.
 
+### 21. Formalización de Directrices de Proceder Operativo (Reglas 11, 12 y 13 en GEMINI.md)
+- **Codificación Institucional de las Formas de Proceder (`GEMINI.md`):**
+  - **Regla 11 (Gobernanza y Estructura Limpia):** Obligatoriedad de mantener la separación de responsabilidades en `docs/`, `scripts/`, `tests/`, `legacy/` y `templates/`. Prohibido crear scripts huérfanos o duplicar plantillas en la raíz. Blindaje continuo contra `.DS_Store` y metadatos de SO.
+  - **Regla 12 (Ciclo de Vida y Auto-Curación del Worker Node):** Requisito de mantener `caffeinate` como LaunchDaemon de nivel de sistema (`root:wheel`), purga de memoria RAM inactiva (`purge`), reinicios preventivos diarios inteligentes a las 04:30 AM (condicionados a la ausencia de cálculos activos con `pgrep`) y `pmset -a autorestart 1`.
+  - **Regla 13 (Pipeline de Hiperparámetros Desacoplado):** Prohibición de valores estáticos de riesgo en `bot.py`. Uso imperativo de `get_bot_params()` con matriz `fleet_optimized.json` y caché TTL de 60 segundos para permitir hot-swapping en vivo con cero downtime.
+
 
 
 
