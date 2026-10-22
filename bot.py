@@ -644,6 +644,10 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 fleet_stats = get_fleet_position_stats()
                 if conf_score < MIN_CONFIDENCE:
                     print(f"🛑 SKIP: Señal BUY descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and weekly_context.get('is_sell_exhaustion_active'):
+                    print(f"🛑 MACRO SHIELD: Compra contra-tendencia descartada en {SYMBOL} [4h] por corrección semanal activa.")
+                elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and (-8 <= weekly_context.get('td_count', 0) < 0):
+                    print(f"🛑 MACRO TREND SHIELD: Compra contra-tendencia descartada en {SYMBOL} [4h] por impulso bajista semanal en curso (1W TD: {weekly_context.get('td_count', 0)}).")
                 elif fleet_stats['total'] >= MAX_TOTAL_FLEET_TRADES:
                     print(f"🛑 PORTFOLIO SHIELD: Cap total de cartera alcanzado ({fleet_stats['total']}/{MAX_TOTAL_FLEET_TRADES} trades activos). Omitiendo BUY.")
                 elif fleet_stats['longs'] >= MAX_DIRECTIONAL_TRADES:
@@ -678,13 +682,17 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                         take_profit = current_live_price + (atr * tp_wyk)
                         reason = f"Wyckoff Spring + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
-                    risk_matrix = {"1w": 0.20, "1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
-                    base_risk = risk_matrix.get(TIMEFRAME, 0.01)
-                    conviction_multiplier = 1.5 if rsi < 30 else 1.0
+                    # Institutional Risk Parity & Volatility Sizing (Max 1.5% - 2.5% per trade)
+                    risk_matrix = {"1w": 0.025, "1d": 0.02, "4h": 0.015, "1h": 0.01, "15m": 0.005, "5m": 0.005}
+                    base_risk = risk_matrix.get(TIMEFRAME, 0.015)
+                    conviction_multiplier = 1.25 if rsi < 30 else 1.0
+                    
+                    # High-Beta Altcoin Risk Parity: HYPE tiene ATR relativo alto, modular riesgo al 65%
+                    asset_dampener = 0.65 if SYMBOL == "HYPE" else 1.0
                     
                     # Dynamic Portfolio Dampening: Si ya hay 2 o más posiciones LONG, modular riesgo al 75%
                     portfolio_dampening = 0.75 if fleet_stats['longs'] >= 2 else 1.0
-                    final_risk = base_risk * conviction_multiplier * portfolio_dampening
+                    final_risk = base_risk * conviction_multiplier * asset_dampener * portfolio_dampening
                     execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
         elif trigger_sell:
@@ -700,6 +708,10 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 fleet_stats = get_fleet_position_stats()
                 if conf_score < MIN_CONFIDENCE:
                     print(f"🛑 SKIP: Señal SELL descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and weekly_context.get('is_buy_exhaustion_active'):
+                    print(f"🛑 MACRO SHIELD: Venta contra-tendencia descartada en {SYMBOL} [4h] por rebote semanal activo.")
+                elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and (0 < weekly_context.get('td_count', 0) <= 8):
+                    print(f"🛑 MACRO TREND SHIELD: Venta contra-tendencia descartada en {SYMBOL} [4h] por impulso alcista semanal en curso (1W TD: +{weekly_context.get('td_count', 0)}).")
                 elif fleet_stats['total'] >= MAX_TOTAL_FLEET_TRADES:
                     print(f"🛑 PORTFOLIO SHIELD: Cap total de cartera alcanzado ({fleet_stats['total']}/{MAX_TOTAL_FLEET_TRADES} trades activos). Omitiendo SELL.")
                 elif fleet_stats['shorts'] >= MAX_DIRECTIONAL_TRADES:
@@ -734,13 +746,17 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                         take_profit = current_live_price - (atr * tp_wyk)
                         reason = f"Wyckoff Upthrust + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
-                    risk_matrix = {"1w": 0.20, "1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
-                    base_risk = risk_matrix.get(TIMEFRAME, 0.01)
-                    conviction_multiplier = 1.5 if rsi > 70 else 1.0
+                    # Institutional Risk Parity & Volatility Sizing (Max 1.5% - 2.5% per trade)
+                    risk_matrix = {"1w": 0.025, "1d": 0.02, "4h": 0.015, "1h": 0.01, "15m": 0.005, "5m": 0.005}
+                    base_risk = risk_matrix.get(TIMEFRAME, 0.015)
+                    conviction_multiplier = 1.25 if rsi > 70 else 1.0
+                    
+                    # High-Beta Altcoin Risk Parity: HYPE tiene ATR relativo alto, modular riesgo al 65%
+                    asset_dampener = 0.65 if SYMBOL == "HYPE" else 1.0
                     
                     # Dynamic Portfolio Dampening: Si ya hay 2 o más posiciones SHORT, modular riesgo al 75%
                     portfolio_dampening = 0.75 if fleet_stats['shorts'] >= 2 else 1.0
-                    final_risk = base_risk * conviction_multiplier * portfolio_dampening
+                    final_risk = base_risk * conviction_multiplier * asset_dampener * portfolio_dampening
                     execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
     elif state.get("status") == "IN_TRADE":

@@ -74,9 +74,8 @@ def load_dataset(symbol: str = "BTC/USDT", timeframe: str = "1h", days: int = 18
     if os.path.exists(cache_file) and not force_refresh:
         try:
             df = pd.read_parquet(cache_file)
-            # Verificar si cubre al menos los dias solicitados
             span_days = (df['datetime'].iloc[-1] - df['datetime'].iloc[0]).days
-            if span_days >= days * 0.9: # 90% de tolerancia
+            if span_days >= days * 0.9 or span_days >= 10:
                 print(f"⚡ Cargando {len(df)} velas desde cache local: {os.path.basename(cache_file)} ({span_days} días)")
                 return df
             else:

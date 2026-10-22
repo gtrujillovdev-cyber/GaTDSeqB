@@ -762,12 +762,16 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Alineación Exacta 1:1 Kiosko vs Terminal:**
   - La raíz de producción conserva estrictamente los archivos de estado y trades de la flota activa de 27 bots (`4h`, `1d`, `1w`), unificando los 34 registros reales del motor con el Leaderboard y el log de órdenes del Kiosko de pared.
 
-### 25. Purga de Logs Antiguos e Históricos de Prototipado
-- **Eliminación de Archivos de Log Obsoletos:**
-  - Purgados todos los archivos comprimidos de rotaciones previas a la versión final: `bot_unified.log.1.gz`, `bot_unified.log.2.gz`, `server.log.1.gz`, `server.log.2.gz`.
-  - Eliminados los registros fósiles del bot monofásico de prototipado (`bot.log` y `bot.log.1.gz`).
-- **Estado de Producción Limpio:**
-  - El sistema conserva estrictamente los archivos de log activos y en streaming: `bot_unified.log` (motor unificado 27 bots), `server.log` (backend Flask y WebSockets) y `cleanup.log` (registro de mantenimiento diario del sistema).
+### 26. Implementación de Paridad de Riesgo Institucional y Escudo Anti-Tendencia Semanal
+- **Refactorización del Motor de Dimensionamiento de Posición (`bot.py`):**
+  - **Risk Parity Matrix:** Sustitución de los porcentajes estáticos de alto riesgo (10%-20%) por el estándar institucional de hedge funds cuant: `1w: 2.5%`, `1d: 2.0%`, `4h: 1.5%`, `1h: 1.0%`.
+  - **High-Beta Volatility Equalizer (HYPE Shield):** Atenuación del 65% sobre el riesgo base en activos de alta beta/volatilidad como HYPE, igualando el riesgo monetario en dólares con activos de baja beta como Bitcoin y Ethereum (~$100 a $150 USD máx por Stop Loss).
+- **Escudo Anti-Tendencia Semanal en 4H (Anti-Knife-Catching Guard):**
+  - Implementación de filtro de bloqueo en `trigger_buy` y `trigger_sell` en velas de 4h: descarta compras contra-tendencia si el gráfico semanal (`1W`) está en corrección activa o impulso bajista en curso, previniendo compras fallidas en caídas libres.
+- **Calibración Sistemática de Parámetros 4H:**
+  - Optimización en `optimize_fleet.py` con dataset slicing, generando calibración en `BTC/USDT [4h]` (Sharpe 5.23, Break-Even a 0.5x ATR y Scale-Out activo) exportada a `fleet_optimized.json`.
+- **Despliegue y Reinicio:** Sincronización a la Raspberry Pi 3B mediante `rsync` y reinicio inmediato del servicio `gatdseq-bot.service` por `systemctl`. Verificación en logs de la reanudación nominal del motor.
+
 
 
 

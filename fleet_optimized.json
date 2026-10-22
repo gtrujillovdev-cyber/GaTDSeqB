@@ -30,13 +30,13 @@
       "enable_scale_out": true
     },
     "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
+      "net_pnl": 290.76539963823416,
+      "net_pnl_pct": 2.9076539963823413,
+      "sharpe": 5.225490714829948,
+      "profit_factor": 30.40833161235338,
+      "win_rate": 50.0,
       "max_dd_pct": 0.0,
-      "trades": 0
+      "trades": 2
     }
   },
   "BTC/USDT_1d_HYB": {

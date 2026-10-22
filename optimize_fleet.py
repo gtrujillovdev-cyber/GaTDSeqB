@@ -18,7 +18,7 @@ from backtesting.indicators import prepare_market_indicators
 from backtesting.optimizer import run_grid_search
 
 DEFAULT_SYMBOLS = ["BTC/USDT", "ETH/USDT", "HYPE/USDT"]
-DEFAULT_TIMEFRAMES = ["1h", "4h", "1d"]
+DEFAULT_TIMEFRAMES = ["4h", "1d"]
 DEFAULT_STRATEGIES = ["HYB"]
 
 def optimize_target(symbol: str, tf: str, strategy: str, days: int, bank: float):
@@ -26,6 +26,10 @@ def optimize_target(symbol: str, tf: str, strategy: str, days: int, bank: float)
     t0 = time.time()
     try:
         raw_df = load_dataset(symbol=symbol, timeframe=tf, days=days)
+        if days and 'datetime' in raw_df.columns:
+            cutoff = raw_df['datetime'].max() - pd.Timedelta(days=days)
+            raw_df = raw_df[raw_df['datetime'] >= cutoff].reset_index(drop=True)
+            print(f"📊 Dataset acotado a los últimos {days} días: {len(raw_df)} velas.")
         df = prepare_market_indicators(raw_df)
         
         # Grid Search calibrado
@@ -85,6 +89,12 @@ def main():
     print("=" * 80)
 
     fleet_results = {}
+    if os.path.exists(args.out):
+        try:
+            with open(args.out, "r") as f:
+                fleet_results = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Aviso al leer {args.out}: {e}")
     
     for symbol in DEFAULT_SYMBOLS:
         for tf in DEFAULT_TIMEFRAMES:
