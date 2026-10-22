@@ -236,6 +236,26 @@ def api_fleet():
 def api_ticker():
     return jsonify(TICKER_CACHE)
 
+_FNG_SERVER_CACHE = {'val': 68, 'classification': 'GREED', 'time': 0}
+
+@app.route('/api/fng')
+def api_fng():
+    global _FNG_SERVER_CACHE
+    now = time.time()
+    if now - _FNG_SERVER_CACHE['time'] > 1800:
+        try:
+            r = requests.get('https://api.alternative.me/fng/?limit=1', headers={'User-Agent': 'GaTDSEQ/2.2'}, timeout=4)
+            if r.status_code == 200:
+                d = r.json()
+                _FNG_SERVER_CACHE = {
+                    'val': int(d['data'][0]['value']),
+                    'classification': d['data'][0]['value_classification'].upper(),
+                    'time': now
+                }
+        except:
+            pass
+    return jsonify(_FNG_SERVER_CACHE)
+
 
 
 terminal_buffer = []

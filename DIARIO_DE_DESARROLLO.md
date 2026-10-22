@@ -732,6 +732,12 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Sincronización:**
   - Actualización de `README.md` y enlaces relativos en `docs/manual_infraestructura.md`.
 
+### 21. Formalización de Directrices de Proceder Operativo (Reglas 11, 12 y 13 en GEMINI.md)
+- **Codificación Institucional de las Formas de Proceder (`GEMINI.md`):**
+  - **Regla 11 (Gobernanza y Estructura Limpia):** Obligatoriedad de mantener la separación de responsabilidades en `docs/`, `scripts/`, `tests/`, `legacy/` y `templates/`. Prohibido crear scripts huérfanos o duplicar plantillas en la raíz. Blindaje continuo contra `.DS_Store` y metadatos de SO.
+  - **Regla 12 (Ciclo de Vida y Auto-Curación del Worker Node):** Requisito de mantener `caffeinate` como LaunchDaemon de nivel de sistema (`root:wheel`), purga de memoria RAM inactiva (`purge`), reinicios preventivos diarios inteligentes a las 04:30 AM (condicionados a la ausencia de cálculos activos con `pgrep`) y `pmset -a autorestart 1`.
+  - **Regla 13 (Pipeline de Hiperparámetros Desacoplado):** Prohibición de valores estáticos de riesgo en `bot.py`. Uso imperativo de `get_bot_params()` con matriz `fleet_optimized.json` y caché TTL de 60 segundos para permitir hot-swapping en vivo con cero downtime.
+
 ### 22. Auditoría Integral del Sistema, Diagnóstico de Red y Resolución de Bug en Exit Engine
 - **Auditoría Operativa y Corrección Crítica en `bot.py` (Protocolo Regla 7):**
   - **Detección de Excepción Silenciosa:** Durante la inspección de `bot_unified.log` se aisló un error recurrente `NameError: name 'STRATEGY' is not defined` afectando a las instancias `HYPE_WYK` y `HYPE_HYB` en el marco diario (`1d`). La variable no estaba en el ámbito de las funciones de entrada ni en el módulo de gestión de salida.
@@ -745,6 +751,15 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - **Rendimiento Cerrado Acumulado:** 194 operaciones registradas, ROI realizado de **+115.67%** (+$11,567.23 USD netos sobre capital inicial de $10,000 USD). Liderazgo destacado de las estrategias Wyckoff y Hybrid en HYPE 1h (+$15,857.59 combinados).
   - **Monitor de Posiciones Abiertas:** Posiciones activas en `HYPE` (1d LONG @ $81.81, SL $75.38, TP $90.38) con gestión de trailing reactivada tras el parche del motor.
   - **Detección de Proximidad a Disparo:** Alerta macro de agotamiento en **BTC [1W]** con TD Count en 9 (`UNPERF`) bajo nivel TDST en $87,395.67 y modulador correctivo activo.
+
+### 23. Desacoplamiento de Macro Sentimiento (/api/fng) y Robustecimiento del Kiosko
+- **Exposición del Endpoint Institucional `/api/fng` (`server.py`):**
+  - Implementación de ruta de servidor interna `/api/fng` con caché en memoria (TTL 1800s) y fallback de contingencia.
+  - El Kiosko frontend (`templates/lite.html`) consumía previamente el índice de sentimiento mediante peticiones directas del cliente a `api.alternative.me`, provocando bloqueos de CORS o fallos silenciosos por políticas de DNS local (Pi-hole). Ahora el backend en Python actúa como proxy transparente y fiable.
+- **Sincronización del Frontend (`templates/lite.html`):**
+  - Actualización de la rutina asíncrona `fetchFnG()` para priorizar `/api/fng` con parámetros anti-caché (`_t=Date.now()`) y degradación elegante a consulta directa solo en caso de indisponibilidad del servidor.
+- **Despliegue y Reinicio:** Sincronización a la Raspberry Pi 3B mediante `rsync` y reinicio inmediato del servicio `gatdseq-server.service` por `systemctl`. Verificación con `curl` validando respuesta instantánea (`200 OK`, valor 68 GREED).
+
 
 
 

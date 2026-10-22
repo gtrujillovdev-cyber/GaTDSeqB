@@ -623,15 +623,27 @@
         // FEAR AND GREED
         async function fetchFnG() {
             try {
-                let res = await fetch('https://api.alternative.me/fng/?limit=1');
+                let res = await fetch('/api/fng?_t=' + Date.now(), { cache: 'no-store' });
                 let data = await res.json();
-                let val = parseInt(data.data[0].value);
+                let val = parseInt(data.val);
+                let cls = data.classification || 'NEUTRAL';
                 let fngEl = document.getElementById('fng-index');
-                fngEl.innerText = `${val} (${data.data[0].value_classification.toUpperCase()})`;
+                fngEl.innerText = `${val} (${cls})`;
                 if (val >= 60) { fngEl.style.color = 'var(--accent-green)'; }
                 else if (val <= 40) { fngEl.style.color = 'var(--accent-red)'; }
                 else { fngEl.style.color = 'var(--text-primary)'; }
-            } catch(e) {}
+            } catch(e) {
+                try {
+                    let res = await fetch('https://api.alternative.me/fng/?limit=1');
+                    let data = await res.json();
+                    let val = parseInt(data.data[0].value);
+                    let fngEl = document.getElementById('fng-index');
+                    fngEl.innerText = `${val} (${data.data[0].value_classification.toUpperCase()})`;
+                    if (val >= 60) { fngEl.style.color = 'var(--accent-green)'; }
+                    else if (val <= 40) { fngEl.style.color = 'var(--accent-red)'; }
+                    else { fngEl.style.color = 'var(--text-primary)'; }
+                } catch(err) {}
+            }
         }
 
         // RENDER FLEET
