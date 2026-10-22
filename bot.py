@@ -653,7 +653,7 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
-                    bot_params = get_bot_params(SYMBOL, TIMEFRAME, STRATEGY)
+                    bot_params = get_bot_params(SYMBOL, TIMEFRAME, strategy_type)
                     sl_trend = bot_params.get("atr_sl_trend", 1.5)
                     tp_trend = bot_params.get("atr_tp_trend", 2.5)
                     sl_counter = bot_params.get("atr_sl_counter", 1.5)
@@ -709,7 +709,7 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 elif state.get("last_trigger_time") == trigger_time:
                     print("⚠️ Señal ya operada en esta vela.")
                 else:
-                    bot_params = get_bot_params(SYMBOL, TIMEFRAME, STRATEGY)
+                    bot_params = get_bot_params(SYMBOL, TIMEFRAME, strategy_type)
                     sl_trend = bot_params.get("atr_sl_trend", 1.5)
                     tp_trend = bot_params.get("atr_tp_trend", 2.5)
                     sl_counter = bot_params.get("atr_sl_counter", 1.5)
@@ -752,7 +752,7 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
             print(">>> ALERTA DE REFUERZO (DCA) TD-13 (SHORT) <<<")
             execute_reinforcement(current_live_price, atr, state, "SELL")
             
-        check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context)
+        check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context, strategy_type)
 
 def execute_reinforcement(price, atr, state, action):
     import time
@@ -907,7 +907,7 @@ def execute_trade(action, price, sl, tp, reason, trigger_time=None, risk_pct=0.0
     send_telegram(msg)
     print(f"Trade {action} Ejecutado a ${price:.2f} | Inversión: ${position_size_usd:.2f} | Riesgo: ${actual_risk_amount:.2f}")
 
-def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context=None):
+def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context=None, strategy_type="HYB"):
     action = state["position"]
     current_live_price = live_candle['close']
     current_closed_price = closed_candle['close']
@@ -945,7 +945,7 @@ def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context
             send_telegram(f"🛡 <b>MACRO SHIELD | {SYMBOL} [{TIMEFRAME}]</b>\nActive weekly rebound confirmed on {SYMBOL}. Immediate Break-Even shield activated on SHORT position.")
 
     # --- BREAK EVEN & SCALE-OUT PARAMETERS (Dynamic Worker Optimization) ---
-    bot_params = get_bot_params(SYMBOL, TIMEFRAME, STRATEGY)
+    bot_params = get_bot_params(SYMBOL, TIMEFRAME, strategy_type)
     be_mult = bot_params.get("be_threshold_atr", 1.0)
     so_mult = bot_params.get("scale_out_atr", 1.0)
     enable_so = bot_params.get("enable_scale_out", True)

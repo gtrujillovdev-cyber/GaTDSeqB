@@ -732,11 +732,20 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Sincronización:**
   - Actualización de `README.md` y enlaces relativos en `docs/manual_infraestructura.md`.
 
-### 21. Formalización de Directrices de Proceder Operativo (Reglas 11, 12 y 13 en GEMINI.md)
-- **Codificación Institucional de las Formas de Proceder (`GEMINI.md`):**
-  - **Regla 11 (Gobernanza y Estructura Limpia):** Obligatoriedad de mantener la separación de responsabilidades en `docs/`, `scripts/`, `tests/`, `legacy/` y `templates/`. Prohibido crear scripts huérfanos o duplicar plantillas en la raíz. Blindaje continuo contra `.DS_Store` y metadatos de SO.
-  - **Regla 12 (Ciclo de Vida y Auto-Curación del Worker Node):** Requisito de mantener `caffeinate` como LaunchDaemon de nivel de sistema (`root:wheel`), purga de memoria RAM inactiva (`purge`), reinicios preventivos diarios inteligentes a las 04:30 AM (condicionados a la ausencia de cálculos activos con `pgrep`) y `pmset -a autorestart 1`.
-  - **Regla 13 (Pipeline de Hiperparámetros Desacoplado):** Prohibición de valores estáticos de riesgo en `bot.py`. Uso imperativo de `get_bot_params()` con matriz `fleet_optimized.json` y caché TTL de 60 segundos para permitir hot-swapping en vivo con cero downtime.
+### 22. Auditoría Integral del Sistema, Diagnóstico de Red y Resolución de Bug en Exit Engine
+- **Auditoría Operativa y Corrección Crítica en `bot.py` (Protocolo Regla 7):**
+  - **Detección de Excepción Silenciosa:** Durante la inspección de `bot_unified.log` se aisló un error recurrente `NameError: name 'STRATEGY' is not defined` afectando a las instancias `HYPE_WYK` y `HYPE_HYB` en el marco diario (`1d`). La variable no estaba en el ámbito de las funciones de entrada ni en el módulo de gestión de salida.
+  - **Normalización de Ámbito:** Se refactorizó la llamada a `get_bot_params(SYMBOL, TIMEFRAME, strategy_type)` en los bloques de entrada y se actualizó la firma de `check_exit_conditions(..., strategy_type="HYB")` junto a su invocación en la línea 755 para propagar correctamente la estrategia activa hacia la lógica de Break-Even y Scale-Out.
+  - **Despliegue y Reinicio:** Sincronización a la Raspberry Pi 3B mediante `rsync` y reinicio controlado de `gatdseq-bot.service` con `systemctl`. Confirmación en logs de la reanudación del análisis sin errores en las 27 configuraciones de la flota.
+- **Telemetría y Diagnóstico de Red (Network Traffic Profiling):**
+  - **Rendimiento de Enlace de Intercambio (Kraken):** Latencia TCP de conexión de 98 ms y TTFB de 579 ms hacia la API REST (`api.kraken.com`).
+  - **Malla Cifrada Tailscale:** Enlace directo P2P validado entre Raspberry Pi (`100.95.199.1`) y Workstation M4 (`100.108.32.67`) con latencia media de 93 ms y 0% de pérdida de paquetes. Consumo acumulado de 5.34 MB RX / 11.0 MB TX.
+  - **Tráfico Local e IPC:** 500 MB transferidos sobre `lo` por la conexión WebSocket bidireccional continua entre el servidor Flask (puerto 5001) y la interfaz Kiosko Chromium local.
+- **Evaluación Táctica de Cartera y Mercado (Protocolo Regla 8):**
+  - **Rendimiento Cerrado Acumulado:** 194 operaciones registradas, ROI realizado de **+115.67%** (+$11,567.23 USD netos sobre capital inicial de $10,000 USD). Liderazgo destacado de las estrategias Wyckoff y Hybrid en HYPE 1h (+$15,857.59 combinados).
+  - **Monitor de Posiciones Abiertas:** Posiciones activas en `HYPE` (1d LONG @ $81.81, SL $75.38, TP $90.38) con gestión de trailing reactivada tras el parche del motor.
+  - **Detección de Proximidad a Disparo:** Alerta macro de agotamiento en **BTC [1W]** con TD Count en 9 (`UNPERF`) bajo nivel TDST en $87,395.67 y modulador correctivo activo.
+
 
 
 
