@@ -752,13 +752,16 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - **Monitor de Posiciones Abiertas:** Posiciones activas en `HYPE` (1d LONG @ $81.81, SL $75.38, TP $90.38) con gestión de trailing reactivada tras el parche del motor.
   - **Detección de Proximidad a Disparo:** Alerta macro de agotamiento en **BTC [1W]** con TD Count en 9 (`UNPERF`) bajo nivel TDST en $87,395.67 y modulador correctivo activo.
 
-### 23. Desacoplamiento de Macro Sentimiento (/api/fng) y Robustecimiento del Kiosko
-- **Exposición del Endpoint Institucional `/api/fng` (`server.py`):**
-  - Implementación de ruta de servidor interna `/api/fng` con caché en memoria (TTL 1800s) y fallback de contingencia.
-  - El Kiosko frontend (`templates/lite.html`) consumía previamente el índice de sentimiento mediante peticiones directas del cliente a `api.alternative.me`, provocando bloqueos de CORS o fallos silenciosos por políticas de DNS local (Pi-hole). Ahora el backend en Python actúa como proxy transparente y fiable.
-- **Sincronización del Frontend (`templates/lite.html`):**
-  - Actualización de la rutina asíncrona `fetchFnG()` para priorizar `/api/fng` con parámetros anti-caché (`_t=Date.now()`) y degradación elegante a consulta directa solo en caso de indisponibilidad del servidor.
-- **Despliegue y Reinicio:** Sincronización a la Raspberry Pi 3B mediante `rsync` y reinicio inmediato del servicio `gatdseq-server.service` por `systemctl`. Verificación con `curl` validando respuesta instantánea (`200 OK`, valor 68 GREED).
+### 24. Purga Integral de Duplicidades y Sincronización Canónica en Producción
+- **Archivado Preventivo de Históricos Deprecados (Zero Data Loss):**
+  - Traslado seguro de los 9 archivos `trades_*_1h.json` (160 registros de la fase prototipo en 1 hora) hacia `/home/raspberry/GaTDSEQ/backups/legacy_1h_trades/`.
+  - Archivado de archivos de control y estado heredados (`trades.json`, `state.json`, `control.json`, `bot.log*`) en `backups/prototype_archive/`.
+- **Limpieza de Archivos Redundantes en Raíz del Nodo Edge:**
+  - Eliminación de scripts y plantillas duplicadas en la raíz de producción (`lite.html`, `index.html`, `backtest.py`, `dashboard.py`, `manual_infraestructura.md`, `test_binance.py`, `WycoffBot/` y metadatos `.DS_Store`).
+  - Despliegue de los directorios canónicos segregados (`docs/`, `scripts/`, `legacy/`, `tests/`) y verificación del symlink `auto_clean.sh -> scripts/auto_clean.sh`.
+- **Alineación Exacta 1:1 Kiosko vs Terminal:**
+  - La raíz de producción conserva estrictamente los archivos de estado y trades de la flota activa de 27 bots (`4h`, `1d`, `1w`), unificando los 34 registros reales del motor con el Leaderboard y el log de órdenes del Kiosko de pared.
+
 
 
 
