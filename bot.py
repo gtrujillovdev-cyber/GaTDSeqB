@@ -602,8 +602,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
         save_state(state)
     
     if abs(count) >= 7 or state.get("status") == "IN_TRADE":
-        print(f"Analizando {SYMBOL} en {TIMEFRAME} con Inteligencia Cuantitativa (TD9 + EMA200 + RSI + ATR)...")
-        print(f"{SYMBOL} | Precio: ${current_live_price:.2f} | TD Count: {count} | RSI: {rsi:.2f} | EMA200: {ema200:.2f}")
+        st_label = f" [{strategy_type}]" if strategy_type else ""
+        print(f"[{bot_id}] {SYMBOL} [{TIMEFRAME}]{st_label} | Price: ${current_live_price:,.2f} | TD: {count} | RSI: {rsi:.1f} | EMA200: ${ema200:,.2f}")
 
     
     if state.get("status") == "IDLE":

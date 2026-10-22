@@ -762,15 +762,25 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **Alineación Exacta 1:1 Kiosko vs Terminal:**
   - La raíz de producción conserva estrictamente los archivos de estado y trades de la flota activa de 27 bots (`4h`, `1d`, `1w`), unificando los 34 registros reales del motor con el Leaderboard y el log de órdenes del Kiosko de pared.
 
-### 26. Implementación de Paridad de Riesgo Institucional y Escudo Anti-Tendencia Semanal
-- **Refactorización del Motor de Dimensionamiento de Posición (`bot.py`):**
-  - **Risk Parity Matrix:** Sustitución de los porcentajes estáticos de alto riesgo (10%-20%) por el estándar institucional de hedge funds cuant: `1w: 2.5%`, `1d: 2.0%`, `4h: 1.5%`, `1h: 1.0%`.
-  - **High-Beta Volatility Equalizer (HYPE Shield):** Atenuación del 65% sobre el riesgo base en activos de alta beta/volatilidad como HYPE, igualando el riesgo monetario en dólares con activos de baja beta como Bitcoin y Ethereum (~$100 a $150 USD máx por Stop Loss).
-- **Escudo Anti-Tendencia Semanal en 4H (Anti-Knife-Catching Guard):**
-  - Implementación de filtro de bloqueo en `trigger_buy` y `trigger_sell` en velas de 4h: descarta compras contra-tendencia si el gráfico semanal (`1W`) está en corrección activa o impulso bajista en curso, previniendo compras fallidas en caídas libres.
-- **Calibración Sistemática de Parámetros 4H:**
-  - Optimización en `optimize_fleet.py` con dataset slicing, generando calibración en `BTC/USDT [4h]` (Sharpe 5.23, Break-Even a 0.5x ATR y Scale-Out activo) exportada a `fleet_optimized.json`.
-- **Despliegue y Reinicio:** Sincronización a la Raspberry Pi 3B mediante `rsync` y reinicio inmediato del servicio `gatdseq-bot.service` por `systemctl`. Verificación en logs de la reanudación nominal del motor.
+### 27. Refactorización Integral de Front-End Kiosko Bloomberg UI y Normalización Financiera
+- **Blindaje Estricto de Tema Bloomberg Dark por Defecto (Regla 3):**
+  - **Causa Raíz de Degradación:** Se diagnosticó que la función `computeSolarIsDay()` en `templates/lite.html` forzaba automáticamente el modo diurno `theme-light` (fondo blanco papel `#f4f5f7`) entre las 07:30 y las 19:30 horas locales. Esto destruía el contraste visual de la terminal e infringía la directriz de fondo negro puro `#000000`.
+  - **Resolución:** Se suprimió la conmutación solar automática y se estableció de forma inmutable el tema `dark` como estándar inicial. El selector de cabecera opera ahora como un toggle directo y controlado `DARK` / `LIGHT`.
+- **Motor de Formateo Financiero Institucional (`en-US`) y Erradicación del Bug de Signos Menos:**
+  - **Causa Raíz de Pérdida de Signos:** Las funciones de renderizado evaluaban el signo como `sign = val >= 0 ? '+' : ''` y concatenaban `${sign}$${Math.abs(val)}`. Al ser un número negativo, `sign` quedaba vacío, renderizando magnitudes negativas sin su signo menos (`-$5,816.95` se mostraba visualmente como `$5816,95` en rojo; `-$942.85` como `$942,85`; `-$34.33` como `$34.33`).
+  - **Arquitectura de Helpers Centralizados:** Se introdujeron las funciones puras `fmtUSD(val, showPlus)`, `fmtPrice(val, decimals)` y `fmtPct(val, showPlus, decimals)`.
+  - **Estandarización de Notación Numérica:** Se fijó el locale `'en-US'` en todas las conversiones de moneda y cotización, erradicando la inversión de puntos por comas producida por motores WebKit/Safari en España (`$81,684.20` en lugar de `$81.684,20`).
+- **Agregación Multivariante en Tarjetas de Trade Activo (`active-trade-card`):**
+  - En escenarios de convergencia de múltiples estrategias en un mismo marco temporal (e.g. `WYK` y `HYB` concurrentes en `HYPE [1d]`), la tarjeta anterior tomaba únicamente el estado de la primera variante (`tfActiveTrades[0]`), omitiendo la exposición de la segunda en `Invest` y `U/PNL`.
+  - Se implementó un algoritmo de agregación que consolida el capital total en riesgo (`Invest`), promedia de forma ponderada la entrada, el Stop Loss y el Take Profit, y suma el `Unrealized P&L` exacto de todas las instancias concurrentes.
+- **Alineación Numérica Institucional en Tablas (Leaderboard y Order Log):**
+  - Se refactorizó la hoja de estilos CSS aplicando `text-align: right;` a todas las métricas numéricas en la tabla del Leaderboard (`Realized`, `ROI`, `Trades`, `Win%`) y en el registro de órdenes históricas (`Price`, `PnL`).
+  - Se forzó el redondeo a 2 decimales en el precio de ejecución (`fmtPrice(price, 2)`), impidiendo que valores como `$78.70` se imprimieran truncados como `$78,7`.
+- **Deduplicación de Telemetría en Motor de Terminal en Vivo (`bot.py`):**
+  - Se erradicó la emisión de líneas genéricas repetitivas en el análisis de velas en `bot.py` (líneas 604–607). Ahora se imprime una única línea sintética y profesional identificada unívocamente con `[{bot_id}]`, saneando el feed WebSocket del kiosko.
+- **Despliegue y Validación en Producción (Raspberry Pi 3B):**
+  - Sincronización a producción de `templates/lite.html` y `bot.py` mediante `rsync`.
+  - Reinicio sin errores de `gatdseq-server.service` y `gatdseq-bot.service` vía `systemctl`. Confirmación de telemetría nominal.
 
 
 

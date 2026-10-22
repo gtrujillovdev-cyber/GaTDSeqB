@@ -279,10 +279,21 @@
             width: 100%; border-collapse: collapse; font-size: 11px;
         }
         .leaderboard-table th, .history-table th {
-            border-bottom: 1px solid var(--border-dim); color: var(--text-muted); font-size: 10px; font-weight: 800; padding: 4px 2px; text-align: left;
+            border-bottom: 1px solid var(--border-dim); color: var(--text-muted); font-size: 10px; font-weight: 800; padding: 4px 4px; text-align: left;
         }
         .leaderboard-table td, .history-table td {
-            border-bottom: 1px dotted var(--border-dim); padding: 4px 2px; font-weight: 900;
+            border-bottom: 1px dotted var(--border-dim); padding: 4px 4px; font-weight: 900;
+        }
+        /* Institutional right alignment for numeric columns */
+        .leaderboard-table th:nth-child(n+2), .leaderboard-table td:nth-child(n+2) {
+            text-align: right;
+        }
+        .history-table th:nth-child(3), .history-table td:nth-child(3) {
+            text-align: center;
+        }
+        .history-table th:nth-child(4), .history-table td:nth-child(4),
+        .history-table th:nth-child(5), .history-table td:nth-child(5) {
+            text-align: right;
         }
 
         .scrollable-history {
@@ -355,8 +366,8 @@
                 <button class="refresh-pill-btn" id="f5-refresh-btn" onclick="triggerManualF5()" title="Tap: Refresh Data | Double-Tap: Hard Reload">
                     <span id="f5-icon">↻</span> <span class="refresh-label-text">F5</span>
                 </button>
-                <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light / Auto Solar Mode">
-                    <span id="theme-icon">☀️</span> <span id="theme-label" class="theme-label-text">AUTO [SOLAR]</span>
+                <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light Mode">
+                    <span id="theme-icon">🌙</span> <span id="theme-label" class="theme-label-text">DARK</span>
                 </button>
             </div>
         </div>
@@ -486,43 +497,47 @@
         let currentFleet = null;
 
         // ==========================================
-        // DUAL THEME ENGINE (SOLAR SUNRISE/SUNSET AUTO)
-        // Modes: 'auto', 'dark', 'light'
+        // INSTITUTIONAL FORMATTING ENGINE (EN-US BLOOMBERG)
         // ==========================================
-        let currentThemeMode = localStorage.getItem('gatdseq_theme_mode') || 'auto';
-
-        function computeSolarIsDay() {
-            // Evaluates local civil daylight vs sunset
-            // Default window: 07:30 to 19:30 local time is daylight
-            let now = new Date();
-            let hours = now.getHours();
-            let mins = now.getMinutes();
-            let timeVal = hours + mins / 60;
-            return timeVal >= 7.5 && timeVal < 19.5;
+        function fmtUSD(val, showPlus = false) {
+            if (val === undefined || val === null || isNaN(val)) return '--';
+            val = Number(val);
+            const isNeg = val < 0;
+            const absFormatted = Math.abs(val).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            if (isNeg) return `-$${absFormatted}`;
+            if (showPlus && val > 0) return `+$${absFormatted}`;
+            return `$${absFormatted}`;
         }
 
-        function applyTheme() {
-            let isLight = false;
-            let icon = '☀️';
-            let label = 'AUTO';
-            let titleText = '';
+        function fmtPrice(val, decimals = 2) {
+            if (val === undefined || val === null || isNaN(val) || Number(val) === 0) return '--';
+            return `$${Number(val).toLocaleString('en-US', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            })}`;
+        }
 
-            if (currentThemeMode === 'auto') {
-                isLight = computeSolarIsDay();
-                icon = isLight ? '☀️' : '🌙';
-                label = isLight ? 'AUTO (DAY)' : 'AUTO (NIGHT)';
-                titleText = `Theme: Auto Solar (${isLight ? 'Day' : 'Night'}) | Click to switch to Light`;
-            } else if (currentThemeMode === 'light') {
-                isLight = true;
-                icon = '☀️';
-                label = 'LIGHT';
-                titleText = 'Theme: Forced Light (Paper) | Click to switch to Dark';
-            } else {
-                isLight = false;
-                icon = '🌙';
-                label = 'DARK';
-                titleText = 'Theme: Forced Dark (Terminal) | Click to switch to Auto Solar';
-            }
+        function fmtPct(val, showPlus = true, decimals = 2) {
+            if (val === undefined || val === null || isNaN(val)) return '--%';
+            val = Number(val);
+            const sign = val > 0 ? (showPlus ? '+' : '') : (val < 0 ? '-' : '');
+            return `${sign}${Math.abs(val).toFixed(decimals)}%`;
+        }
+
+        // ==========================================
+        // DUAL THEME ENGINE (DEFAULT: BLOOMBERG DARK)
+        // Modes: 'dark', 'light'
+        // ==========================================
+        let currentThemeMode = localStorage.getItem('gatdseq_theme_mode') || 'dark';
+
+        function applyTheme() {
+            let isLight = (currentThemeMode === 'light');
+            let icon = isLight ? '☀️' : '🌙';
+            let label = isLight ? 'LIGHT' : 'DARK';
+            let titleText = isLight ? 'Theme: Forced Light (Paper) | Click for Bloomberg Dark' : 'Theme: Bloomberg Dark (Terminal) | Click for Light';
 
             if (isLight) {
                 document.body.classList.add('theme-light');
@@ -543,19 +558,11 @@
         }
 
         function cycleThemeMode() {
-            if (currentThemeMode === 'auto') {
-                currentThemeMode = 'light';
-            } else if (currentThemeMode === 'light') {
-                currentThemeMode = 'dark';
-            } else {
-                currentThemeMode = 'auto';
-            }
+            currentThemeMode = (currentThemeMode === 'light') ? 'dark' : 'light';
             localStorage.setItem('gatdseq_theme_mode', currentThemeMode);
             applyTheme();
         }
 
-        // Check solar state every 60 seconds
-        setInterval(applyTheme, 60000);
         applyTheme();
 
         // CLOCK (INSTITUTIONAL DUAL CLOCK: MADRID/LOCAL CIVIL & EXCHANGE UTC)
@@ -605,7 +612,7 @@
                             } else if (sym === 'DXY' || sym === 'VIX') {
                                 formattedHtml = `${price.toFixed(2)} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
                             } else {
-                                formattedHtml = `$${price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2})} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
+                                formattedHtml = `${fmtPrice(price, 2)} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
                             }
 
                             els.forEach(el => {
@@ -671,7 +678,7 @@
 
                 assets.forEach(asset => {
                     let livePrice = globalPrices[asset] || 0;
-                    let assetPriceStr = livePrice > 0 ? `$${livePrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}` : '--';
+                    let assetPriceStr = livePrice > 0 ? fmtPrice(livePrice, 2) : '--';
 
                     // Top-Down Weekly Context Badge (Institutional Situational Awareness)
                     let wState = (fleet[`${asset}_TD9`] && fleet[`${asset}_TD9`]['1w']) ? fleet[`${asset}_TD9`]['1w'] : null;
@@ -761,33 +768,61 @@
                             gridHtml += `</div>`;
                         } else {
                             // AT LEAST ONE VARIANT IS IN_TRADE!
-                            let primary = tfActiveTrades[0];
-                            let st = primary.state;
                             let activeNames = tfActiveTrades.map(t => t.variant).join(', ');
 
-                            let entry = parseFloat(st.entry_price) || 0;
-                            let sl = parseFloat(st.stop_loss) || 0;
-                            let tp = parseFloat(st.take_profit) || 0;
-                            let pos = st.position || 'BUY';
-                            let isBuy = pos === 'BUY';
+                            let totalSizeUsd = 0;
+                            let totalSizeCoin = 0;
+                            let totalUnPnl = 0;
+                            let weightedEntry = 0;
+                            let weightedSl = 0;
+                            let weightedTp = 0;
+                            let sumLeverage = 0;
+                            let isScaledAny = false;
+                            let isBreakevenAll = true;
+                            let primaryPos = tfActiveTrades[0].state.position || 'BUY';
+                            let isBuy = primaryPos === 'BUY';
 
-                            let currPrice = livePrice > 0 ? livePrice : entry;
-                            let diff = isBuy ? (currPrice - entry) : (entry - currPrice);
-                            let unPnl = diff * (st.size_btc || 0);
-                            totalUnrealizedPnl += unPnl;
+                            tfActiveTrades.forEach(tItem => {
+                                let st = tItem.state;
+                                let sSizeUsd = parseFloat(st.size_usd) || 0;
+                                let sSizeCoin = parseFloat(st.size_btc) || 0;
+                                let sEntry = parseFloat(st.entry_price) || 0;
+                                let sSl = parseFloat(st.stop_loss) || 0;
+                                let sTp = parseFloat(st.take_profit) || 0;
+                                let sLev = parseFloat(st.leverage) || 1;
+                                let sBuy = (st.position || 'BUY') === 'BUY';
 
-                            let margin = st.size_usd / (st.leverage || 1);
-                            let unPnlPct = margin > 0 ? (unPnl / margin) * 100 : 0;
-                            let unPnlColor = unPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                            let unPnlSign = unPnl >= 0 ? '+' : '';
+                                let currP = livePrice > 0 ? livePrice : sEntry;
+                                let diff = sBuy ? (currP - sEntry) : (sEntry - currP);
+                                let sUnPnl = diff * sSizeCoin;
 
-                            // Tactical badges
-                            let isBreakeven = Math.abs(sl - entry) < 0.05;
-                            let isScaled = st.scaled_out === true;
+                                totalSizeUsd += sSizeUsd;
+                                totalSizeCoin += sSizeCoin;
+                                totalUnPnl += sUnPnl;
+                                weightedEntry += sEntry * sSizeCoin;
+                                weightedSl += sSl * sSizeCoin;
+                                weightedTp += sTp * sSizeCoin;
+                                sumLeverage += sLev;
+
+                                if (st.scaled_out === true) isScaledAny = true;
+                                if (Math.abs(sSl - sEntry) >= 0.05) isBreakevenAll = false;
+                            });
+
+                            totalUnrealizedPnl += totalUnPnl;
+
+                            let avgEntry = totalSizeCoin > 0 ? (weightedEntry / totalSizeCoin) : (parseFloat(tfActiveTrades[0].state.entry_price) || 0);
+                            let avgSl = totalSizeCoin > 0 ? (weightedSl / totalSizeCoin) : (parseFloat(tfActiveTrades[0].state.stop_loss) || 0);
+                            let avgTp = totalSizeCoin > 0 ? (weightedTp / totalSizeCoin) : (parseFloat(tfActiveTrades[0].state.take_profit) || 0);
+                            let effLeverage = tfActiveTrades.length > 0 ? (sumLeverage / tfActiveTrades.length) : 1;
+
+                            let currPrice = livePrice > 0 ? livePrice : avgEntry;
+                            let margin = totalSizeUsd / (effLeverage || 1);
+                            let unPnlPct = margin > 0 ? (totalUnPnl / margin) * 100 : 0;
+                            let unPnlColor = totalUnPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
 
                             // Range calculation
-                            let totalRange = Math.abs(tp - sl);
-                            let currentProg = isBuy ? (currPrice - sl) : (sl - currPrice);
+                            let totalRange = Math.abs(avgTp - avgSl);
+                            let currentProg = isBuy ? (currPrice - avgSl) : (avgSl - currPrice);
                             let pct = totalRange > 0 ? Math.max(0, Math.min(100, (currentProg / totalRange) * 100)) : 50;
 
                             gridHtml += `
@@ -797,20 +832,20 @@
                                         <span class="status-badge status-active">IN TRADE</span>
                                     </div>
                                     <div class="trade-badges-row">
-                                        ${isBreakeven ? '<span class="tactical-badge shield">🛡️ BREAKEVEN SHIELD</span>' : ''}
-                                        ${isScaled ? '<span class="tactical-badge scaled">💰 50% SCALED</span>' : ''}
+                                        ${isBreakevenAll ? '<span class="tactical-badge shield">🛡️ BREAKEVEN SHIELD</span>' : ''}
+                                        ${isScaledAny ? '<span class="tactical-badge scaled">💰 50% SCALED</span>' : ''}
                                     </div>
                                     <div class="trade-stats-grid">
-                                        <div class="row"><span class="label">Side</span><span class="value ${isBuy ? 'val-green' : 'val-red'}">${pos}</span></div>
-                                        <div class="row"><span class="label">Invest</span><span class="value">$${st.size_usd ? st.size_usd.toLocaleString(undefined, {maximumFractionDigits:0}) : '--'} (x${(st.leverage||1).toFixed(1)})</span></div>
-                                        <div class="row"><span class="label">Entry</span><span class="value">$${entry.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
-                                        <div class="row"><span class="label">Now</span><span class="value">$${currPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
-                                        <div class="row"><span class="label">SL</span><span class="value" style="color:var(--accent-red);">$${sl.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
-                                        <div class="row"><span class="label">TP</span><span class="value" style="color:var(--accent-green);">$${tp.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span></div>
+                                        <div class="row"><span class="label">Side</span><span class="value ${isBuy ? 'val-green' : 'val-red'}">${primaryPos}</span></div>
+                                        <div class="row"><span class="label">Invest</span><span class="value">${fmtUSD(totalSizeUsd, false)} (x${effLeverage.toFixed(1)})</span></div>
+                                        <div class="row"><span class="label">Entry</span><span class="value">${fmtPrice(avgEntry, 2)}</span></div>
+                                        <div class="row"><span class="label">Now</span><span class="value">${fmtPrice(currPrice, 2)}</span></div>
+                                        <div class="row"><span class="label">SL</span><span class="value" style="color:var(--accent-red);">${fmtPrice(avgSl, 2)}</span></div>
+                                        <div class="row"><span class="label">TP</span><span class="value" style="color:var(--accent-green);">${fmtPrice(avgTp, 2)}</span></div>
                                     </div>
                                     <div class="row" style="margin-top:4px; padding-top:2px;">
                                         <span class="label">U/PNL</span>
-                                        <span class="value" style="color:${unPnlColor}; font-size:12px;">${unPnlSign}$${Math.abs(unPnl).toFixed(2)} (${unPnlSign}${unPnlPct.toFixed(2)}%)</span>
+                                        <span class="value" style="color:${unPnlColor}; font-size:12px;">${fmtUSD(totalUnPnl, true)} (${fmtPct(unPnlPct, true, 2)})</span>
                                     </div>
                                     <div class="range-track">
                                         <div class="range-fill"></div>
@@ -835,19 +870,16 @@
                 let currentEquity = totalBank + totalUnrealizedPnl;
                 let globalRoi = ((currentEquity - baseCapital) / baseCapital) * 100;
                 let roiColor = globalRoi >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                let roiSign = globalRoi >= 0 ? '+' : '';
 
                 let titleEl = document.getElementById('global-equity-title');
                 if (titleEl) titleEl.innerText = `GLOBAL EQUITY (${totalBots} BOTS)`;
-                document.getElementById('global-equity').innerHTML = `$${currentEquity.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} <span style="color:${roiColor}; font-size:11px;">(${roiSign}${globalRoi.toFixed(2)}%)</span>`;
+                document.getElementById('global-equity').innerHTML = `${fmtUSD(currentEquity, false)} <span style="color:${roiColor}; font-size:11px;">(${fmtPct(globalRoi, true, 2)})</span>`;
                 
-                let rSign = totalRealizedPnl >= 0 ? '+' : '';
                 let rColor = totalRealizedPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                document.getElementById('global-realized').innerHTML = `<span style="color:${rColor}">${rSign}$${Math.abs(totalRealizedPnl).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`;
+                document.getElementById('global-realized').innerHTML = `<span style="color:${rColor}">${fmtUSD(totalRealizedPnl, true)}</span>`;
 
-                let uSign = totalUnrealizedPnl >= 0 ? '+' : '';
                 let uColor = totalUnrealizedPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                document.getElementById('global-unrealized').innerHTML = `<span style="color:${uColor}">${uSign}$${Math.abs(totalUnrealizedPnl).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</span>`;
+                document.getElementById('global-unrealized').innerHTML = `<span style="color:${uColor}">${fmtUSD(totalUnrealizedPnl, true)}</span>`;
 
                 document.getElementById('active-trades-kpi').innerText = `${activeTradesCount} / ${totalBots}`;
 
@@ -861,13 +893,12 @@
                     let roi = (rPnl / variantBaseCapital) * 100;
                     let wr = st.trades > 0 ? (st.wins / st.trades) * 100 : 0;
                     let pCol = rPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-                    let pSign = rPnl >= 0 ? '+' : '';
 
                     lbHtml += `
                         <tr>
                             <td style="color:var(--text-white);">${st.name}</td>
-                            <td style="color:${pCol};">${pSign}$${Math.abs(rPnl).toFixed(2)}</td>
-                            <td style="color:${pCol};">${pSign}${roi.toFixed(1)}%</td>
+                            <td style="color:${pCol};">${fmtUSD(rPnl, true)}</td>
+                            <td style="color:${pCol};">${fmtPct(roi, true, 1)}</td>
                             <td>${st.trades}</td>
                             <td style="color:${wr >= 50 ? 'var(--accent-green)' : 'var(--text-primary)'};">${wr.toFixed(0)}%</td>
                         </tr>
@@ -881,7 +912,7 @@
                 allTrades.slice(0, 25).forEach(t => {
                     let pnl = parseFloat(t.pnl) || 0;
                     let pnlColor = pnl > 0 ? 'var(--accent-green)' : (pnl < 0 ? 'var(--accent-red)' : 'var(--text-muted)');
-                    let pnlStr = pnl !== 0 ? (pnl > 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2) : '--';
+                    let pnlStr = pnl !== 0 ? fmtUSD(pnl, true) : '--';
                     
                     let isScale = t.type && t.type.includes('Parcial');
                     let isClose = t.type && t.type.includes('Cierre');
@@ -896,7 +927,7 @@
                             <td style="color:var(--text-muted);">${timeStr}</td>
                             <td style="color:var(--text-white);">${t.asset} <span style="color:var(--text-primary); font-size:9px;">${t.tf}</span></td>
                             <td style="color:${actionColor};">${action}</td>
-                            <td>$${t.price ? t.price.toLocaleString(undefined, {minimumFractionDigits:1, maximumFractionDigits:2}) : '--'}</td>
+                            <td>${fmtPrice(t.price, 2)}</td>
                             <td style="color:${pnlColor};">${pnlStr}</td>
                         </tr>
                     `;
