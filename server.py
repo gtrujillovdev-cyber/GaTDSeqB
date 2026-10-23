@@ -14,11 +14,15 @@ TICKER_CACHE = {'BTC': [0,0], 'ETH': [0,0], 'HYPE': [0,0], 'SP500': [0,0], 'NASD
 import threading, requests
 
 def ticker_fetch_loop():
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    session = requests.Session()
+    session.headers.update(headers)
+    last_coingecko_fetch = 0
+
     while True:
         try:
-            # 1. Fetch Crypto from Binance
-            r = requests.get('https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22HYPEUSDT%22%5D', timeout=5)
+            # 1. Fetch Crypto from Binance (Reusing Keep-Alive Session)
+            r = session.get('https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22HYPEUSDT%22%5D', timeout=6)
             if r.status_code == 200:
                 for d in r.json():
                     sym = d['symbol'].replace('USDT', '')
@@ -26,21 +30,30 @@ def ticker_fetch_loop():
                     
             # 2. Fetch TradFi & Macro from Yahoo (S&P 500, NASDAQ, DXY, VIX)
             for ticker, sym in [('^GSPC', 'SP500'), ('^IXIC', 'NASDAQ'), ('DX-Y.NYB', 'DXY'), ('^VIX', 'VIX')]:
-                r = requests.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}', headers=headers, timeout=5)
-                if r.status_code == 200:
-                    data = r.json()['chart']['result'][0]['meta']
-                    price = data['regularMarketPrice']
-                    prev = data.get('chartPreviousClose', price)
-                    pct = ((price - prev) / prev) * 100 if prev else 0
-                    TICKER_CACHE[sym] = [price, pct]
+                try:
+                    r = session.get(f'https://query1.finance.yahoo.com/v8/finance/chart/{ticker}', timeout=5)
+                    if r.status_code == 200:
+                        data = r.json()['chart']['result'][0]['meta']
+                        price = data['regularMarketPrice']
+                        prev = data.get('chartPreviousClose', price)
+                        pct = ((price - prev) / prev) * 100 if prev else 0
+                        TICKER_CACHE[sym] = [price, pct]
+                except Exception:
+                    pass
 
-            # 3. Fetch BTC Dominance from CoinGecko Global API
-            r_cg = requests.get('https://api.coingecko.com/api/v3/global', headers=headers, timeout=5)
-            if r_cg.status_code == 200:
-                cg_data = r_cg.json().get('data', {})
-                btc_dom = cg_data.get('market_cap_percentage', {}).get('btc', 0.0)
-                if btc_dom > 0:
-                    TICKER_CACHE['BTCD'] = [btc_dom, 0.0]
+            # 3. Fetch BTC Dominance from CoinGecko Global API (Every 300s to respect strict rate limits)
+            now_ts = time.time()
+            if now_ts - last_coingecko_fetch > 300:
+                try:
+                    r_cg = session.get('https://api.coingecko.com/api/v3/global', timeout=6)
+                    if r_cg.status_code == 200:
+                        cg_data = r_cg.json().get('data', {})
+                        btc_dom = cg_data.get('market_cap_percentage', {}).get('btc', 0.0)
+                        if btc_dom > 0:
+                            TICKER_CACHE['BTCD'] = [btc_dom, 0.0]
+                            last_coingecko_fetch = now_ts
+                except Exception:
+                    pass
         except Exception as e:
             print(f"Error fetching ticker: {e}")
             
@@ -61,13 +74,17 @@ def add_header(response):
     return response
 
 @app.route('/')
-def index(): return render_template('index.html')
+def index():
+    from flask import redirect, url_for
+    return redirect(url_for('lite'))
 
 @app.route('/lite')
 def lite():
     from flask import make_response
     response = make_response(render_template('lite.html'))
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
     response.headers['Clear-Site-Data'] = '"cache"'
     return response
 
@@ -117,18 +134,37 @@ def api_system():
 
 TRADES_CACHE = {}
 
+_BOT_STATUS_CACHE = {'checked': 0, 'running': False}
+
+def is_bot_active():
+    now = time.time()
+    if now - _BOT_STATUS_CACHE['checked'] < 10:
+        return _BOT_STATUS_CACHE['running']
+    _BOT_STATUS_CACHE['checked'] = now
+    try:
+        # 1. Zero-cost check: bot_unified.log updated within last 8 min (cycles run every 5m)
+        if os.path.exists("bot_unified.log") and (now - os.path.getmtime("bot_unified.log") < 480):
+            _BOT_STATUS_CACHE['running'] = True
+            return True
+        # 2. In-memory psutil scan (no subprocess fork)
+        for proc in psutil.process_iter(['name', 'cmdline']):
+            cmdline = proc.info.get('cmdline') or []
+            if any('bot.py' in str(part) for part in cmdline):
+                _BOT_STATUS_CACHE['running'] = True
+                return True
+        _BOT_STATUS_CACHE['running'] = False
+        return False
+    except Exception:
+        return _BOT_STATUS_CACHE['running']
+
 def get_fleet_data():
     fleet = {}
     INITIAL_BANK = 10000.0
-    try:
-        is_running = subprocess.call("pgrep -f 'bot.py' > /dev/null", shell=True) == 0
-    except:
-        is_running = False
+    is_running = is_bot_active()
         
     for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
         fleet[asset] = {}
-        for tf in ['1h', '4h', '1d']:
-            import os
+        for tf in ['4h', '1d', '1w']:
             
             state_file = f"state_{asset}_{tf}.json"
             if os.path.exists(state_file):
@@ -199,6 +235,26 @@ def api_fleet():
 @app.route('/api/ticker')
 def api_ticker():
     return jsonify(TICKER_CACHE)
+
+_FNG_SERVER_CACHE = {'val': 68, 'classification': 'GREED', 'time': 0}
+
+@app.route('/api/fng')
+def api_fng():
+    global _FNG_SERVER_CACHE
+    now = time.time()
+    if now - _FNG_SERVER_CACHE['time'] > 1800:
+        try:
+            r = requests.get('https://api.alternative.me/fng/?limit=1', headers={'User-Agent': 'GaTDSEQ/2.2'}, timeout=4)
+            if r.status_code == 200:
+                d = r.json()
+                _FNG_SERVER_CACHE = {
+                    'val': int(d['data'][0]['value']),
+                    'classification': d['data'][0]['value_classification'].upper(),
+                    'time': now
+                }
+        except:
+            pass
+    return jsonify(_FNG_SERVER_CACHE)
 
 
 
@@ -278,23 +334,35 @@ def api_force_reload():
 
 def websocket_monitor_loop():
     last_mtimes = {}
+    loop_count = 0
+    last_broadcast_time = 0
     while True:
-        if clients > 0:
-            changed = False
-            for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
-                for tf in ['1h', '4h', '1d']:
-                    state_file = f"state_{asset}_{tf}.json"
-                    if os.path.exists(state_file):
-                        m = os.path.getmtime(state_file)
-                        if last_mtimes.get(state_file) != m:
-                            last_mtimes[state_file] = m
-                            changed = True
-            
-            if changed:
-                socketio.emit('fleet_update', get_fleet_data())
+        now_ts = time.time()
+        changed = False
+        for asset in ['BTC_TD9', 'BTC_WYK', 'BTC_HYB', 'ETH_TD9', 'ETH_WYK', 'ETH_HYB', 'HYPE_TD9', 'HYPE_WYK', 'HYPE_HYB']:
+            for tf in ['4h', '1d', '1w']:
+                state_file = f"state_{asset}_{tf}.json"
+                if os.path.exists(state_file):
+                    m = os.path.getmtime(state_file)
+                    if last_mtimes.get(state_file) != m:
+                        last_mtimes[state_file] = m
+                        changed = True
         
-        # Check every 0.5 seconds for true sub-second latency
-        time.sleep(0.5)
+        # Emit immediately on file change or every 10s as a guaranteed heartbeat
+        if changed or (now_ts - last_broadcast_time > 10):
+            try:
+                socketio.emit('fleet_update', get_fleet_data())
+            except Exception:
+                pass
+            last_broadcast_time = now_ts
+        
+        loop_count += 1
+        if loop_count % 300 == 0:
+            import gc
+            gc.collect()
+
+        # Check every 1.2 seconds: responsive real-time while halving MicroSD/kernel I/O
+        time.sleep(1.2)
 
 threading.Thread(target=websocket_monitor_loop, daemon=True).start()
 

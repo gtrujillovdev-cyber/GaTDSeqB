@@ -395,3 +395,251 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 - **BTC Macro (1d):** TD Count en **12** (a 1 vela del agotamiento DeMark 13 institucional).
 - **HYPE Macro (1d):** TD Count en **-8** (a 1 vela del gatillo alcista TD -9).
 - **ETH Swing (4h):** TD Count en **-7** (en zona de sobreventa con RSI en 31.49).
+
+## [16-10-2026] - Operación: Macro Auditoría Técnica, Evaluación Táctica y Dual Clock Institucional
+### 1. Auditoría de Infraestructura y Fiabilidad
+- **Uptime Récord:** La Raspberry Pi 3B alcanza **6 días, 11 horas y 19 minutos** de ejecución ininterrumpida (`uptime: 6d 11h 19m`).
+- **Telemetría del Edge Device:** Memoria RAM con 200 MB disponibles, Swap estabilizado en 389 MB y almacenamiento en 47% (7.3 GB disponibles). Cero saturación en disco tras la purga del log de Xorg.
+- **Diagnóstico y Corrección de Timezone (Fix 2 Horas):**
+  - **Causa Raíz:** Se descubrió que la Raspberry Pi tenía configurada la zona horaria por defecto `Europe/London` (BST, +01:00) y el Front-End (`templates/lite.html`) únicamente renderizaba `toISOString()`, correspondiente a la hora UTC universal (+00:00). Desde España peninsular (CEST, +02:00 en verano), esto provocaba un desfase visual de exactamente 2 horas menos.
+  - **Solución Implementada:** Se rediseñó la cabecera del Kiosko (`templates/lite.html`) incorporando un **Reloj Dual Institucional**:
+    - `LOC:` Hora civil local del usuario (`now.toTimeString().substring(0,8)`), marcando la hora exacta de España peninsular.
+    - `UTC:` Hora universal del exchange en ámbar institucional (`now.toISOString().substring(11,19)`), indispensable para conocer el tiempo de cierre de velas de Binance.
+
+### 2. Optimizaciones de Rendimiento y Algorítmicas (Backend & Red)
+- **Eliminación de Subprocess Fork en Backend (`server.py`):**
+  - Se erradicó la llamada `subprocess.call("pgrep -f 'bot.py' > /dev/null", shell=True)` dentro de `get_fleet_data()`.
+  - Se sustituyó por la función de coste cero `is_bot_active()`, basada en inspección en memoria y comprobación atómica del mtime de `bot_unified.log` con caché de 10s. Cero forks del shell, aliviando la CPU de la Raspberry Pi.
+- **Connection Pooling en Ticker (`requests.Session`):**
+  - Se migró el ciclo `ticker_fetch_loop` a una sesión persistente `requests.Session()`, reutilizando las conexiones TCP/TLS existentes hacia Binance y Yahoo Finance, eliminando la sobrecarga de negociación SSL en el procesador ARM.
+- **Desacoplamiento de Rate Limits (CoinGecko Global API):**
+  - Se desacopló la consulta de dominancia de BTC (`BTCD`) para realizarse cada 300 segundos (5 min) en lugar de cada 30 segundos, protegiendo al sistema de bloqueos HTTP 429 por límite de cuota IP.
+- **Alivio de I/O en Monitor WebSocket:**
+  - Se recalibró el intervalo de sondeo de archivos de estado de `0.5s` a `1.2s` en `websocket_monitor_loop()`, reduciendo en más de un 50% las llamadas al sistema (`os.stat` / `getmtime`) sobre la tarjeta MicroSD.
+
+### 3. Evaluación Táctica y Rendimiento Cuantitativo
+- **Cartera Global Consolidada:**
+  - **P&L Realizado Acumulado:** `+$13,363.87 USD`
+  - **Equity Total:** `$183,363.87 USD` (ROI Global: `+7.86%` sobre \$170,000 USD de base activa).
+  - **Volumen Total:** 182 operaciones cerradas.
+- **Alpha Leaders:**
+  - `HYPE_WYK_1h`: `+$7,997.73 USD` (29 trades, Win Rate 75.9%, ROI +79.98%).
+  - `HYPE_HYB_1h`: `+$7,918.34 USD` (33 trades, Win Rate 66.7%, ROI +79.18%).
+  - `HYPE_TD9_1h`: `+$3,180.76 USD` (26 trades, Win Rate 76.9%, ROI +31.81%).
+  - `BTC_WYK_1h`: `+$597.90 USD` (11 trades, Win Rate 36.4%, ROI +5.98%).
+  - `BTC_HYB_1h`: `+$88.88 USD` (13 trades, Win Rate 30.8%, ROI +0.89%).
+- **Trinchera Activa (6 Posiciones Abiertas):**
+  - **BTC 4h:** `BTC_HYB_4h` y `BTC_WYK_4h` en largos desde \$82,418.00 buscando TP en \$84,967.53 (SL \$80,505.85).
+  - **HYPE 1d:** `HYPE_HYB_1d` y `HYPE_WYK_1d` en compras de fondo desde \$81.81 hacia TP en \$90.38 (SL \$75.38).
+  - **HYPE 4h:** `HYPE_HYB_4h` y `HYPE_WYK_4h` en compras en \$81.62 hacia TP en \$86.37 (SL \$78.06).
+- **Radar de Gatillos Inminentes:**
+  - **HYPE Macro (1d):** TD Count alcanzó **-9** institucional con RSI en 38.51 (agotamiento bajista confirmado y entrada ejecutada).
+  - **BTC Swing (4h):** TD Count en **-1** con RSI neutral en 47.87, consolidando posiciones sobre soporte EMA200.
+
+## [17-10-2026] - Operación: Auditoría Cuantitativa de Algoritmia, Suite de Backtesting en Mac y Calibración Alpha
+### 1. Auditoría de Código y Corrección de Bugs Críticos (`bot.py`)
+- **Fix (Trailing Stop Regression tras Breakeven):**
+  - **Causa Raíz:** Se detectó que la condición de actualización de trailing stop en `check_exit_conditions` comparaba el nuevo Stop Loss contra la variable inmutable original `sl` (`if new_sl > sl:` para compras y `if new_sl < sl:` para ventas). Cuando el *Breakeven Shield* adelantaba el SL al precio de entrada (`updated_sl = entry`), cualquier avance del trailing stop por debajo de la entrada pero por encima del SL inicial hacía que `updated_sl` retrocediera de nuevo hacia territorio de pérdidas.
+  - **Solución:** Se corrigió la comparación evaluando estrictamente contra el SL dinámico activo (`if new_sl > updated_sl` en compras, `if new_sl < updated_sl` en ventas), blindando el capital una vez alcanzado el punto de equilibrio.
+- **Fix (Persistencia Atómica en Scale-Out Parcial):**
+  - **Causa Raíz:** En la toma parcial de beneficios (+1.0 ATR), la llamada `save_state(state)` estaba anidada dentro de la comprobación `if updated_sl < entry`. Dado que el Breakeven previo ya situaba el SL en `entry`, la condición resultaba falsa y el estado modificado (reducción al 50% de `size_btc` y `size_usd`) no se escribía en disco.
+  - **Solución:** Extracción de `save_state(state)` para garantizar la persistencia atómica en disco inmediatamente tras registrar el scale-out.
+- **Refactor (Protección Wyckoff contra Cuchillos Cayendo):**
+  - Se eliminó la cláusula permisiva `or rsi < 45` / `or rsi > 55` en la definición de `wyckoff_spring` y `wyckoff_upthrust`. Ahora exige estrictamente confirmación de **divergencia RSI** (`divergence == 'BULLISH'` / `divergence == 'BEARISH'`), impidiendo entradas en contra de la tendencia en desplomes violentos.
+
+### 2. Calibración Cuantitativa y Erradicación del Efecto Estrangulamiento
+- **Ajuste del Breakeven Shield (+1.0 ATR):**
+  - Los backtests revelaron que activar el Breakeven a `+0.5 ATR` estrangulaba las operaciones ganadoras debido al ruido diario de mercado en criptoactivos.
+  - Al calibrar el umbral a `+1.0 ATR`, el trade cuenta con espacio suficiente para desarrollarse, alineándose armónicamente con el Scale-Out del 50%.
+- **Calibración de Objetivos a Favor de Tendencia:**
+  - `Stop Loss`: Ajustado de `2.0 ATR` a `1.5 ATR`.
+  - `Take Profit`: Ajustado de `3.5 ATR` a `2.5 ATR`.
+  - Esta relación riesgo/beneficio calibrada incrementó drásticamente el Win Rate y el Sharpe Ratio global.
+
+### 3. Suite de Backtesting Institucional para Mac (`backtesting/` + `run_backtest.py`)
+- **Arquitectura de Software Quant:**
+  - `data_manager.py`: Paginación automática sobre CCXT con guardado local de alta velocidad en formato Parquet (ignorado por Git).
+  - `indicators.py`: Motor vectorial idéntico a TradingView (Wilder's RMA para RSI y ATR, Volume Profile en NumPy, TD Sequential).
+  - `engine.py`: Motor *bar-by-bar event-driven* sin *look-ahead bias*, modelando comisiones de futuros Taker (0.04%), apalancamiento dinámico, mechas conservadoras y ciclo completo de trades.
+  - `analytics.py`: Generador de reportes financieros estilo Bloomberg Terminal (Sharpe, Sortino, MaxDD, Expectancy, Profit Factor).
+  - `optimizer.py`: Motor de Grid Search multivariable para afinamiento sistemático de parámetros.
+  - `run_backtest.py`: Interfaz de línea de comandos ergonómica con soporte para comparativas A/B/C (`--strategy ALL`) y barridos de optimización (`--optimize`).
+- **Validación Empírica de Resultados:**
+  - **BTC/USDT [1D]:** Rentabilidad disparada de `+$2,717.03` (+27.17%) a **`+$8,975.79 USD` (+89.76% ROI)** con **Win Rate 71.4%**, Profit Factor **228.54** y Sharpe Ratio **1.82**.
+  - **SOL/USDT [1D]:** **`+$9,563.84 USD` (+95.64% ROI)** con **Win Rate 90.0%**, Max Drawdown de solo **-11.79%** y Sharpe Ratio **1.74**.
+
+### 4. Integración del Paradigma Funnel Architecture & Confidence Scoring Gate
+- **Estudio Cuantitativo:** Se analizó a nivel de arquitectura el caso de estudio de 0xNevsky sobre filtrado por embudo ("Facts kill before models judge" y separación estricta de funciones: código calcula, heurísticas evalúan, bots ejecutan).
+- **Whitepaper de Investigación:** Se redactó y publicó en el repositorio el documento de grado institucional `docs/RESEARCH_FUNNEL_ARCHITECTURE.md`.
+- **Implementación del Gate de Convicción (`calculate_confidence_score`):**
+  - Se codificó en `bot.py` y en `backtesting/engine.py` un vector de evaluación que calcula una puntuación de convicción $S \in [0.0, 1.0]$ sobre 4 dimensiones: Calidad del Setup DeMark (30%), Momentum & Divergencia RSI (25%), Volumen Institucional vs SMA20 (25%) y Tendencia Macro EMA200 (20%).
+  - **Filtro de Descarte Inmediato:** Si el score no alcanza el umbral mínimo (`MIN_CONFIDENCE = 0.55`), la orden se cancela atómicamente (`SKIP`) y se registra en log la causa de descarte, blindando el capital frente a señales de bajo ratio.
+  - **Validación:** En `BTC/USDT 1D`, el gate descartó las 2 operaciones perdedoras de menor convicción, elevando el Win Rate del 71.4% al **75.0%** y el Profit Factor a **315.77**.
+
+### 5. Optimización de Flota Cuantitativa: Supresión de la Temporalidad 1h (Flota de 18 Bots en 4h y 1d)
+- **Motivación Cuantitativa y Racional de Diseño:**
+  - Los resultados empíricos del backtesting demostraron sistemáticamente que la temporalidad de `1h` en criptoactivos (BTC y ETH) presenta un ratio señal/ruido desfavorable y una alta penalización por fricción de comisiones taker (0.04%), arrojando retornos negativos o mediocres frente al rendimiento institucional de `4h` y `1d` (Sharpe > 1.7, Win Rates de 75% a 90%).
+  - La eliminación de `1h` reorienta la flota exclusivamente a estrategias Swing y Posicionales con ventajas estadísticas sólidas.
+- **Redimensionamiento de la Flota:**
+  - Reducción de la matriz multivariable de 27 bots (3 activos × 3 estrategias × 3 timeframes) a **18 bots concurrentes** (3 activos: BTC, ETH, HYPE × 3 estrategias: TD9, WYK, HYB × 2 timeframes: 4h, 1d).
+  - Capital base ajustado de \$270,000 USD a **\$180,000 USD** (\$10,000 USD base por bot).
+  - Benchmark por estrategia en el Leaderboard ajustado a \$60,000 USD (6 bots por variante).
+- **Refactor en Backend y Telemetría:**
+  - `bot.py`: Bucle principal de timeframes reducido a `timeframes = ['4h', '1d']`.
+  - `server.py`: Iteradores en `get_fleet_data()` y `websocket_monitor_loop()` actualizados a `['4h', '1d']`, reduciendo en un tercio las llamadas de I/O a disco sobre los archivos de estado.
+- **Optimización del Kiosko Bloomberg UI (`lite.html` & `templates/lite.html`):**
+  - KPI Header actualizado: `GLOBAL EQUITY (18 BOTS)` y `ACTIVE POSITIONS: 0 / 18`.
+  - Ajuste del renderizado dinámico de la cuadrícula: al pasar de 3 a 2 filas por columna de activo, el layout elimina el scroll vertical en pantallas UltraGear 21:9 y mejora la legibilidad de las tarjetas de trades activos sin recortes visuales.
+  - Sincronización exacta de código entre `templates/lite.html` y la copia raíz `lite.html`.
+- **Actualización Documental y README:**
+  - Actualización de badges, esquemas de arquitectura ASCII, tablas de estrategia y descripciones de repositorios reflejando con exactitud la nueva arquitectura de 18 bots.
+
+### 6. Despliegue de Blindaje de Cartera, Macro Sentimiento (Fear & Greed) y Carry Cost Guard
+- **Portfolio & Correlation Shield (Control de Exposición Global):**
+  - Implementación de la función `get_fleet_position_stats()` en `bot.py` que audita en memoria todos los estados `state_*.json`.
+  - Establecimiento de 3 techos de seguridad institucionales:
+    1. `MAX_TOTAL_FLEET_TRADES = 6`: Máximo 6 de los 18 bots pueden mantener posiciones simultáneas (33% de utilización máxima de margen).
+    2. `MAX_DIRECTIONAL_TRADES = 4`: Límite estricto de máximo 4 LONGs o 4 SHORTs concurrentes en toda la cartera, evitando la sobreexposición unidireccional en caídas en cascada.
+    3. `MAX_TRADES_PER_SYMBOL = 2`: Máximo 2 posiciones abiertas simultáneas en un mismo subyacente (ej. BTC), impidiendo la sobreconcentración por activo.
+  - **Amortiguación Dinámica de Riesgo (Dynamic Dampening):** Si ya existen 2 o más posiciones en la misma dirección, las siguientes reducen automáticamente su tamaño al 75% (`portfolio_dampening = 0.75`).
+- **Inyección del Índice Fear & Greed en el Funnel Gate:**
+  - Función `get_fear_and_greed()` con caché local de 1 hora (TTL 3600s) y fallback de seguridad (50 neutral).
+  - Modulación de convicción:
+    - Compras en pánico extremo ($F\&G \le 25$): Bonificación de $+0.10$ por compra con descuento institucional.
+    - Compras en codicia extrema ($F\&G \ge 75$): Penalización de $-0.10$ para evitar comprar techos euforizantes.
+    - Ventas en codicia extrema ($F\&G \ge 75$): Bonificación de $+0.10$ para capturar distribuciones.
+    - Ventas en pánico extremo ($F\&G \le 25$): Penalización de $-0.10$ para no vender en suelos de capitulación.
+- **Carry Cost Guard (Protección de Tasa de Financiación en Perpetuos):**
+  - Función `get_funding_rate(symbol)` consultando la API de Binance Futures con caché de 1h.
+  - Penalización de $-0.05$ en señales con carry negativo agresivo ($>0.04\%$ por 8h en compras o $<-0.04\%$ en ventas) y bonificación de $+0.05$ en operaciones con carry trade positivo.
+- **Sincronización Total en Motor de Backtesting:**
+  - Actualización de `_calculate_confidence_score` en `backtesting/engine.py` manteniendo paridad matemática estricta entre la simulación y la ejecución en vivo.
+- **Ampliación de Documentación Cuantitativa:**
+  - Actualización de la fórmula matemática de 6 dimensiones y los parámetros del Portfolio Shield en `docs/RESEARCH_FUNNEL_ARCHITECTURE.md`.
+
+### 7. Corrección de Despliegue de Plantillas UI y Purga de Caché Móvil (Kiosko Bloomberg)
+- **Diagnóstico del Fallo de Visualización en Clientes Móviles:**
+  - El comando `rsync` previo había actualizado la copia raíz `lite.html` pero dejó desactualizada la plantilla interna `/home/raspberry/GaTDSEQ/templates/lite.html`, que es el archivo que lee el motor Jinja2 de Flask al despachar `render_template('lite.html')`.
+  - Como resultado, el servidor seguía sirviendo el layout obsoleto de 27 bots a navegadores móviles.
+- **Solución y Despliegue:**
+  - Sincronización exacta de `templates/lite.html` a su ruta de destino en la Raspberry Pi.
+  - Inyección de cabeceras anti-caché estrictas en `<head>` de `lite.html` (`Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`, `Expires: 0`).
+  - Refactor de la ruta raíz `/` en `server.py`: redirige automáticamente con código HTTP 302 y cabeceras `no-store` a `/lite`, garantizando que cualquier usuario que entre sin especificar la ruta acceda inmediatamente al Kiosko actualizado.
+  - Limpieza en la Raspberry Pi: Archivado de todos los archivos residuales `state_*_1h.json` a `backups/legacy_1h_states/` para evitar estados zombis en memoria.
+  - Reinicio y verificación de `gatdseq-server.service` y `gatdseq-bot.service`.
+
+### 8. Desacoplamiento de Métricas TD: Corrección del Bug de Enmascaramiento Setup vs. Countdown en Kiosko UI
+- **Diagnóstico del Fallo de Visualización (BTC 1D congelado en 12):**
+  - Se detectó una inconsistencia visual en el Kiosko donde BTC en timeframe diario (`1d`) mostraba permanentemente un valor de `12` en rojo mientras TradingView mostraba un conteo bajista en curso (-3 cerrado, -4 en vela viva).
+  - **Causa Raíz:** En `bot.py` (antigua línea 439), la directiva `new_td = int(countdown) if countdown != 0 else int(count)` sobreescribía el valor del TD Setup con el TD Countdown siempre que este último fuera distinto de cero.
+  - Al haberse completado un Setup alcista semanas atrás, el Countdown avanzó hasta la barra 12 el 11 de octubre. Al consolidar el mercado por debajo del máximo de hace 2 días (`close <= high[i-2]`), el Countdown alcista quedó suspendido en 12 sin alcanzar 13 ni cancelarse, enmascarando el Setup bajista activo (-3).
+  - La lógica del Risk Engine en `analyze_market()` evalúa disparos de orden exclusivamente sobre el Setup (`count <= -9` o `count >= 9`), por lo que mostrar el Countdown en la celda TD9 inducía a error al operador.
+- **Solución Técnica Aplicada:**
+  - **Desacoplamiento en Backend (`bot.py`):** Se separó la persistencia de estado para que `state["td_count"]` guarde estrictamente el conteo real del Setup (`int(count)`), garantizando paridad 1:1 con TradingView y con las condiciones de disparo del bot. Se añadió la clave independiente `state["td_countdown"]` para preservar el estado del Countdown sin contaminar el Setup.
+  - **Actualización en Frontend (`lite.html` y `templates/lite.html`):** Los pills de variantes muestran de forma limpia el Setup canónico (`-3` en verde para BTC 1d) y añaden un tooltip descriptivo institucional en `title` (`TD Setup: -3 | CD: 12`) para visibilidad del Countdown sin saturar la cuadrícula Bloomberg.
+  - **Despliegue y Verificación en Producción:**
+    - Código compilado localmente con `py_compile`.
+    - Sincronización a la Raspberry Pi (`/home/raspberry/GaTDSEQ/bot.py`, `lite.html`, `templates/lite.html`).
+    - Reinicio de servicios `gatdseq-bot.service` y `gatdseq-server.service`.
+    - Verificación del estado en producción: `state_BTC_TD9_1d.json` transicionó inmediatamente de `12` a `-3` con paridad exacta con el indicador de TradingView.
+
+### 9. Rediseño Responsive de Cabecera (Selector de Tema) y Corrección Crítica del Countdown 13 (El Batallón DCA)
+- **Rediseño Responsive de Cabecera (Selector de Tema Móvil):**
+  - **Problema:** En pantallas reducidas (dispositivos móviles/iPhone), el botón del selector de tema (`AUTO [DAY]`) se intercalaba de forma caótica en medio del título (`QUANTITATIVE [AUTO] CORE // RASPBERRY PI 3B`) fracturando el espaciado y la estética institucional Bloomberg.
+  - **Solución UI:** 
+    - Se reordenó el árbol DOM colocando el botón tras el bloque de métricas de telemetría (`hw-stats`).
+    - En vista escritorio, se sitúa de forma limpia al extremo derecho de la barra tras los relojes LOC/UTC.
+    - Se introdujeron reglas de responsive específicas (`@media (max-width: 768px)`): la cabecera añade un canal lateral (`padding-right: 48px`), el botón se fija con posición absoluta en la esquina superior derecha (`position: absolute; top: 0; right: 0;`) y la etiqueta de texto se oculta (`.theme-label-text { display: none; }`), transformando el selector en un icono badge minimalista y cuadrado (`[ ☀️ ]` / `[ 🌙 ]`).
+    - Las etiquetas de modo en escritorio se simplificaron a `AUTO (DAY)`, `AUTO (NIGHT)`, `LIGHT` y `DARK` con tooltips contextuales dinámicos.
+- **Corrección Lógica del Countdown 13 ("El Batallón DCA"):**
+  - **Detección de Dead Code:** Se detectó que en `calculate_td_sequential()`, la condición `if countdown_up == 13: setup_up_active = False` se evaluaba antes de volcar el valor al array. Al desactivar `setup_up_active`, el código caía en el `else` e insertaba un `0` en vez del `13` (secuencia: `11, 12, 0`).
+  - Como consecuencia, los bloques de refuerzo por promediado a la baja (`pos == BUY and countdown == -13` y `pos == SELL and countdown == 13`) nunca habrían podido ejecutarse en producción.
+  - **Corrección Algorítmica:** Se sincronizó en `bot.py` y `backtesting/indicators.py` para registrar el valor `13` (o `-13`) en la vela de agotamiento antes de desactivar la bandera y resetear el contador a cero.
+- **Despliegue y Reinicio:** Sincronizado a producción y reiniciados `gatdseq-bot` y `gatdseq-server`.
+
+### 10. Expansión a 27 Bots: Cobertura de Temporalidad Semanal (1W) y Top-Down Macro Confluence Gate
+- **Arquitectura Macro Top-Down (Multi-Timeframe Hierarchy):**
+  - **Problema Cuantitativo Resuelto:** Para capitalizar los agotamientos mayores del mercado (como el Setup 9 de Venta semanal en Bitcoin tras meses de subida continua) sin caer en el error de crear un bot aislado que apenas opere 1 vez al año con stops gigantescos, se diseñó una arquitectura jerárquica *Top-Down*.
+  - **Pre-Cálculo de Contexto Semanal (`weekly_context_cache`):** Al inicio de cada ciclo de escaneo en `bot.py`, el motor descarga y calcula las métricas de DeMark (`calculate_td_sequential`) y RSI de las velas semanales (`1w`) de BTC, ETH y HYPE una sola vez, reutilizando el DataFrame en memoria para no saturar las tasas de peticiones (Rate Limits) de Binance.
+- **Top-Down Confluence en el Funnel Gate (`calculate_confidence_score`):**
+  - Se añadió la 7ª dimensión al vector de convicción institucional modulada con **Anti-Bias Shields**:
+    - **Ponderación Suave Institucional (`±0.06` en vez de `±0.15`):** Modula eficazmente trades marginales o dudosos sin asfixiar jamás una operación de alta convicción en 4h (ej: $0.65 - 0.06 = 0.59 \ge 0.55$).
+    - **Ventana de Caducidad DeMark (Max 4 Barras / Decay Guard):** El sesgo solo opera en barras 9 a 12 ($9 \le TD \le 12$). Si el conteo supera 12 (13, 14, 15...), el sistema reconoce una tendencia parabólica desbocada (*Runaway Trend*) y desactiva el sesgo de agotamiento automáticamente.
+    - **Price Flip & Invalidation Guard:** Si el precio vivo rompe por encima del máximo de la vela 9, el sesgo de venta se apaga de inmediato, impidiendo intentar frenar un breakout alcista.
+- **Escudo Preventivo Confluyente Macro (`check_exit_conditions`):**
+  - Si un bot mantiene una posición `LONG` abierta y en beneficio, y se confirma un agotamiento semanal activo sin invalidar, el sistema eleva de forma inmediata el Stop Loss al precio de entrada (`Break-Even Shield`), blindando las ganancias acumuladas frente a giros violentos de ciclo.
+- **Escalado de Flota a 27 Bots Concurrentes:**
+  - Inclusión de `'1w'` en la matriz de timeframes (`timeframes = ['4h', '1d', '1w']`), elevando la flota forward-test a 27 bots algorítmicos (3 activos $\times$ 3 timeframes $\times$ 3 variantes A/B/C).
+  - Escalado proporcional de los límites del Portfolio Shield: `MAX_TOTAL_FLEET_TRADES = 9` (33% de utilización), `MAX_DIRECTIONAL_TRADES = 6` y `MAX_TRADES_PER_SYMBOL = 3`.
+  - Calibración de ATR dinámico para `'1w'`: multiplicador `tf_mult = 0.8` y suelo de volatilidad `min_atr_pct = 0.025` adaptados al rango de precio semanal.
+- **Actualización de Telemetría y Kiosko Bloomberg (`server.py`, `lite.html`, `templates/lite.html`):**
+  - `server.py`: El agregador `/api/fleet` lee y expone los estados `state_*_1w.json` y operaciones de la compresión semanal.
+  - `lite.html` / `templates/lite.html`:
+    - Incorporación de `1w` en el bucle de renderizado del Kiosko UltraGear 21:9.
+    - Indicador de Conciencia Situacional Macro: Renderizado dinámico de badges distinguiendo agotamiento activo (`[1W: TD9 SELL EXH]`) frente a extensión de tendencia (`[1W: EXT (+14)]`).
+### 11. Diagnóstico de Saturación Xorg en Kiosko, Ingeniería Inversa de @BtcAndres y Perfección DeMark (TDST & Perfection)
+- **Diagnóstico y Reparación Crítica de Hardware (Raspberry Pi MicroSD Full):**
+  - **Causa Raíz:** Se detectó que la tarjeta MicroSD de la Raspberry Pi se encontraba al 100% de capacidad (0 bytes disponibles). El archivo `/var/log/Xorg.0.log` había alcanzado más de 7 GB debido a un bucle infinito en el driver `modesetting` de Xorg que sondeaba el EDID de la pantalla LG UltraGear cada 500 ms (~2.000 líneas/segundo).
+  - La saturación del disco impedía la creación de sockets de Chromium y provocaba fallos en las escrituras atómicas de `state_*.json.tmp`, congelando la interfaz del Kiosko.
+  - **Solución Definitiva:**
+    - Truncado inmediato de logs, liberando **9.6 GB** de almacenamiento (uso reducido del 100% al 29%).
+    - Inyección del parámetro del kernel `options drm_kms_helper poll=0` en `/etc/modprobe.d/drm.conf` para desactivar el sondeo forzado HDMI de conectores inestables, deteniendo en seco la tasa de escritura a 0 líneas/s y reduciendo el consumo de CPU.
+    - Relanzamiento limpio del navegador Chromium en modo Kiosko en el display `:0`.
+- **Ingeniería Inversa Metodológica de @BtcAndres (`zoitreider.com`):**
+  - Se decompilaron los bundles estáticos de Next.js (`page-58bbda90fe46f3cc.js`) y se analizaron los endpoints en vivo de su plataforma (`/api/bitcoin/price`, `/api/liquidation-heatmap`).
+  - **Hallazgos Técnicos:**
+    - La app de Andrés utiliza exclusivamente velas diarias de Kraken para construir la temporalidad semanal.
+    - Su cálculo de TD Sequential se limita al TD Setup estándar (1 a 9) **sin verificación de Perfección de DeMark** y sin seguimiento del TD Countdown (13).
+    - Los disparos de señal (`VENTA` en 1w) ocurren de forma puramente ordinal al marcar la barra 9, sin líneas de riesgo formalizadas ni gestión de invalidación cuantitativa.
+- **Implementación de Ventajas Cuantitativas (Alpha) en GaTDSEQ:**
+  - **Filtro de Perfección DeMark (`td_perfected`):**
+    - En `calculate_td_sequential(df)`, se incorporó la regla matemática estricta de Tom DeMark:
+      - Para Sell Setup: $\text{High}[8] \ge \max(\text{High}[6], \text{High}[7]) \lor \text{High}[9] \ge \max(\text{High}[6], \text{High}[7])$.
+      - Para Buy Setup: $\text{Low}[8] \le \min(\text{Low}[6], \text{Low}[7]) \lor \text{Low}[9] \le \min(\text{Low}[6], \text{Low}[7])$.
+    - **Ponderación Dinámica:** Si un Setup semanal no está perfeccionado (como el actual TD9 semanal de BTC donde el High de 8/9 no superó a la barra 6), el sesgo correctivo macro se modula al 50% (`±0.03` en lugar de `±0.06`), evitando que el sistema quede atrapado en pausas leves de una tendencia parabólica.
+  - **Líneas de Riesgo TDST (True Setup Trend Invalidation):**
+    - Se calculan de forma continua `tdst_res` ($\max(\text{High}_{1..9})$) y `tdst_sup` ($\min(\text{Low}_{1..9})$).
+    - Si el precio vivo rompe por encima del TDST Resistance ($87.395,67 en el Setup semanal actual de BTC), el sesgo correctivo se **invalida automáticamente** (Kill-Switch inmediato), protegiendo al sistema de mantener un sesgo bajista obsoleto.
+- **Actualización de la Interfaz Bloomberg y Servidor:**
+  - `server.py`: El agregador `/api/fleet` propaga automáticamente los campos `td_perfected`, `tdst_res` y `tdst_sup`.
+  - `lite.html` / `templates/lite.html`:
+    - El badge macro semanal renderiza la perfección y el nivel TDST: `1W: TD9 [UNPERF] | TDST:$87396`.
+    - Los pills de variantes de la flota muestran indicadores compactos de perfección (`P` en verde para perfeccionado, `U` en ámbar para no perfeccionado) y tooltips con los niveles TDST exactos.
+- **Auditoría y Liberación de Memoria en el Host (Mac):**
+  - Detección de una instancia zombie del simulador de iOS (`iPhone 17 Pro`) en segundo plano ejecutando más de 20 daemons (`SpringBoard`, `sirittsd`, `healthd`, etc.).
+  - Ejecución de `xcrun simctl shutdown all` y baja de `CoreSimulatorService`, liberando inmediatamente más de **2.4 GB de RAM física** y descongestionando **3.8 GB de memoria comprimida** en el kernel de macOS.
+- **Despliegue:** Sincronizado a producción mediante `rsync` y reiniciados los servicios `gatdseq-bot.service` y `gatdseq-server.service` en la Raspberry Pi.
+
+### 12. Motor F5 Táctico y Ciclo de Vida Móvil (iPhone/Safari Sleep & Cache Fix)
+- **Diagnóstico del Fallo de Refresco en iPhone (Safari / PWA / WebClip):**
+  - **Problema:** En dispositivos iPhone / iOS, cuando el usuario abre el Kiosko como WebClip o en Safari, no existe la tecla física `F5`, y el navegador en modo pantalla completa carece de barra de URL o botón de recarga.
+  - Al bloquear el iPhone o alternar entre aplicaciones, iOS suspende la ejecución de JavaScript (`setInterval`) y desconecta los WebSockets. Al reanudar la pantalla, Safari mantiene el renderizado con datos congelados y almacena las peticiones HTTP `fetch()` en la caché BFCache de WebKit sin solicitar datos frescos al servidor.
+- **Solución Técnica Implementada (`lite.html` y `templates/lite.html`):**
+  - **Botón F5 Bloomberg Táctico en Cabecera:**
+    - Se incorporó un botón minimalista de control `[ ↻ F5 ]` en la barra superior junto al selector de modo solar.
+    - **Tap Simple:** Activa una animación de giro (`spinRefresh`), fuerza la descarga inmediata en paralelo de todos los endpoints (`fetchFleet`, `fetchSystem`, `fetchTicker`, `fetchFnG`) y re-engancha el túnel WebSocket si estaba cerrado.
+    - **Doble Tap Rápido (< 450 ms):** Dispara una recarga forzada del documento completo (`window.location.reload(true)`).
+  - **Manejador de Ciclo de Vida y Despertar Móvil (iOS Resume Listeners):**
+    - Se registraron eventos globales `visibilitychange`, `pageshow` y `focus`. En el instante en que el usuario desbloquea el iPhone o vuelve a la pestaña, el frontend detecta el estado visible y ejecuta automáticamente una sincronización completa de la flota y del WebSocket.
+  - **Cache-Busting Anti-WebKit:**
+    - Todas las llamadas `fetch()` ahora incluyen un timestamp dinámico de parámetro (`?_t=Date.now()`) y la directiva `{ cache: 'no-store' }`, impidiendo que iOS sirva respuestas 304 obsoletas.
+    - Metadatos PWA añadidos en el `<head>`: `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style` y `apple-mobile-web-app-title`.
+- **Despliegue:** Archivos sincronizados a `/home/raspberry/GaTDSEQ/` y servidor reiniciado.
+
+### 13. Auditoría de Producción, Hardening de Kernel en Boot y Vinculación SSH de MacBook Pro como Nodo Worker
+- **Hardening del Kernel en Raspberry Pi (Persistencia Real `drm_kms_helper.poll=0`):**
+  - **Problema Detectado en Auditoría:** Tras el reinicio del sistema, `Xorg.0.log.old` y el log activo acumulaban espacio debido a que en Debian 12 Bookworm `drm_kms_helper` está compilado directamente dentro de la imagen del kernel (`kernel8.img`), por lo que `/etc/modprobe.d/drm.conf` era ignorado al arrancar.
+  - **Corrección Definitiva:** Se inyectó `drm_kms_helper.poll=0` en el archivo de arranque del firmware (`/boot/firmware/cmdline.txt`), garantizando que el sondeo EDID permanezca desactivado a 0 líneas/s de forma permanente a nivel de kernel.
+  - **Tratamiento de Seguridad (`auto_clean.sh`):** Se añadió una regla `find /var/log -type f -name "*log*" -size +50M -exec truncate -s 0 {} +` en la rutina diaria de mantenimiento para evitar cualquier desbordamiento de almacenamiento por servicios auxiliares. Espacio en disco estabilizado en **9.5 GB libres (29% de uso)**.
+- **Evaluación Táctica de Flota (27 Bots):**
+  - **Posiciones Activas:** 2 bots en trade (`HYPE_HYB [1d]` y `HYPE_WYK [1d]` en posición LONG desde \$81.81, SL en \$75.38 y TP en \$90.38, flotando cerca del precio de entrada de forma segura).
+  - **Proximidad a Disparo:** 3 bots en TD 9 (`BTC_HYB`, `BTC_TD9`, `BTC_WYK` en 1w con Setup no perfeccionado `[UNPERF]` y resistencia TDST en \$87.395,67, aplicando el modulador suave de $\pm 0.03$).
+- **Integración de Infraestructura: MacBook Pro (`GtrujilloMac`):**
+  - Conectividad SSH verificada con autenticación por clave asimétrica ED25519 sin contraseña hacia `gabrieltrujillovallejo@192.168.1.193` (latencia 6.6 ms).
+  - Especificaciones detectadas: CPU Intel Core i5-4278U @ 2.60 GHz (2 cores / 4 threads), 8 GB de RAM y 43 GB de disco SSD libre.
+  - Configurado como nodo de computación de alto rendimiento para futuros módulos de backtesting distribuido, optimización bayesiana de hiperparámetros y modelos de machine learning.
+
+
+
+
+

@@ -5,7 +5,7 @@
 [![Frontend UI](https://img.shields.io/badge/Interface-Bloomberg%20Terminal%2021:9-ffb000?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
 
-**GaTDSEQ** is an autonomous, high-frequency/swing quantitative trading engine and real-time execution kiosk designed from the ground up for low-power ARM Edge hardware (Raspberry Pi 3B, 1GB RAM). Operating on perpetual crypto markets (BTC, ETH, HYPE), the system runs an automated multivariate **A/B/C testing matrix across 27 concurrent algorithmic bots**, orchestrating DeMark Sequential, Wyckoff volume analysis, dynamic risk management shields, and a zero-latency Bloomberg-style monitoring console.
+**GaTDSEQ** is an autonomous, swing quantitative trading engine and real-time execution kiosk designed from the ground up for low-power ARM Edge hardware (Raspberry Pi 3B, 1GB RAM). Operating on perpetual crypto markets (BTC, ETH, HYPE), the system runs an automated multivariate **A/B/C testing matrix across 27 concurrent algorithmic bots**, orchestrating DeMark Sequential, Wyckoff volume analysis, Top-Down Weekly Macro Confluence, dynamic risk management shields, and a zero-latency Bloomberg-style monitoring console.
 
 ---
 
@@ -33,6 +33,7 @@
                       ┌──────────────────────────────────────────────┐
                       │          QUANTITATIVE ENGINE (bot.py)        │
                       │  - 27 Algorithmic Bots Concurrently Evaluated │
+                      │  - Top-Down 1W Weekly Macro Confluence Gate   │
                       │  - Precision DeMark TD Sequential (9 / 13)   │
                       │  - Wyckoff Phase Detection & Volume Spikes   │
                       │  - Wilders Smoothing RSI & Dynamic Floor ATR │
@@ -59,6 +60,7 @@
                       │  - Strict Bloomberg Amber/Mono Aesthetic     │
                       │  - Client-Side Visual P&L / Trailing Ranges  │
                       │  - A/B/C Comparative Alpha Leaderboard       │
+                      │  - Top-Down 1W Situational Awareness Badges  │
                       └──────────────────────────────────────────────┘
 ```
 
@@ -70,7 +72,7 @@ The system operates strictly as a decoupled **two-tier architecture**:
 
 ## 🔬 Quantitative Strategy Matrix (A/B/C Framework)
 
-GaTDSEQ trades across 3 primary assets (**BTC**, **ETH**, **HYPE**) over 3 strategic timeframes (**1h**, **4h**, **1d**), yielding 9 core trading lanes. Each lane is cloned into an **A/B/C strategy archetype**, resulting in **27 concurrent virtual bots** forward-testing different mathematical hypotheses simultaneously:
+GaTDSEQ trades across 3 primary assets (**BTC**, **ETH**, **HYPE**) over 3 macro timeframes (**4h**, **1d**, **1w**), yielding 9 core trading lanes. Each lane is cloned into an **A/B/C strategy archetype**, resulting in **27 concurrent virtual bots** forward-testing different mathematical hypotheses simultaneously:
 
 | Archetype | Identifier | Core Quantitative Thesis | Filter Mechanism |
 | :--- | :--- | :--- | :--- |
@@ -80,7 +82,7 @@ GaTDSEQ trades across 3 primary assets (**BTC**, **ETH**, **HYPE**) over 3 strat
 
 ### Capital Allocation & Margin Rules
 - **Isolated Portfolio Model:** Each bot operates with a dedicated virtual equity tranche (\$10,000 USD base), preventing cross-contamination of performance metrics.
-- **Dynamic Risk Sizing:** Allocation expands on higher timeframes (1D: 2.5x base risk) where signal-to-noise ratio is maximized, and contracts on high volatility scalps (1h: 1.0x base risk).
+- **Dynamic Risk Sizing:** Allocation expands on macro timeframes (1W: 3.0x base risk, 1D: 2.5x base risk) where signal-to-noise ratio is maximized, maintaining controlled exposure on swing entries (4h: 1.5x base risk).
 
 ---
 
@@ -91,20 +93,19 @@ The execution layer implements defensive risk mechanics engineered to preserve c
 ```
  Entry Price
      │
-     ├───────────────────► [+0.5 ATR]  BREAK EVEN SHIELD TRIGGERED
-     │                                 Stop Loss moved to Entry Price + Fees. Zero downside risk.
-     │
-     ├───────────────────► [+1.0 ATR]  SYMMETRIC SCALE-OUT EXECUTED
+     ├───────────────────► [+1.0 ATR]  BREAK EVEN SHIELD & SCALE-OUT (50%)
+     │                                 Stop Loss moved to Entry Price (Zero Risk).
      │                                 50% of position size closed at market. Locks realized alpha.
-     │                                 Trailing Stop Loss latches onto remaining 50%.
+     │                                 Monotonic Trailing Stop Loss latches onto remaining 50%.
      │
      └───────────────────► [Take Profit Level] 100% POSITION CLOSED
 ```
 
-### Key Risk Modules
-- **0.5 ATR Break Even Shield:** Once unrealized profit reaches half of the current Average True Range ($+0.5\times\text{ATR}$), the Stop Loss is automatically repositioned to the exact entry price plus estimated taker fees.
+### Key Risk & Funnel Modules
+- **Multi-Stage Funnel Filter (Confidence Gate):** All prospective signals must pass a 4-dimensional conviction vector (DeMark Setup Purity, RSI Extreme/Divergence, Institutional Volume vs SMA20, and Macro EMA200 Trend). Signals with $S < 0.55$ are automatically skipped (`SKIP`), dodging low-conviction noise trades.
+- **1.0 ATR Break Even Shield:** Once unrealized profit reaches Average True Range ($+1.0\times\text{ATR}$), the Stop Loss is automatically repositioned to the exact entry price. Calibrated to eradicate the "Choke Effect" of premature 0.5 ATR triggers.
 - **1.0 ATR Symmetric Scale-Out:** When favorable momentum hits $+1.0\times\text{ATR}$, 50% of the active position is closed immediately at market price. Realized profit is locked, and the trade card is badged with `[💰 50% SCALED]`.
-- **Dynamic Floor ATR:** To prevent Stop Loss collapse during prolonged low-volatility consolidations, a floor clamp ($ATR_{\text{min}} = \max(ATR, 0.005 \times Price)$) prevents premature stop-outs during noise sweeps.
+- **Dynamic Floor ATR:** To prevent Stop Loss collapse during prolonged low-volatility consolidations, a floor clamp ($ATR_{\text{min}} = \max(ATR, 0.006 \times Price)$) prevents premature stop-outs during noise sweeps.
 - **TD-13 DCA & Exhaustion Battalion:** If an active trade faces extended counter-momentum that reaches a DeMark Countdown 13, the system initiates a calculated dollar-cost average tranche to lower average entry price before mean reversion.
 
 ---
@@ -113,7 +114,7 @@ The execution layer implements defensive risk mechanics engineered to preserve c
 
 Built strictly adhering to the **Bloomberg Terminal Aesthetic** (Black `#000000`, Amber `#ffb000`, Bright Green `#00ff66`, Pure Red `#ff3333`, Monospace font, and 0px border radius):
 
-- **Zero-Scroll Multi-Asset Grid:** The entire 27-bot fleet is grouped into 3 vertical macro-columns (`BTC`, `ETH`, `HYPE`), subdivided into horizontal `[WYK | HYB | TD9]` rows per timeframe (`1h`, `4h`, `1d`), fitting entirely without vertical scrolling on 1080p and 1440p ultrawide displays.
+- **Zero-Scroll Multi-Asset Grid:** The entire 27-bot fleet is grouped into 3 vertical macro-columns (`BTC`, `ETH`, `HYPE`), subdivided into horizontal `[WYK | HYB | TD9]` rows per timeframe (`4h`, `1d`, `1w`), fitting cleanly on 1080p and 1440p ultrawide displays with enhanced visual breathing room.
 - **Real-Time Client-Side Math:** All trailing distance calculations, unrealized P&L in USD and ROE (%), and progress range bars are computed on the client's V8 engine using pure Vanilla JavaScript, maintaining 0% CPU consumption on the Raspberry Pi server.
 - **A/B/C Comparative Leaderboard:** Displays real-time aggregate performance, realized P&L, Win Rate, and trade frequency comparison between TD9, Wyckoff, and Hybrid strategies.
 - **Institutional Order Ledger:** Live telemetry table streaming entries, `[PRT]` partial scale-outs, and `[CLS]` position closes.
@@ -144,8 +145,17 @@ To verify and visually backtest the signals directly on TradingView charts, the 
 
 ```
 GaTDSEQ/
-├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, CCXT data acquisition, strategy logic
+├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, Funnel Gate, CCXT data acquisition
 ├── server.py               # Telemetry server: Flask-SocketIO, Eventlet, WebSockets, psutil metrics
+├── run_backtest.py         # Institutional backtesting CLI (Terminal Bloomberg reports)
+├── backtesting/            # High-performance local backtesting suite for Mac (Parquet, event-driven)
+│   ├── data_manager.py     # Paged CCXT fetcher & local Parquet caching
+│   ├── indicators.py       # Vectorized Wilder's RMA indicators & Volume Profile
+│   ├── engine.py           # Bar-by-bar simulation engine with fees & dynamic leverage
+│   ├── analytics.py        # Financial metrics (Sharpe, Sortino, MaxDD, Profit Factor)
+│   └── optimizer.py        # Multi-parameter Grid Search engine
+├── docs/
+│   └── RESEARCH_FUNNEL_ARCHITECTURE.md # Quantitative whitepaper on Multi-Stage Funnel Design
 ├── templates/
 │   └── lite.html           # Institutional Bloomberg Kiosk UI (UltraGear 21:9 zero-scroll dashboard)
 ├── pinescript/
@@ -205,7 +215,7 @@ Live production telemetry snapshot from the Raspberry Pi 3B edge node:
 - **System Uptime:** `3 days, 11 hours+ continuous execution`
 - **Total Portfolio Equity:** `$289,005.57 USD`
 - **Accumulated Realized P&L:** `+$19,005.57 USD (+7.04% ROI)`
-- **Core Strategy Alpha Leader:** `HYPE_WYK_1h` (`+$8,057.19 USD`), `HYPE_HYB_1h` (`+$8,006.08 USD`)
+- **Core Strategy Alpha Leader:** `HYPE_WYK_4h` (`+$8,057.19 USD`), `HYPE_HYB_4h` (`+$8,006.08 USD`)
 - **Active Hedging Mechanics:** 100% operational Break Even Shields & 1.0 ATR Partial Closures.
 
 ---
