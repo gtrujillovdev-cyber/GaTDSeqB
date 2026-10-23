@@ -167,3 +167,14 @@ trades.json
 bot_log.txt
 control.json
 
+
+# Dynamic State Files
+state_*.json
+trades_*.json
+control.json
+
+portfolio.json
+bot_unified.log
+
+# Material de Marketing / Redes Sociales
+linkedin post/

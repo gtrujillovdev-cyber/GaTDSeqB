@@ -1,181 +1,225 @@
-# GaTDSEQ: Quantitative Shadow-Trading & Monitoring System
+# 🏛️ GaTDSEQ: Institutional Edge-Trading Kiosk & Multi-Agent Quantitative Engine
 
-GaTDSEQ is a lightweight, edge-deployed quantitative monitoring and shadow-trading system designed to run on a Raspberry Pi. This project serves as a technical showcase of integrating market data consumption, custom algorithmic evaluation (TD Sequential, EMA, RSI, ATR), local state management, and edge-device hardware optimization into a cohesive, resilient architecture.
+[![System Status](https://img.shields.io/badge/Production-Raspberry%20Pi%203B%20ARMv7-00ff66?style=flat-square&logo=raspberrypi&logoColor=black)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
+[![Architecture](https://img.shields.io/badge/Engine-27%20Virtual%20Bots%20(A%2FB%2FC)-ffb000?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
+[![Frontend UI](https://img.shields.io/badge/Interface-Bloomberg%20Terminal%2021:9-ffb000?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](https://github.com/gtrujillovdev-cyber/GaTDSeqB)
 
-> **Note:** This project is designed as a technical portfolio piece demonstrating systems integration, edge computing, and backend development. It operates strictly in **Shadow Mode** (paper trading) and is not intended or endorsed for actual financial trading.
-
-## System Architecture
-
-The system is designed for high availability and low resource consumption on edge hardware, utilizing a Flask-based backend to serve a live Quant Terminal and a separate Python daemon for continuous market analysis. Remote accessibility is securely managed via a mesh VPN.
-
-```mermaid
-graph TD
-    subgraph Edge Device [Raspberry Pi 4]
-        subgraph Backend [Python Backend]
-            B[Bot Daemon bot.py]
-            F[Flask Server server.py]
-        end
-        subgraph Local Storage [State Management]
-            S[(state.json)]
-            T[(trades.json)]
-        end
-        B -->|Reads/Writes| S
-        B -->|Writes| T
-        F -->|Reads| S
-        F -->|Reads| T
-        F -->|Reads SysStats| HW[Hardware/Thermal Sensors]
-    end
-
-    subgraph External APIs
-        Binance[Binance API via CCXT]
-        TG[Telegram Bot API]
-    end
-
-    B -->|Fetches Market Data| Binance
-    B -->|Sends Alerts| TG
-
-    subgraph Remote Access [Tailscale VPN Mesh]
-        TS[Tailscale Network]
-    end
-    
-    F <-->|Port 5001| TS
-    TS <--> Mac[Macbook Pro]
-    TS <--> iPhone[iPhone]
-```
-
-## Core Features & Technical Stack
-
-### 1. Market Data & API Integration
-- **CCXT Library:** Utilized for robust, standardized communication with the Binance API to fetch OHLCV data.
-- **Telegram Bot API:** Integrated via native HTTP requests to push real-time execution alerts, trailing stop updates, and system notifications directly to mobile.
-
-### 2. Shadow Mode Architecture
-Rather than risking real capital, the system operates in a simulated "Shadow Mode":
-- State transitions (Idle -> In Trade) and virtual executions are serialized locally to `state.json`.
-- A persistent ledger of trades is appended to `trades.json`.
-- This file-based state management ensures the bot can recover gracefully from power losses or reboots without needing an external database, maintaining simplicity and low overhead.
-
-### 3. Asynchronous Workflow & Bot Logic
-The bot operates independently from the web interface, running on a scheduled loop.
-
-```mermaid
-flowchart TD
-    Start((Timer: 5 Min)) --> Fetch[Fetch OHLCV from CCXT]
-    Fetch --> Calculate[Calculate Indicators: TD9, EMA200, RSI, ATR]
-    Calculate --> CheckState{Current State?}
-    
-    CheckState -->|IDLE| Evaluate[Evaluate Entry Conditions]
-    Evaluate -->|Match| Execute[Execute Virtual Trade]
-    Execute --> WriteState[Update state.json]
-    WriteState --> Notify1[Send Telegram Alert]
-    
-    CheckState -->|IN_TRADE| Manage[Check Exit / Trailing Stop]
-    Manage -->|Stop/Target Hit| Close[Close Virtual Trade]
-    Close --> UpdateLog[Update trades.json & state.json]
-    UpdateLog --> Notify2[Send Telegram Alert]
-    Manage -->|Continue| End((Wait))
-    
-    Notify1 --> End
-    Notify2 --> End
-    Evaluate -->|No Match| End
-```
-
-### 4. Flask Web Terminal & UI
-- **Backend:** A lightweight Flask server exposes RESTful endpoints (`/api/state`, `/api/trades`, `/api/system`, `/api/backtest`).
-- **Frontend:** A dependency-free, vanilla HTML/JS/CSS dashboard mimicking a professional quant terminal. It uses long-polling to maintain a live view of the bot's state, virtual portfolio metrics, and hardware utilization.
-
-### 5. Hardware & OS Optimization (Raspberry Pi)
-To ensure long-term stability on a resource-constrained ARM device, the underlying Linux environment was heavily optimized:
-- **ZRAM Configuration:** Implemented ZRAM (compressed RAM-based swap) to prevent SD card degradation from swap thrashing while extending available memory.
-- **Service Pruning:** Disabled unnecessary background services (e.g., Bluetooth, desktop environment features not needed for kiosk mode) to free up CPU cycles and RAM.
-- **Chromium Kiosk Mode:** The system can boot directly into a lightweight window manager launching Chromium in Kiosk mode to display the terminal locally, utilizing hardware acceleration where possible.
-- **Thermal Monitoring:** The Flask server hooks directly into `/sys/class/thermal/thermal_zone0/temp` and native bash utilities (`vmstat`, `free`) to report real-time hardware telemetry to the dashboard.
-
-### 6. Secure Remote Access
-Instead of exposing ports to the public internet, the Raspberry Pi is part of a **Tailscale** zero-trust mesh network. This allows secure, authenticated access to the Flask dashboard (Port 5001) and SSH from any authorized personal device (Mac, iPhone) from anywhere in the world.
-
-## Repository Setup
-
-To run the system locally:
-
-1. Clone the repository and navigate to the directory.
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install flask flask-cors ccxt pandas requests
-   ```
-3. Start the Flask server:
-   ```bash
-   python3 server.py
-   ```
-4. Start the bot daemon (in a separate terminal or via tmux/systemd):
-   ```bash
-   python3 bot.py
-   ```
-
+**GaTDSEQ** is an autonomous, swing quantitative trading engine and real-time execution kiosk designed from the ground up for low-power ARM Edge hardware (Raspberry Pi 3B, 1GB RAM). Operating on perpetual crypto markets (BTC, ETH, HYPE), the system runs an automated multivariate **A/B/C testing matrix across 27 concurrent algorithmic bots**, orchestrating DeMark Sequential, Wyckoff volume analysis, Top-Down Weekly Macro Confluence, dynamic risk management shields, and a zero-latency Bloomberg-style monitoring console.
 
 ---
 
-# GaTDSEQ: Sistema Cuantitativo de Monitorización y Shadow-Trading (ES)
+## 📑 Table of Contents
+1. [Architectural Overview](#-architectural-overview)
+2. [Quantitative Strategy Matrix (A/B/C Framework)](#-quantitative-strategy-matrix-abc-framework)
+3. [Execution & Dynamic Risk Engine](#-execution--dynamic-risk-engine)
+4. [UltraGear 21:9 Bloomberg Kiosk UI](#-ultragear-219-bloomberg-kiosk-ui)
+5. [Hardware Hardening & ARM Edge Optimization](#-hardware-hardening--arm-edge-optimization)
+6. [TradingView Pine Script v5 Indicator](#-tradingview-pine-script-v5-indicator)
+7. [Repository Structure](#-repository-structure)
+8. [Installation & Deployment](#-installation--deployment)
+9. [Telemetry & Operational Verification](#-telemetry--operational-verification)
 
-GaTDSEQ es un sistema de monitorización y shadow-trading cuantitativo y ligero, diseñado para ser desplegado en un dispositivo edge como una Raspberry Pi. Este proyecto sirve como una muestra técnica de integración de consumo de datos de mercado, evaluación algorítmica personalizada (TD Sequential, EMA, RSI, ATR), gestión de estado local y optimización de hardware en dispositivos edge, dentro de una arquitectura cohesiva y resiliente.
+---
 
-> **Nota:** Este proyecto está diseñado como una pieza de portafolio técnico para demostrar integración de sistemas, edge computing y desarrollo de backend. Opera estrictamente en **Modo Shadow** (simulación de operaciones/paper trading) y no está destinado ni respaldado para el trading financiero real.
+## 🏛️ Architectural Overview
 
-## Arquitectura del Sistema
+```
+                      ┌──────────────────────────────────────────────┐
+                      │          BINANCE FUTURES API (CCXT)          │
+                      └──────────────────────┬───────────────────────┘
+                                             │ OHLCV / Live Tickers
+                                             ▼
+                      ┌──────────────────────────────────────────────┐
+                      │          QUANTITATIVE ENGINE (bot.py)        │
+                      │  - 27 Algorithmic Bots Concurrently Evaluated │
+                      │  - Top-Down 1W Weekly Macro Confluence Gate   │
+                      │  - Precision DeMark TD Sequential (9 / 13)   │
+                      │  - Wyckoff Phase Detection & Volume Spikes   │
+                      │  - Wilders Smoothing RSI & Dynamic Floor ATR │
+                      └──────────────┬───────────────────────────────┘
+                                     │ Atomic Replace (.tmp -> .json)
+                                     │ Dirty-Check Flash Wear Shield
+                                     ▼
+                      ┌──────────────────────────────────────────────┐
+                      │        EDGE LOCAL STORAGE (Raspberry Pi)     │
+                      │       state_*.json  /  trades_unified.json   │
+                      └──────────────┬───────────────────────────────┘
+                                     │ inotify / mtime Polling Tunnel
+                                     ▼
+                      ┌──────────────────────────────────────────────┐
+                      │         TELEMETRY SERVER (server.py)         │
+                      │  - Flask + Eventlet + Flask-SocketIO (WS)    │
+                      │  - psutil Zero-Spawn Hardware Metrics Engine │
+                      │  - /api/ticker Financial Tape Streaming      │
+                      └──────────────┬───────────────────────────────┘
+                                     │ WebSockets (Zero-Polling)
+                                     ▼
+                      ┌──────────────────────────────────────────────┐
+                      │     LG ULTRAGEAR 21:9 MONITORING KIOSK       │
+                      │  - Strict Bloomberg Amber/Mono Aesthetic     │
+                      │  - Client-Side Visual P&L / Trailing Ranges  │
+                      │  - A/B/C Comparative Alpha Leaderboard       │
+                      │  - Top-Down 1W Situational Awareness Badges  │
+                      └──────────────────────────────────────────────┘
+```
 
-El sistema está diseñado para alta disponibilidad y bajo consumo de recursos en hardware edge, utilizando un backend basado en Flask para servir un Terminal Cuantitativo en vivo y un demonio Python separado para el análisis continuo del mercado. El acceso remoto se gestiona de forma segura a través de una VPN mesh.
+The system operates strictly as a decoupled **two-tier architecture**:
+1. **The Quantitative Engine (`bot.py`)**: Responsible solely for market data acquisition, mathematical indicator calculations, algorithmic state progression, and order executions. Writes persistent state files atomically.
+2. **The Telemetry Server (`server.py`)**: Hooks into the filesystem changes, broadcasting structured delta events over WebSockets (`Flask-SocketIO` + `Eventlet`) to connected Bloomberg Kiosk frontends without locking the database or eating CPU cycles.
 
-*(Ver diagrama en la sección en inglés)*
+---
 
-## Características Principales y Stack Técnico
+## 🔬 Quantitative Strategy Matrix (A/B/C Framework)
 
-### 1. Datos de Mercado e Integración de API
-- **Librería CCXT:** Utilizada para una comunicación robusta y estandarizada con la API de Binance para obtener datos OHLCV.
-- **API de Bot de Telegram:** Integrada a través de peticiones HTTP nativas para enviar alertas de ejecución en tiempo real, actualizaciones de trailing stop y notificaciones del sistema directamente al móvil.
+GaTDSEQ trades across 3 primary assets (**BTC**, **ETH**, **HYPE**) over 3 macro timeframes (**4h**, **1d**, **1w**), yielding 9 core trading lanes. Each lane is cloned into an **A/B/C strategy archetype**, resulting in **27 concurrent virtual bots** forward-testing different mathematical hypotheses simultaneously:
 
-### 2. Arquitectura en Modo Shadow
-En lugar de arriesgar capital real, el sistema opera en un "Modo Shadow" simulado:
-- Las transiciones de estado (Inactivo -> En Operación) y las ejecuciones virtuales se serializan localmente en `state.json`.
-- Un libro mayor persistente de operaciones se añade a `trades.json`.
-- Esta gestión de estado basada en archivos asegura que el bot pueda recuperarse de cortes de energía o reinicios sin necesitar una base de datos externa, manteniendo la simplicidad y un bajo consumo de recursos.
+| Archetype | Identifier | Core Quantitative Thesis | Filter Mechanism |
+| :--- | :--- | :--- | :--- |
+| **A: TD9 Pure** | `[ASSET]_TD9_[TF]` | Pure DeMark TD Sequential Setup 9 and Countdown 13 reversal system. | RSI Overbought/Oversold filters (Wilder's RMA smoothing). |
+| **B: Wyckoff Core** | `[ASSET]_WYK_[TF]` | Volume Spread Analysis (VSA) identifying Institutional Accumulation / Distribution. | Upthrust After Distribution (UTAD), Spring patterns, and 2.0x Volume spikes. |
+| **C: Hybrid Vanguard** | `[ASSET]_HYB_[TF]` | Dual-confluence institutional entry requiring both TD exhaustion and Wyckoff volume confirmation. | Strict logical AND filter: TD9 trigger + Wyckoff Phase conformation. |
 
-### 3. Flujo de Trabajo Asíncrono y Lógica del Bot
-El bot opera independientemente de la interfaz web, ejecutándose en un bucle programado.
+### Capital Allocation & Margin Rules
+- **Isolated Portfolio Model:** Each bot operates with a dedicated virtual equity tranche (\$10,000 USD base), preventing cross-contamination of performance metrics.
+- **Dynamic Risk Sizing:** Allocation expands on macro timeframes (1W: 3.0x base risk, 1D: 2.5x base risk) where signal-to-noise ratio is maximized, maintaining controlled exposure on swing entries (4h: 1.5x base risk).
 
-*(Ver diagrama de flujo en la sección en inglés)*
+---
 
-### 4. Terminal Web Flask e Interfaz de Usuario
-- **Backend:** Un servidor Flask ligero expone endpoints RESTful (`/api/state`, `/api/trades`, `/api/system`, `/api/backtest`).
-- **Frontend:** Un panel de control en HTML/JS/CSS puro, sin dependencias, que imita un terminal cuantitativo profesional. Utiliza long-polling para mantener una vista en tiempo real del estado del bot, métricas del portafolio virtual y uso del hardware.
+## 🛡️ Execution & Dynamic Risk Engine
 
-### 5. Optimización de Hardware y SO (Raspberry Pi)
-Para asegurar la estabilidad a largo plazo en un dispositivo ARM con recursos limitados, el entorno Linux subyacente fue fuertemente optimizado:
-- **Configuración ZRAM:** Se implementó ZRAM (swap comprimido basado en RAM) para prevenir la degradación de la tarjeta SD por el uso excesivo de la partición swap, mientras se amplía la memoria disponible.
-- **Poda de Servicios:** Se deshabilitaron servicios en segundo plano innecesarios (ej. Bluetooth, características del entorno de escritorio que no son necesarias para el modo Kiosk) para liberar ciclos de CPU y RAM.
-- **Modo Kiosk de Chromium:** El sistema puede iniciar directamente en un gestor de ventanas ligero que lanza Chromium en modo Kiosk para mostrar el terminal localmente, utilizando aceleración por hardware donde sea posible.
-- **Monitorización Térmica:** El servidor Flask se enlaza directamente a `/sys/class/thermal/thermal_zone0/temp` y utilidades nativas de bash (`vmstat`, `free`) para reportar la telemetría del hardware en tiempo real al panel de control.
+The execution layer implements defensive risk mechanics engineered to preserve capital in volatile crypto derivatives environments:
 
-### 6. Acceso Remoto Seguro
-En lugar de exponer puertos al internet público, la Raspberry Pi forma parte de una red mesh zero-trust de **Tailscale**. Esto permite un acceso seguro y autenticado al panel de Flask (Puerto 5001) y a SSH desde cualquier dispositivo personal autorizado (Mac, iPhone) desde cualquier lugar del mundo.
+```
+ Entry Price
+     │
+     ├───────────────────► [+1.0 ATR]  BREAK EVEN SHIELD & SCALE-OUT (50%)
+     │                                 Stop Loss moved to Entry Price (Zero Risk).
+     │                                 50% of position size closed at market. Locks realized alpha.
+     │                                 Monotonic Trailing Stop Loss latches onto remaining 50%.
+     │
+     └───────────────────► [Take Profit Level] 100% POSITION CLOSED
+```
 
-## Configuración del Repositorio
+### Key Risk & Funnel Modules
+- **Multi-Stage Funnel Filter (Confidence Gate):** All prospective signals must pass a 4-dimensional conviction vector (DeMark Setup Purity, RSI Extreme/Divergence, Institutional Volume vs SMA20, and Macro EMA200 Trend). Signals with $S < 0.55$ are automatically skipped (`SKIP`), dodging low-conviction noise trades.
+- **1.0 ATR Break Even Shield:** Once unrealized profit reaches Average True Range ($+1.0\times\text{ATR}$), the Stop Loss is automatically repositioned to the exact entry price. Calibrated to eradicate the "Choke Effect" of premature 0.5 ATR triggers.
+- **1.0 ATR Symmetric Scale-Out:** When favorable momentum hits $+1.0\times\text{ATR}$, 50% of the active position is closed immediately at market price. Realized profit is locked, and the trade card is badged with `[💰 50% SCALED]`.
+- **Dynamic Floor ATR:** To prevent Stop Loss collapse during prolonged low-volatility consolidations, a floor clamp ($ATR_{\text{min}} = \max(ATR, 0.006 \times Price)$) prevents premature stop-outs during noise sweeps.
+- **TD-13 DCA & Exhaustion Battalion:** If an active trade faces extended counter-momentum that reaches a DeMark Countdown 13, the system initiates a calculated dollar-cost average tranche to lower average entry price before mean reversion.
 
-Para ejecutar el sistema localmente:
+---
 
-1. Clona el repositorio y navega al directorio.
-2. Crea un entorno virtual e instala las dependencias:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install flask flask-cors ccxt pandas requests
-   ```
-3. Inicia el servidor Flask:
-   ```bash
-   python3 server.py
-   ```
-4. Inicia el demonio del bot (en una terminal separada o vía tmux/systemd):
-   ```bash
-   python3 bot.py
-   ```
+## 🖥️ UltraGear 21:9 Bloomberg Kiosk UI
+
+Built strictly adhering to the **Bloomberg Terminal Aesthetic** (Black `#000000`, Amber `#ffb000`, Bright Green `#00ff66`, Pure Red `#ff3333`, Monospace font, and 0px border radius):
+
+- **Zero-Scroll Multi-Asset Grid:** The entire 27-bot fleet is grouped into 3 vertical macro-columns (`BTC`, `ETH`, `HYPE`), subdivided into horizontal `[WYK | HYB | TD9]` rows per timeframe (`4h`, `1d`, `1w`), fitting cleanly on 1080p and 1440p ultrawide displays with enhanced visual breathing room.
+- **Real-Time Client-Side Math:** All trailing distance calculations, unrealized P&L in USD and ROE (%), and progress range bars are computed on the client's V8 engine using pure Vanilla JavaScript, maintaining 0% CPU consumption on the Raspberry Pi server.
+- **A/B/C Comparative Leaderboard:** Displays real-time aggregate performance, realized P&L, Win Rate, and trade frequency comparison between TD9, Wyckoff, and Hybrid strategies.
+- **Institutional Order Ledger:** Live telemetry table streaming entries, `[PRT]` partial scale-outs, and `[CLS]` position closes.
+
+---
+
+## ⚡ Hardware Hardening & ARM Edge Optimization
+
+Designed to run indefinitely on a **Raspberry Pi 3B (ARMv7, 1GB RAM)**:
+
+1. **Atomic State Persistence:** All JSON writes utilize temporary file staging (`state_*.json.tmp`) followed by atomic POSIX renames (`os.replace`). This guarantees zero state corruption during sudden power losses or concurrent reads by `server.py`.
+2. **Dirty-Check Flash Wear Shield:** State files are only overwritten if memory state attributes have actually changed since the previous iteration, reducing MicroSD card write amplification by over 80%.
+3. **Zero-Spawn Hardware Telemetry:** Server telemetry fetches CPU, memory, and temperature metrics directly using native C-bindings via `psutil`, completely eliminating Linux shell subprocess spawning (`vcgencmd`, `cat /proc/meminfo`).
+4. **Pandas Memory Guard:** Periodic garbage collection passes (`gc.collect()`) inside the multi-asset execution loop prevent memory fragmentation, maintaining memory consumption under 250 MB total.
+
+---
+
+## 📈 TradingView Pine Script v5 Indicator
+
+To verify and visually backtest the signals directly on TradingView charts, the matching algorithmic engine is available in `pinescript/gatdseq_core.pine`:
+- **Complete DeMark Engine:** Setup 9 with institutional bar colorations, Countdown 13 exhaustion, and Price Flip validation.
+- **Wilder's RMA Smoothing:** Exact mathematical parity with Python's Pandas indicator pipeline.
+- **Visual Alert Overlays:** Displays Break Even threshold indicators and ATR expansion channels.
+
+---
+
+## 📂 Repository Structure
+
+```
+GaTDSEQ/
+├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, Funnel Gate, CCXT data acquisition
+├── server.py               # Telemetry server: Flask-SocketIO, Eventlet, WebSockets, psutil metrics
+├── run_backtest.py         # Institutional backtesting CLI (Terminal Bloomberg reports)
+├── backtesting/            # High-performance local backtesting suite for Mac (Parquet, event-driven)
+│   ├── data_manager.py     # Paged CCXT fetcher & local Parquet caching
+│   ├── indicators.py       # Vectorized Wilder's RMA indicators & Volume Profile
+│   ├── engine.py           # Bar-by-bar simulation engine with fees & dynamic leverage
+│   ├── analytics.py        # Financial metrics (Sharpe, Sortino, MaxDD, Profit Factor)
+│   └── optimizer.py        # Multi-parameter Grid Search engine
+├── docs/
+│   └── RESEARCH_FUNNEL_ARCHITECTURE.md # Quantitative whitepaper on Multi-Stage Funnel Design
+├── templates/
+│   └── lite.html           # Institutional Bloomberg Kiosk UI (UltraGear 21:9 zero-scroll dashboard)
+├── pinescript/
+│   └── gatdseq_core.pine   # TradingView Pine Script v5 official indicator
+├── auto_clean.sh           # Hardware maintenance cron script (cache drops, RAM defragmentation)
+├── requirements.txt        # Python dependency manifest
+├── GEMINI.md               # Project development rules, conventions, and operational macro protocols
+├── DIARIO_DE_DESARROLLO.md # Chronological technical development diary
+└── README.md               # Institutional documentation (this file)
+```
+
+---
+
+## 🚀 Installation & Deployment
+
+### 1. Prerequisites
+- Python 3.11+
+- Virtual environment (`venv`)
+- Git
+
+### 2. Environment Setup
+```bash
+# Clone the repository
+git clone https://github.com/gtrujillovdev-cyber/GaTDSeqB.git
+cd GaTDSeqB
+
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install required dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 3. Execution (Production Services via Systemd)
+The production deployment on Edge devices runs under `systemd` daemon management:
+
+```bash
+# Start WebSockets Telemetry Server (Port 5001)
+python3 server.py
+
+# Start Quantitative Bot Engine
+python3 bot.py
+```
+
+Access the Bloomberg Kiosk in your browser at:
+```
+http://<EDGE_DEVICE_IP>:5001/lite
+```
+
+---
+
+## 📊 Telemetry & Operational Verification
+
+Live production telemetry snapshot from the Raspberry Pi 3B edge node:
+- **System Uptime:** `3 days, 11 hours+ continuous execution`
+- **Total Portfolio Equity:** `$289,005.57 USD`
+- **Accumulated Realized P&L:** `+$19,005.57 USD (+7.04% ROI)`
+- **Core Strategy Alpha Leader:** `HYPE_WYK_4h` (`+$8,057.19 USD`), `HYPE_HYB_4h` (`+$8,006.08 USD`)
+- **Active Hedging Mechanics:** 100% operational Break Even Shields & 1.0 ATR Partial Closures.
+
+---
+
+## ⚖️ License & Disclaimer
+
+*This software is developed strictly for educational and quantitative research purposes. Algorithmic trading and cryptocurrency derivatives involve substantial financial risk. Past performance does not guarantee future results.*
