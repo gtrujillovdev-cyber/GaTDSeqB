@@ -191,10 +191,16 @@
         }
         .asset-header {
             display: flex; justify-content: space-between; align-items: baseline;
-            border-bottom: 2px solid var(--border-bright); padding-bottom: 4px; margin-bottom: 2px;
+            border-bottom: 2px solid var(--border-bright); padding-bottom: 4px; margin-bottom: 0;
         }
         .asset-title { font-size: 13px; font-weight: 900; color: var(--text-primary); }
         .asset-live-price { font-size: 15px; font-weight: 900; color: var(--accent-green); }
+        /* FIX ALINEACION: altura fija para la linea de contexto semanal — todos los activos tienen la misma altura */
+        .asset-sub-header {
+            min-height: 18px; display: flex; align-items: center; gap: 6px;
+            font-size: 9px; font-weight: 800; color: var(--text-dim);
+            border-bottom: 1px solid var(--border-dim); padding-bottom: 3px; margin-bottom: 4px;
+        }
 
         /* TIMEFRAME & VARIANT CARDS */
         .tf-box {
@@ -531,36 +537,59 @@
         // DUAL THEME ENGINE (DEFAULT: BLOOMBERG DARK)
         // Modes: 'dark', 'light'
         // ==========================================
-        let currentThemeMode = localStorage.getItem('gatdseq_theme_mode') || 'dark';
+        // FIX TEMA SISTEMA: ciclo dark → light → system (sigue apariencia del SO)
+        let currentThemeMode = localStorage.getItem('gatdseq_theme_mode') || 'system';
+
+        function getSystemIsDark() {
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
 
         function applyTheme() {
-            let isLight = (currentThemeMode === 'light');
-            let icon = isLight ? '☀️' : '🌙';
-            let label = isLight ? 'LIGHT' : 'DARK';
-            let titleText = isLight ? 'Theme: Forced Light (Paper) | Click for Bloomberg Dark' : 'Theme: Bloomberg Dark (Terminal) | Click for Light';
+            let isDark;
+            let icon, label, titleText;
 
-            if (isLight) {
-                document.body.classList.add('theme-light');
+            if (currentThemeMode === 'system') {
+                isDark = getSystemIsDark();
+                icon = '💻'; label = 'AUTO';
+                titleText = 'Theme: Sigue el sistema (' + (isDark ? 'oscuro' : 'claro') + ') | Click para oscuro forzado';
+            } else if (currentThemeMode === 'light') {
+                isDark = false;
+                icon = '☀️'; label = 'LIGHT';
+                titleText = 'Theme: Claro forzado | Click para sistema automático';
             } else {
+                isDark = true;
+                icon = '🌙'; label = 'DARK';
+                titleText = 'Theme: Bloomberg Dark | Click para claro';
+            }
+
+            if (isDark) {
                 document.body.classList.remove('theme-light');
+            } else {
+                document.body.classList.add('theme-light');
             }
 
             let iconEl = document.getElementById('theme-icon');
             let labelEl = document.getElementById('theme-label');
             let btnEl = document.getElementById('theme-toggle-btn');
-            if (iconEl && labelEl) {
-                iconEl.innerText = icon;
-                labelEl.innerText = label;
-            }
-            if (btnEl && titleText) {
-                btnEl.title = titleText;
-            }
+            if (iconEl) iconEl.innerText = icon;
+            if (labelEl) labelEl.innerText = label;
+            if (btnEl) btnEl.title = titleText;
         }
 
         function cycleThemeMode() {
-            currentThemeMode = (currentThemeMode === 'light') ? 'dark' : 'light';
+            // Ciclo: dark → light → system → dark
+            if (currentThemeMode === 'dark') currentThemeMode = 'light';
+            else if (currentThemeMode === 'light') currentThemeMode = 'system';
+            else currentThemeMode = 'dark';
             localStorage.setItem('gatdseq_theme_mode', currentThemeMode);
             applyTheme();
+        }
+
+        // Escuchar cambios del sistema operativo en tiempo real (modo sistema activo)
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (currentThemeMode === 'system') applyTheme();
+            });
         }
 
         applyTheme();
@@ -683,17 +712,21 @@
                     // Top-Down Weekly Context Badge (Institutional Situational Awareness)
                     let wState = (fleet[`${asset}_TD9`] && fleet[`${asset}_TD9`]['1w']) ? fleet[`${asset}_TD9`]['1w'] : null;
                     let wTd = wState && wState.td_count !== undefined ? wState.td_count : null;
+                    // FIX ALINEACION: badge corto en el titulo, PERF+TDST en sub-header de altura fija
                     let wBadge = '';
+                    let wSubContent = '&nbsp;'; // Espacio reservado para mantener altura cuando no hay contexto
                     if (wTd !== null) {
-                        let wPerf = wState && wState.td_perfected ? ' [PERF]' : (wState && Math.abs(wTd) >= 9 ? ' [UNPERF]' : '');
-                        let wTdst = (wState && wState.tdst_res > 0) ? ` | TDST:$${Math.round(wState.tdst_res)}` : '';
+                        let wPerf = wState && wState.td_perfected ? 'PERF' : (wState && Math.abs(wTd) >= 9 ? 'UNPERF' : '');
                         if (wTd >= 8 && wTd <= 12) {
-                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-red); color:var(--accent-red); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${wTd}${wPerf}${wTdst}</span>`;
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-red); color:var(--accent-red); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${wTd}</span>`;
+                            let wTdst = (wState && wState.tdst_res > 0) ? ` | TDST:$${Math.round(wState.tdst_res)}` : '';
+                            wSubContent = wPerf ? `<span style="color:var(--accent-red);">[${wPerf}]${wTdst}</span>` : wTdst || '&nbsp;';
                         } else if (wTd > 12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (+${wTd})</span>`;
                         } else if (wTd <= -8 && wTd >= -12) {
+                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-green); color:var(--accent-green); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${Math.abs(wTd)}</span>`;
                             let wTdstSup = (wState && wState.tdst_sup > 0) ? ` | TDST:$${Math.round(wState.tdst_sup)}` : '';
-                            wBadge = `<span style="font-size:9px; border:1px solid var(--accent-green); color:var(--accent-green); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${Math.abs(wTd)}${wPerf}${wTdstSup}</span>`;
+                            wSubContent = wPerf ? `<span style="color:var(--accent-green);">[${wPerf}]${wTdstSup}</span>` : wTdstSup || '&nbsp;';
                         } else if (wTd < -12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (${wTd})</span>`;
                         }
@@ -705,6 +738,7 @@
                             <span class="asset-title">${asset} // ${asset === 'BTC' ? 'BITCOIN' : (asset === 'ETH' ? 'ETHEREUM' : 'HYPERLIQUID')}${wBadge}</span>
                             <span class="asset-live-price" id="price-${asset}">${assetPriceStr}</span>
                         </div>
+                        <div class="asset-sub-header">${wSubContent}</div>
                     `;
 
                     timeframes.forEach(tf => {
