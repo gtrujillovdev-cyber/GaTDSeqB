@@ -19,6 +19,7 @@
 7. [Repository Structure](#-repository-structure)
 8. [Installation & Deployment](#-installation--deployment)
 9. [Telemetry & Operational Verification](#-telemetry--operational-verification)
+10. [Distributed Infrastructure & SecOps Manual (Tailscale Mesh)](docs/manual_infraestructura.md)
 
 ---
 
@@ -29,44 +30,38 @@
                       │          BINANCE FUTURES API (CCXT)          │
                       └──────────────────────┬───────────────────────┘
                                              │ OHLCV / Live Tickers
-                                             ▼
-                      ┌──────────────────────────────────────────────┐
-                      │          QUANTITATIVE ENGINE (bot.py)        │
-                      │  - 27 Algorithmic Bots Concurrently Evaluated │
-                      │  - Top-Down 1W Weekly Macro Confluence Gate   │
-                      │  - Precision DeMark TD Sequential (9 / 13)   │
-                      │  - Wyckoff Phase Detection & Volume Spikes   │
-                      │  - Wilders Smoothing RSI & Dynamic Floor ATR │
-                      └──────────────┬───────────────────────────────┘
-                                     │ Atomic Replace (.tmp -> .json)
-                                     │ Dirty-Check Flash Wear Shield
-                                     ▼
-                      ┌──────────────────────────────────────────────┐
-                      │        EDGE LOCAL STORAGE (Raspberry Pi)     │
-                      │       state_*.json  /  trades_unified.json   │
-                      └──────────────┬───────────────────────────────┘
-                                     │ inotify / mtime Polling Tunnel
-                                     ▼
-                      ┌──────────────────────────────────────────────┐
-                      │         TELEMETRY SERVER (server.py)         │
-                      │  - Flask + Eventlet + Flask-SocketIO (WS)    │
-                      │  - psutil Zero-Spawn Hardware Metrics Engine │
-                      │  - /api/ticker Financial Tape Streaming      │
-                      └──────────────┬───────────────────────────────┘
-                                     │ WebSockets (Zero-Polling)
-                                     ▼
-                      ┌──────────────────────────────────────────────┐
-                      │     LG ULTRAGEAR 21:9 MONITORING KIOSK       │
-                      │  - Strict Bloomberg Amber/Mono Aesthetic     │
-                      │  - Client-Side Visual P&L / Trailing Ranges  │
-                      │  - A/B/C Comparative Alpha Leaderboard       │
-                      │  - Top-Down 1W Situational Awareness Badges  │
-                      └──────────────────────────────────────────────┘
+                         ┌───────────────────┴───────────────────┐
+                         ▼                                       ▼
+        ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
+        │  COMPUTE WORKER (MacBook Pro)   │    │    EDGE CORE (Raspberry Pi 3B)  │
+        │ - Parquet Historical Ingestion  │    │ - 27 Virtual Bots (bot.py)      │
+        │ - Grid Search Optimizer         │    │ - Dynamic Param Loader (TTL 60s)│
+        │   (optimize_fleet.py: 54 comb.) │    │ - Atomic POSIX State Storage    │
+        │ - Validation: Sharpe & Drawdown │    │ - Zero Flash-Wear Memory Shields│
+        └────────────────┬────────────────┘    └────────────────┬────────────────┘
+                         │                                      │
+                         │ Dynamic Hyperparameters              │ Local State Deltas
+                         ▼ (fleet_optimized.json)               ▼ (state_*.json)
+        ┌─────────────────────────────────┐    ┌─────────────────────────────────┐
+        │  HOT-SWAP PARAMETER PIPELINE    │───►│ TELEMETRY SERVER (server.py)    │
+        │ - Zero-Downtime Hot Swapping    │    │ - Flask + Eventlet + WebSockets │
+        │ - Calibrated BE & ATR Bands     │    │ - psutil C-Binding Metrics      │
+        └─────────────────────────────────┘    └────────────────┬────────────────┘
+                                                                │
+                                         ┌──────────────────────┴──────────────────────┐
+                                         ▼                                             ▼
+                        ┌─────────────────────────────────┐           ┌─────────────────────────────────┐
+                        │  LG ULTRAGEAR 21:9 KIOSK UI     │           │  MOBILE & WALL KIOSK TELEMETRY  │
+                        │ - Bloomberg Amber/Mono Aesthetic│           │ - iPhone 16 Mobile Ops (iSH CLI)│
+                        │ - Pure Client-Side Math Engine  │           │ - Xiaomi TV A1 Pro Live Console │
+                        │ - Real-Time Unrealized P&L/ROE  │           │ - Tailscale WireGuard Mesh 24/7 │
+                        └─────────────────────────────────┘           └─────────────────────────────────┘
 ```
 
-The system operates strictly as a decoupled **two-tier architecture**:
-1. **The Quantitative Engine (`bot.py`)**: Responsible solely for market data acquisition, mathematical indicator calculations, algorithmic state progression, and order executions. Writes persistent state files atomically.
-2. **The Telemetry Server (`server.py`)**: Hooks into the filesystem changes, broadcasting structured delta events over WebSockets (`Flask-SocketIO` + `Eventlet`) to connected Bloomberg Kiosk frontends without locking the database or eating CPU cycles.
+The system operates strictly as a decoupled **three-tier distributed architecture**:
+1. **The Compute Worker (`optimize_fleet.py` on MacBook Pro)**: Dedicated high-throughput quantitative worker that ingests historical OHLCV data into Parquet format, sweeps 54-combination Grid Searches across assets and timeframes, and serializes the optimal parameter matrix (`fleet_optimized.json`).
+2. **The Quantitative Edge Engine (`bot.py` on Raspberry Pi 3B)**: Low-power edge execution node that evaluates 27 concurrent bots at candle close. Dynamically hot-swaps calibrated risk thresholds via `get_bot_params()` (60s TTL memory cache) without restarting services or interrupting live positions.
+3. **The Telemetry & Kiosk Plane (`server.py` & `lite.html`)**: WebSockets streaming server broadcasting state deltas across the private WireGuard mesh (Tailscale MagicDNS) to the Bloomberg Kiosk, Xiaomi TV wall console, and mobile operators.
 
 ---
 
@@ -103,10 +98,13 @@ The execution layer implements defensive risk mechanics engineered to preserve c
 
 ### Key Risk & Funnel Modules
 - **Multi-Stage Funnel Filter (Confidence Gate):** All prospective signals must pass a 4-dimensional conviction vector (DeMark Setup Purity, RSI Extreme/Divergence, Institutional Volume vs SMA20, and Macro EMA200 Trend). Signals with $S < 0.55$ are automatically skipped (`SKIP`), dodging low-conviction noise trades.
-- **1.0 ATR Break Even Shield:** Once unrealized profit reaches Average True Range ($+1.0\times\text{ATR}$), the Stop Loss is automatically repositioned to the exact entry price. Calibrated to eradicate the "Choke Effect" of premature 0.5 ATR triggers.
-- **1.0 ATR Symmetric Scale-Out:** When favorable momentum hits $+1.0\times\text{ATR}$, 50% of the active position is closed immediately at market price. Realized profit is locked, and the trade card is badged with `[💰 50% SCALED]`.
 - **Dynamic Floor ATR:** To prevent Stop Loss collapse during prolonged low-volatility consolidations, a floor clamp ($ATR_{\text{min}} = \max(ATR, 0.006 \times Price)$) prevents premature stop-outs during noise sweeps.
 - **TD-13 DCA & Exhaustion Battalion:** If an active trade faces extended counter-momentum that reaches a DeMark Countdown 13, the system initiates a calculated dollar-cost average tranche to lower average entry price before mean reversion.
+
+### Dynamic Hyperparameter Hot-Swapping (`fleet_optimized.json`)
+Rather than relying on static, rigid ATR multipliers across all assets, `bot.py` incorporates an in-memory **Dynamic Parameter Loader (`get_bot_params`)** with a 60-second TTL cache:
+- **Zero-Downtime Hot Swapping:** Risk levels (`atr_sl_trend`, `atr_tp_trend`, `be_threshold_atr`, `scale_out_atr`, `enable_scale_out`) are updated live as soon as a new optimization matrix is pushed by the Worker node, without restarting `gatdseq-bot.service` or disturbing open trades.
+- **Empirical Alpha Validation:** In systematic Grid Searches on 30-day historical Parquet data (`BTC/USDT [1h]`), tuning the Break-Even trigger from static 1.0 ATR to **0.5x ATR** converted an unprofitable strategy (PnL: -\$503.64, Sharpe: -1.71, MDD: -16.17%) into a high-conviction winner (**PnL: +\$1,515.97 [+15.16%], Sharpe: 7.11, MDD: -4.00%**).
 
 ---
 
@@ -145,23 +143,42 @@ To verify and visually backtest the signals directly on TradingView charts, the 
 
 ```
 GaTDSEQ/
-├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, Funnel Gate, CCXT data acquisition
+├── bot.py                  # Quantitative engine: 27-bot A/B/C matrix, Dynamic Param Loader, CCXT execution
 ├── server.py               # Telemetry server: Flask-SocketIO, Eventlet, WebSockets, psutil metrics
+├── optimize_fleet.py       # High-performance parallel Grid Search optimizer (Mac worker)
+├── fleet_optimized.json    # Calibrated dynamic risk matrix loaded dynamically by production bots
 ├── run_backtest.py         # Institutional backtesting CLI (Terminal Bloomberg reports)
+├── volume_profile.py       # Vectorized volume distribution calculator (POC / VAH / VAL)
+├── wycoff_logic.py         # Wyckoff market phase detector and volume divergence analyzer
+├── portfolio.json          # Portfolio asset allocation definitions for live Kiosk display
+├── requirements.txt        # Python dependency manifest
+├── auto_clean.sh -> scripts/auto_clean.sh # Backward-compatible maintenance symlink
 ├── backtesting/            # High-performance local backtesting suite for Mac (Parquet, event-driven)
 │   ├── data_manager.py     # Paged CCXT fetcher & local Parquet caching
 │   ├── indicators.py       # Vectorized Wilder's RMA indicators & Volume Profile
 │   ├── engine.py           # Bar-by-bar simulation engine with fees & dynamic leverage
 │   ├── analytics.py        # Financial metrics (Sharpe, Sortino, MaxDD, Profit Factor)
 │   └── optimizer.py        # Multi-parameter Grid Search engine
-├── docs/
+├── docs/                   # Institutional documentation & system manuals
+│   ├── manual_infraestructura.md # Distributed architecture manual (Tailscale Mesh, Edge-Worker hybrid)
 │   └── RESEARCH_FUNNEL_ARCHITECTURE.md # Quantitative whitepaper on Multi-Stage Funnel Design
-├── templates/
-│   └── lite.html           # Institutional Bloomberg Kiosk UI (UltraGear 21:9 zero-scroll dashboard)
-├── pinescript/
-│   └── gatdseq_core.pine   # TradingView Pine Script v5 official indicator
-├── auto_clean.sh           # Hardware maintenance cron script (cache drops, RAM defragmentation)
-├── requirements.txt        # Python dependency manifest
+├── scripts/                # Operations, DevOps, and Self-Healing Maintenance Suite
+│   ├── auto_clean.sh       # Edge maintenance script (RAM drop_caches, log truncation)
+│   ├── start.sh            # Local development environment launcher
+│   ├── worker_maintenance.sh # Self-healing RAM purge, cache sweep, and telemetry daemon
+│   ├── install_worker_maintenance.sh # One-click installer for macOS worker nodes
+│   ├── com.gatdseq.maintenance.plist # Scheduled daily maintenance LaunchDaemon (04:30 AM)
+│   └── com.gatdseq.caffeinate.plist  # Root LaunchDaemon anti-sleep clamshell persistence
+├── templates/              # Institutional Bloomberg Kiosk Frontend
+│   └── lite.html           # Zero-scroll UltraGear 21:9 dashboard (V8 Vanilla JS math engine)
+├── tests/                  # Test suites & connectivity diagnostics
+│   ├── __init__.py
+│   └── test_binance.py     # Binance Futures API and authentication test script
+├── legacy/                 # Historical prototypes and deprecated development files
+│   ├── README.md           # Archive rationale & provenance documentation
+│   ├── backtest.py         # Day 1 prototype single-asset backtesting script
+│   ├── dashboard.py        # Day 1 Streamlit prototype web interface
+│   └── index.html          # Early prototype Tailwind CSS dashboard template
 ├── GEMINI.md               # Project development rules, conventions, and operational macro protocols
 ├── DIARIO_DE_DESARROLLO.md # Chronological technical development diary
 └── README.md               # Institutional documentation (this file)
@@ -217,6 +234,27 @@ Live production telemetry snapshot from the Raspberry Pi 3B edge node:
 - **Accumulated Realized P&L:** `+$19,005.57 USD (+7.04% ROI)`
 - **Core Strategy Alpha Leader:** `HYPE_WYK_4h` (`+$8,057.19 USD`), `HYPE_HYB_4h` (`+$8,006.08 USD`)
 - **Active Hedging Mechanics:** 100% operational Break Even Shields & 1.0 ATR Partial Closures.
+
+---
+
+## 🌐 Distributed Infrastructure & SecOps (Tailscale Mesh)
+
+GaTDSEQ operates over a private, encrypted **WireGuard Mesh Network (Tailscale MagicDNS RFC 1123)** across 5 physical endpoints without public port forwarding:
+
+| Hostname (MagicDNS) | IP Tailscale | Platform | Infrastructure Role | Key Daemons |
+| :--- | :--- | :--- | :--- | :--- |
+| `gtrujillo-raspberry-pi-3b` | `100.95.199.1` | Debian 12 (ARMv7) | Edge Core (27 Bots) | `gatdseq-bot`, `gatdseq-server` |
+| `gtrujillo-macbook-pro` | `100.108.212.124` | macOS 11.7 (x86_64) | Compute Worker (ML/Opt) | `com.gatdseq.maintenance`, `caffeinate` |
+| `gtrujillo-macbook-air-m4` | `100.108.32.67` | macOS 15.x (ARM64) | Workstation & Control | Application Firewall (`socketfilterfw`) |
+| `iphone16` | `100.67.23.122` | iOS 18 (iSH Alpine) | Mobile Ops Terminal | SSH Aliases (`mac`, `pi`, `m4`) |
+| `tv` | `100.90.61.47` | Android TV | 24/7 Wall Telemetry | Fullscreen Bloomberg WebSockets Kiosk |
+
+### Headless Bootstrap & Self-Healing Suite (Mac Worker)
+To prevent thermal stress, battery swelling, and RAM fragmentation on the 24/7 Clamshell MacBook Pro:
+- **Root LaunchDaemons:** `com.gatdseq.maintenance.plist` executes daily at **04:30 AM** to purge inactive memory (`/usr/sbin/purge`), sweep bytecode caches, and perform safe reboots (automatically deferred if a backtest or ML job is actively executing).
+- **Headless Auto-Recovery:** With FileVault disabled, Wi-Fi keys in `System.keychain`, and `caffeinate -s -i -m -u` running as a root daemon, the worker reboots in 35s and reconnects to Tailscale and SSH without graphical user login.
+
+*For full operational details, network mapping, and emergency runbooks, consult the [Comprehensive Infrastructure Manual](docs/manual_infraestructura.md).*
 
 ---
 

@@ -639,6 +639,156 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Especificaciones detectadas: CPU Intel Core i5-4278U @ 2.60 GHz (2 cores / 4 threads), 8 GB de RAM y 43 GB de disco SSD libre.
   - Configurado como nodo de computación de alto rendimiento para futuros módulos de backtesting distribuido, optimización bayesiana de hiperparámetros y modelos de machine learning.
 
+### 14. Despliegue de Arquitectura Híbrida Edge-Worker, Validación de Alpha por Grid Search y Unificación MagicDNS
+- **Entorno Cuantitativo y Machine Learning en MacBook Pro:**
+  - Construcción del entorno virtual nativo `~/GaTDSEQ_Worker/venv` con **Python 3.11.11**.
+  - Instalación del stack matemático precompilado: `pandas` (3.0.6), `numpy` (2.4.6), `ccxt` (4.5.64), `scipy` (1.17.1), `fastparquet` (2026.9.0), `scikit-learn` (1.9.1) y `xgboost` (3.2.0).
+  - Resolución del enlazado dinámico de `libomp.dylib` (OpenMP) para paralelismo multi-hilo en macOS Haswell mediante enlace simbólico en `/usr/local/opt/libomp/lib` hacia LLVM.
+- **Modo Servidor Autónomo 24/7 (Clamshell Mode):**
+  - Inyección de `SleepDisabled 1` y `displaysleep 5` en `pmset` para permitir ejecución continua con la tapa física cerrada.
+  - Despliegue del daemon `caffeinate` supervisado por `launchd` en `~/Library/LaunchAgents/com.gatdseq.caffeinate.plist`.
+  - Compilación e instalación nativa de los binarios de servidor de Tailscale CLI (`tailscale` y `tailscaled`) con Go 1.24 local, sorteando incompatibilidades de AppKit en macOS Big Sur.
+- **Aislamiento y Seguridad de Datos (Disco Seagate):**
+  - Análisis técnico del almacenamiento: se determinó que los datasets Parquet ocupan menos de 150 MB, haciendo innecesario el uso del disco mecánico Seagate.
+  - Se eliminaron carpetas temporales del disco externo, dejándolo 100% aislado para preservar la integridad de Time Machine y fotos personales. Todo el almacenamiento de trading opera sobre el SSD interno (43 GB disponibles).
+- **Validación Cuantitativa de Rentabilidad (Alpha Real):**
+  - Ejecución de Grid Search de 54 combinaciones sobre 30 días de `BTC/USDT [1h]`.
+  - **Resultado:** Demostración empírica de conversión de estrategia perdedora (PnL: -\$503.64, Sharpe: -1.71, MDD: -16.17%) a fuertemente rentable (**PnL: +\$1,515.97, Sharpe: 7.11, MDD: -4.00%**) al calibrar el umbral de Break-Even a `0.5x ATR`.
+  - Creación del orquestador `optimize_fleet.py` en el repositorio para automatizar barridos paralelos en BTC, ETH y HYPE.
+- **Unificación de Red y Nombres Institucionales (Tailscale MagicDNS):**
+  - Normalización de nombres de red bajo el estándar RFC 1123:
+    - `gtrujillo-macbook-pro` (MacBook Pro / Worker Node)
+    - `gtrujillo-raspberry-pi-3b` (Raspberry Pi / Edge Core)
+    - `gtrujillo-macbook-air-m4` (MacBook Air M4 / Workstation)
+    - `iphone16` (Kiosko Móvil)
+    - `tv` (Xiaomi TV A1 Pro)
+- **Corrección de Conectividad Gráfica y Perfiles de Energía:**
+  - Diagnóstico del fallo de *Compartir Pantalla* desde ubicaciones remotas: purga de archivos `.vncloc` locales obsoletos vinculados a mDNS (`.local`) y creación de accesos directos remotos de escritorio con MagicDNS (`MacBook Pro (Remoto).vncloc` y `Raspberry Pi (Remoto).vncloc`).
+  - Verificación del puerto 5900 (VNC) activo y respondiendo tanto en el MacBook Pro como en la Raspberry Pi (`x11vnc` en `:0`).
+  - Calibración de energía en MacBook Air M4: desactivación de `SleepDisabled` para permitir reposo al cerrar la tapa en batería (`sleep 1`) y servicio continuo en corriente (`displaysleep 3` / `sleep 0`).
+
+### 15. Integración del Cargador Dinámico de Hiperparámetros y Calibración Sistemática de la Flota
+- **Cierre del Bucle Cuantitativo (Motor Dinámico en `bot.py`):**
+  - Se eliminaron todos los valores estáticos (*hardcoded*) de Stop Loss, Take Profit y Break-Even en `bot.py`.
+  - Implementación de la función `get_bot_params(symbol, timeframe, strategy)` con caché de memoria (TTL 60s) que lee en tiempo real la matriz `fleet_optimized.json`.
+  - Los niveles de entrada y de gestión de riesgo (`atr_sl_trend`, `atr_tp_trend`, `be_threshold_atr`, `scale_out_atr`, `enable_scale_out`) ahora se modulan de forma puramente matemática según las pruebas empíricas del Worker.
+- **Ejecución del Barrido Multi-Activo en MacBook Pro (`gtrujillo-macbook-pro`):**
+  - Ejecución de `optimize_fleet.py` sobre los 3 activos del portafolio (BTC, ETH, HYPE) en timeframes de 1h, 4h y 1d (54 combinaciones por variante).
+  - Almacenamiento de datasets históricos Parquet ultraligeros en el SSD interno del Mac (`~/GaTDSEQ_Worker/backtesting/data/`).
+  - Generación de la primera matriz formal `fleet_optimized.json`.
+- **Despliegue y Verificación en Producción (Raspberry Pi):**
+  - Sincronización mediante `rsync` hacia `/home/raspberry/GaTDSEQ/` de `bot.py` y `fleet_optimized.json`.
+  - Reinicio del demonio `gatdseq-bot.service` (`systemctl restart gatdseq-bot`), confirmando arranque limpio y ejecución en vivo de los 27 bots con los parámetros optimizados.
+
+### 16. Adopción de Directrices SecOps Zero-Trust y Hardening de Endpoints
+- **Directrices de Seguridad Institucional (`GEMINI.md` - Regla 10):**
+  - **Zero Password Exposure:** Prohibición estricta de manejar contraseñas o credenciales en texto plano en prompts de IA, scripts temporales, commits o logs. Gestión descentralizada y local mediante comandos interactivos del sistema operativo (`passwd`).
+  - **Zero Public Surface (Sin Apertura de Puertos):** Confirmación de política de cero puertos abiertos en el router hacia la WAN pública. Todo el acceso remoto, telemetría y terminales (SSH/VNC) discurre cifrado de extremo a extremo mediante Tailscale (túnel WireGuard).
+  - **Hardening de Endpoints:** Activación del Application Firewall en macOS (`socketfilterfw`) en nodos de trabajo y directriz de doble factor de autenticación (2FA) en la cuenta de control de la red privada.
+- **Auditoría de Acceso Móvil Seguro (iSH iOS):**
+  - Configuración de aliases y directivas de persistencia SSH (`ServerAliveInterval 15`) en el cliente iSH para un acceso ágil sin comprometer puertos ni credenciales maestras.
+
+### 17. Suite de Auto-Curación (Self-Healing), Purga de RAM y Reinicio Headless Autónomo en MacBook Pro
+- **Protocolo de Protección del Hardware (24/7 Clamshell Worker):**
+  - Para evitar fatiga térmica, degradación de celdas de batería y fragmentación de memoria (Memory Leaks / Inactive RAM) en el MacBook Pro con tapa cerrada, se diseñó e implementó una suite integral de auto-mantenimiento.
+- **Componentes de la Suite (`scripts/`):**
+  - `worker_maintenance.sh`: Orquestador de limpieza que verifica si hay cálculos activos de ML/Backtesting antes de proceder. Purga la memoria inactiva del sistema con `/usr/sbin/purge`, limpia cachés `__pycache__`, rota logs de más de 25 MB y recolecta telemetría (carga, RAM, SSD, batería).
+  - `com.gatdseq.maintenance.plist`: LaunchDaemon del sistema que programa la ejecución diaria del mantenimiento y reinicio controlado a las 04:30 AM (`StartCalendarInterval`).
+  - `com.gatdseq.caffeinate.plist`: LaunchDaemon del sistema que eleva `caffeinate -s -i -m -u` a nivel de raíz (`root:wheel`). Garantiza que tras cualquier reinicio sin login gráfico interactivo, el sistema impida el reposo con la tapa cerrada.
+  - `install_worker_maintenance.sh`: Script automatizado de despliegue que instala los daemons en `/Library/LaunchDaemons/`, purga agentes antiguos y activa `pmset -a autorestart 1` ante cortes de suministro eléctrico.
+- **Garantía de Reconexión Headless sin Intervención Manual:**
+  - Se auditó la cadena de arranque: FileVault desactivado (`FileVault is Off`), perfiles Wi-Fi persistidos en `System.keychain` y arranque anticipado de `tailscaled` y `sshd` a nivel de LaunchDaemon. El Mac queda listo y accesible por SSH inmediatamente tras cada reinicio automático.
+
+### 18. Formalización de la Documentación Integral de Infraestructura y Red Mesh
+- **Actualización Mayor de `manual_infraestructura.md` (Versión 2.0 Institucional):**
+  - Diagrama ASCII de arquitectura de red con direccionamiento RFC 1123 MagicDNS y CGNAT (100.64.0.0/10) a través de Tailscale (WireGuard) para los 5 nodos físicos (`gtrujillo-raspberry-pi-3b`, `gtrujillo-macbook-pro`, `gtrujillo-macbook-air-m4`, `iphone16`, `tv`).
+  - Especificaciones técnicas completas, optimizaciones de hardware (ZRAM, `drm_kms_helper.poll=0`, Apple Silicon M4 vs Intel Haswell OpenMP).
+  - Explicación de la Cadena de Arranque Desatendido (*Headless Bootstrap Chain*) y la Suite de Auto-Curación con LaunchDaemons de nivel raíz.
+  - Cheat Sheet de comandos operacionales, macros (`auditoria`, `evalua`) y runbooks de emergencia.
+- **Integración en `README.md`:**
+  - Indexación del Manual de Infraestructura en la tabla de contenidos y adición del árbol de scripts de mantenimiento al mapa del repositorio.
+
+### 19. Sincronización Integral del Pipeline Cuantitativo Distribuido en README.md
+- **Diagrama de Arquitectura Distribuida de 3 Capas:**
+  - Sustitución del diagrama monolítico anterior por el nuevo flujo desacoplado: Compute Worker (`optimize_fleet.py` en MacBook Pro), Edge Core (`bot.py` dinámico en Raspberry Pi 3B) y Telemetría WebSockets hacia Kiosko UltraGear 21:9, Xiaomi TV y terminales iSH.
+- **Documentación del Cargador Dinámico de Hiperparámetros:**
+  - Explicación de la función `get_bot_params()` con caché TTL de 60 segundos, permitiendo la recarga en caliente (*zero-downtime hot swapping*) de `fleet_optimized.json` sin reiniciar servicios ni alterar posiciones activas.
+  - Registro de la prueba empírica en `BTC/USDT [1h]` (+15.16% de beneficio neto y Sharpe 7.11 calibrando Break-Even a 0.5x ATR).
+- **Actualización del Árbol de Archivos:**
+  - Adición formal de `optimize_fleet.py` y `fleet_optimized.json` a la estructura del repositorio.
+- **Sección 10 en Cuerpo Principal:**
+  - Desglose de los 5 nodos físicos de la red mesh de Tailscale, suites de auto-curación y enlace directo al manual técnico de infraestructura.
+
+### 20. Reestructuración Profesional del Repositorio (Industry-Standard Clean Layout)
+- **Eliminación de Metadatos de Sistema Operativo:**
+  - Purgado y eliminación del archivo invisible `.DS_Store` del control de versiones.
+  - Fortalecimiento de `.gitignore` con filtros globales para macOS/Linux (`.DS_Store`, `._*`, `.Spotlight-V100`, `.Trashes`) y scripts temporales de desarrollo (`patch_*.py`, `temp_*.py`).
+- **Separación de Responsabilidades por Directorios (Standard Project Layout):**
+  - **`docs/`:** Migración de `manual_infraestructura.md` junto a `RESEARCH_FUNNEL_ARCHITECTURE.md`. La raíz conserva únicamente los archivos globales estándar del repositorio.
+  - **`scripts/`:** Centralización de scripts operativos (`start.sh`, `auto_clean.sh`, `worker_maintenance.sh`, instalador y LaunchDaemons). Creación de enlace simbólico retrocompatible `auto_clean.sh -> scripts/auto_clean.sh` en la raíz para garantizar compatibilidad absoluta con cron y systemd en la Raspberry Pi.
+  - **`tests/`:** Creación formal del paquete de pruebas y migración de `test_binance.py`.
+  - **`legacy/`:** Archivo histórico para scripts obsoletos del prototipado inicial (`backtest.py`, `dashboard.py` y `templates/index.html`), acompañados de un `README.md` de procedencia.
+  - **`templates/`:** Eliminación del archivo duplicado `lite.html` en la raíz, consolidando `templates/lite.html` como única fuente canónica del frontend Bloomberg.
+- **Sincronización:**
+  - Actualización de `README.md` y enlaces relativos en `docs/manual_infraestructura.md`.
+
+### 21. Formalización de Directrices de Proceder Operativo (Reglas 11, 12 y 13 en GEMINI.md)
+- **Codificación Institucional de las Formas de Proceder (`GEMINI.md`):**
+  - **Regla 11 (Gobernanza y Estructura Limpia):** Obligatoriedad de mantener la separación de responsabilidades en `docs/`, `scripts/`, `tests/`, `legacy/` y `templates/`. Prohibido crear scripts huérfanos o duplicar plantillas en la raíz. Blindaje continuo contra `.DS_Store` y metadatos de SO.
+  - **Regla 12 (Ciclo de Vida y Auto-Curación del Worker Node):** Requisito de mantener `caffeinate` como LaunchDaemon de nivel de sistema (`root:wheel`), purga de memoria RAM inactiva (`purge`), reinicios preventivos diarios inteligentes a las 04:30 AM (condicionados a la ausencia de cálculos activos con `pgrep`) y `pmset -a autorestart 1`.
+  - **Regla 13 (Pipeline de Hiperparámetros Desacoplado):** Prohibición de valores estáticos de riesgo en `bot.py`. Uso imperativo de `get_bot_params()` con matriz `fleet_optimized.json` y caché TTL de 60 segundos para permitir hot-swapping en vivo con cero downtime.
+
+### 22. Auditoría Integral del Sistema, Diagnóstico de Red y Resolución de Bug en Exit Engine
+- **Auditoría Operativa y Corrección Crítica en `bot.py` (Protocolo Regla 7):**
+  - **Detección de Excepción Silenciosa:** Durante la inspección de `bot_unified.log` se aisló un error recurrente `NameError: name 'STRATEGY' is not defined` afectando a las instancias `HYPE_WYK` y `HYPE_HYB` en el marco diario (`1d`). La variable no estaba en el ámbito de las funciones de entrada ni en el módulo de gestión de salida.
+  - **Normalización de Ámbito:** Se refactorizó la llamada a `get_bot_params(SYMBOL, TIMEFRAME, strategy_type)` en los bloques de entrada y se actualizó la firma de `check_exit_conditions(..., strategy_type="HYB")` junto a su invocación en la línea 755 para propagar correctamente la estrategia activa hacia la lógica de Break-Even y Scale-Out.
+  - **Despliegue y Reinicio:** Sincronización a la Raspberry Pi 3B mediante `rsync` y reinicio controlado de `gatdseq-bot.service` con `systemctl`. Confirmación en logs de la reanudación del análisis sin errores en las 27 configuraciones de la flota.
+- **Telemetría y Diagnóstico de Red (Network Traffic Profiling):**
+  - **Rendimiento de Enlace de Intercambio (Kraken):** Latencia TCP de conexión de 98 ms y TTFB de 579 ms hacia la API REST (`api.kraken.com`).
+  - **Malla Cifrada Tailscale:** Enlace directo P2P validado entre Raspberry Pi (`100.95.199.1`) y Workstation M4 (`100.108.32.67`) con latencia media de 93 ms y 0% de pérdida de paquetes. Consumo acumulado de 5.34 MB RX / 11.0 MB TX.
+  - **Tráfico Local e IPC:** 500 MB transferidos sobre `lo` por la conexión WebSocket bidireccional continua entre el servidor Flask (puerto 5001) y la interfaz Kiosko Chromium local.
+- **Evaluación Táctica de Cartera y Mercado (Protocolo Regla 8):**
+  - **Rendimiento Cerrado Acumulado:** 194 operaciones registradas, ROI realizado de **+115.67%** (+$11,567.23 USD netos sobre capital inicial de $10,000 USD). Liderazgo destacado de las estrategias Wyckoff y Hybrid en HYPE 1h (+$15,857.59 combinados).
+  - **Monitor de Posiciones Abiertas:** Posiciones activas en `HYPE` (1d LONG @ $81.81, SL $75.38, TP $90.38) con gestión de trailing reactivada tras el parche del motor.
+  - **Detección de Proximidad a Disparo:** Alerta macro de agotamiento en **BTC [1W]** con TD Count en 9 (`UNPERF`) bajo nivel TDST en $87,395.67 y modulador correctivo activo.
+
+### 24. Purga Integral de Duplicidades y Sincronización Canónica en Producción
+- **Archivado Preventivo de Históricos Deprecados (Zero Data Loss):**
+  - Traslado seguro de los 9 archivos `trades_*_1h.json` (160 registros de la fase prototipo en 1 hora) hacia `/home/raspberry/GaTDSEQ/backups/legacy_1h_trades/`.
+  - Archivado de archivos de control y estado heredados (`trades.json`, `state.json`, `control.json`, `bot.log*`) en `backups/prototype_archive/`.
+- **Limpieza de Archivos Redundantes en Raíz del Nodo Edge:**
+  - Eliminación de scripts y plantillas duplicadas en la raíz de producción (`lite.html`, `index.html`, `backtest.py`, `dashboard.py`, `manual_infraestructura.md`, `test_binance.py`, `WycoffBot/` y metadatos `.DS_Store`).
+  - Despliegue de los directorios canónicos segregados (`docs/`, `scripts/`, `legacy/`, `tests/`) y verificación del symlink `auto_clean.sh -> scripts/auto_clean.sh`.
+- **Alineación Exacta 1:1 Kiosko vs Terminal:**
+  - La raíz de producción conserva estrictamente los archivos de estado y trades de la flota activa de 27 bots (`4h`, `1d`, `1w`), unificando los 34 registros reales del motor con el Leaderboard y el log de órdenes del Kiosko de pared.
+
+### 27. Refactorización Integral de Front-End Kiosko Bloomberg UI y Normalización Financiera
+- **Blindaje Estricto de Tema Bloomberg Dark por Defecto (Regla 3):**
+  - **Causa Raíz de Degradación:** Se diagnosticó que la función `computeSolarIsDay()` en `templates/lite.html` forzaba automáticamente el modo diurno `theme-light` (fondo blanco papel `#f4f5f7`) entre las 07:30 y las 19:30 horas locales. Esto destruía el contraste visual de la terminal e infringía la directriz de fondo negro puro `#000000`.
+  - **Resolución:** Se suprimió la conmutación solar automática y se estableció de forma inmutable el tema `dark` como estándar inicial. El selector de cabecera opera ahora como un toggle directo y controlado `DARK` / `LIGHT`.
+- **Motor de Formateo Financiero Institucional (`en-US`) y Erradicación del Bug de Signos Menos:**
+  - **Causa Raíz de Pérdida de Signos:** Las funciones de renderizado evaluaban el signo como `sign = val >= 0 ? '+' : ''` y concatenaban `${sign}$${Math.abs(val)}`. Al ser un número negativo, `sign` quedaba vacío, renderizando magnitudes negativas sin su signo menos (`-$5,816.95` se mostraba visualmente como `$5816,95` en rojo; `-$942.85` como `$942,85`; `-$34.33` como `$34.33`).
+  - **Arquitectura de Helpers Centralizados:** Se introdujeron las funciones puras `fmtUSD(val, showPlus)`, `fmtPrice(val, decimals)` y `fmtPct(val, showPlus, decimals)`.
+  - **Estandarización de Notación Numérica:** Se fijó el locale `'en-US'` en todas las conversiones de moneda y cotización, erradicando la inversión de puntos por comas producida por motores WebKit/Safari en España (`$81,684.20` en lugar de `$81.684,20`).
+- **Agregación Multivariante en Tarjetas de Trade Activo (`active-trade-card`):**
+  - En escenarios de convergencia de múltiples estrategias en un mismo marco temporal (e.g. `WYK` y `HYB` concurrentes en `HYPE [1d]`), la tarjeta anterior tomaba únicamente el estado de la primera variante (`tfActiveTrades[0]`), omitiendo la exposición de la segunda en `Invest` y `U/PNL`.
+  - Se implementó un algoritmo de agregación que consolida el capital total en riesgo (`Invest`), promedia de forma ponderada la entrada, el Stop Loss y el Take Profit, y suma el `Unrealized P&L` exacto de todas las instancias concurrentes.
+- **Alineación Numérica Institucional en Tablas (Leaderboard y Order Log):**
+  - Se refactorizó la hoja de estilos CSS aplicando `text-align: right;` a todas las métricas numéricas en la tabla del Leaderboard (`Realized`, `ROI`, `Trades`, `Win%`) y en el registro de órdenes históricas (`Price`, `PnL`).
+  - Se forzó el redondeo a 2 decimales en el precio de ejecución (`fmtPrice(price, 2)`), impidiendo que valores como `$78.70` se imprimieran truncados como `$78,7`.
+- **Deduplicación de Telemetría en Motor de Terminal en Vivo (`bot.py`):**
+  - Se erradicó la emisión de líneas genéricas repetitivas en el análisis de velas en `bot.py` (líneas 604–607). Ahora se imprime una única línea sintética y profesional identificada unívocamente con `[{bot_id}]`, saneando el feed WebSocket del kiosko.
+- **Despliegue y Validación en Producción (Raspberry Pi 3B):**
+  - Sincronización a producción de `templates/lite.html` y `bot.py` mediante `rsync`.
+  - Reinicio sin errores de `gatdseq-server.service` y `gatdseq-bot.service` vía `systemctl`. Confirmación de telemetría nominal.
+
+
+
+
+
+
+
+
 
 
 

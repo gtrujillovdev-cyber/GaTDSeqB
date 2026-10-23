@@ -43,3 +43,28 @@ Dado que el usuario es un estudiante de DAM en proceso de aprendizaje, **DEBES a
 - Durante la resolución de cualquier tarea, explica brevemente el *porqué* de las decisiones de diseño, patrones de código o comandos de terminal.
 - Recomienda activamente "Buenas Prácticas" de la industria (Clean Code, principios SOLID, seguridad, manejo de repositorios Git, estructura de carpetas) siempre que el contexto lo permita.
 - Corrige amablemente los malos hábitos de desarrollo explicándole la alternativa profesional.
+
+### 10. Directrices de Ciberseguridad y SecOps (Zero-Trust Standard)
+- **Privacidad y Credenciales:** Jamás solicitar ni registrar contraseñas de usuario en chats, scripts temporales, commits o logs. El usuario siempre debe gestionarlas de forma local y privada mediante `passwd` o el llavero del sistema.
+- **Cero Exposición Pública (Zero Port Forwarding):** Prohibido abrir puertos WAN en el router doméstico. Todo el tráfico de control, telemetría y terminal remota debe enrutarse exclusivamente por la malla privada cifrada de Tailscale (WireGuard).
+- **Hardening de Dispositivos:** Mantener el Firewall de macOS activo en todos los nodos portátiles y promover el uso de autenticación de doble factor (2FA) en la cuenta de gestión de la red mesh.
+
+### 11. Gobernanza y Estructura Limpia del Repositorio (Clean Layout Standard)
+- **Estructura por Responsabilidades:**
+  - `docs/`: Documentación técnica, manuales de arquitectura y research. Prohibido añadir manuales `.md` dispersos en la raíz.
+  - `scripts/`: Scripts operativos, rutinas de DevOps, lanzadores y LaunchDaemons. Mantener enlaces simbólicos en la raíz solo si son imprescindibles para la compatibilidad con cron/systemd en producción.
+  - `templates/`: Única ubicación canónica para plantillas frontend (`lite.html`). Prohibido duplicar plantillas HTML en la raíz.
+  - `tests/`: Batería de pruebas y diagnósticos (`test_*.py`). Nunca dejar scripts de prueba sueltos en la raíz.
+  - `legacy/`: Archivo histórico para prototipos o código deprecado, documentando su procedencia con un `README.md`.
+- **Higiene de Metadatos:** Prohibido commitear `.DS_Store`, `Thumbs.db` o artefactos del sistema operativo. Mantener `.gitignore` permanentemente blindado.
+
+### 12. Ciclo de Vida y Auto-Curación del Worker Node (Headless 24/7)
+- Todo nodo de cálculo worker que opere 24/7 en modo clamshell debe contar con su suite de auto-curación:
+  - **Caffeinate a Nivel de Sistema:** Daemon `/Library/LaunchDaemons/com.gatdseq.caffeinate.plist` (`root:wheel 644`) con `caffeinate -s -i -m -u` para garantizar anti-suspensión antes de cualquier login gráfico.
+  - **Purga de RAM y Cachés:** Ejecución programada de `/usr/sbin/purge` y rotación de logs mayores a 25 MB para proteger la memoria física y el almacenamiento SSD.
+  - **Reinicio Desatendido Inteligente:** Reinicio controlado diario a las 04:30 AM (`com.gatdseq.maintenance.plist`), verificando previamente con `pgrep` si hay tareas pesadas de optimización o ML activas (`optimize_fleet.py`, `run_backtest.py`, `xgboost_gate.py`) para posponer el reinicio si el worker está ocupado.
+  - **Auto-Restart por Hardware:** Configuración `pmset -a autorestart 1` obligatoria para auto-recuperación tras cortes de energía.
+
+### 13. Pipeline de Hiperparámetros Desacoplado (Zero-Downtime Hot-Swapping)
+- Los parámetros de riesgo (`atr_sl_trend`, `atr_tp_trend`, `be_threshold_atr`, `scale_out_atr`) nunca deben quedar estáticos (*hardcoded*) en `bot.py`.
+- Deben gestionarse dinámicamente mediante la función `get_bot_params(symbol, timeframe, strategy)` conectada a la matriz `fleet_optimized.json` con caché en memoria de 60 segundos de TTL, permitiendo desplegar nuevas calibraciones desde el Worker sin reiniciar los bots ni cerrar posiciones abiertas en producción.
