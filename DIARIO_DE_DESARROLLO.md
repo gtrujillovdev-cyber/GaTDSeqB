@@ -782,6 +782,20 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Sincronización a producción de `templates/lite.html` y `bot.py` mediante `rsync`.
   - Reinicio sin errores de `gatdseq-server.service` y `gatdseq-bot.service` vía `systemctl`. Confirmación de telemetría nominal.
 
+### 28. Auditoría Operativa de Infraestructura y Evaluación Táctica de Flota (25 de Octubre de 2026)
+- **Protocolo de Auditoría de Sistemas (Regla 7 - Zero-Downtime Edge Audit):**
+  - **Salud del Dispositivo Edge (Raspberry Pi 3B):** Uptime acumulado de 1 día y 19 horas sin interrupciones. Carga promedio en reposo excelente (`load average: 0.03, 0.13, 0.08`), 66.7% de inactividad de CPU (`idle`) y 224 MB de memoria física disponible. Almacenamiento en tarjeta SD blindado al 36% de uso (8.7 GB libres).
+  - **Integridad de Demonios y Servicios:** Procesos `gatdseq-bot.service` y `gatdseq-server.service` en estado `active (running)`. Cero líneas de error o excepciones no controladas registradas en `bot_unified.log` y `server.log`.
+  - **Higiene del Repositorio Local y Remoto:** Escaneo de scripts temporales completado con 0 archivos volátiles (`patch_*.py`, `temp_*.py`). Blindaje en `.gitignore` reforzado para índices `.codegraph/`.
+- **Protocolo de Evaluación Táctica de Mercado y Cartera (Regla 8):**
+  - **Métricas de Rendimiento Consolidado:** Matriz de 27 instancias activas sobre capital base de $270,000.00 USD ($10,000 USD por bot). Patrimonio actual en $261,153.71 USD con PnL neto realizado de -$8,846.29 USD (-3.28% ROI). Total de 18 operaciones cerradas en el histórico del fondo.
+  - **Estado Operativo de Posiciones:** La flota se encuentra actualmente al **100% IDLE** (0 posiciones abiertas en riesgo), preservando liquidez.
+  - **Detección Táctica de Señales y Confluencias:**
+    - **BTC [1W]:** Señal macro de agotamiento con **TD Count 9 (UNPERF)** en cotización de $82,116.00 (RSI 57.3), bajo resistencia TDST en $87,395.67 y sesgo correctivo activo (ventana 9/12).
+    - **ETH [4h]:** Detección de agotamiento bajista secuencial con **TD Count -9** en cotización de $2,362.80 (RSI 43.1). El filtro algorítmico institucional *Funnel Gate* evaluó la convicción en 0.40 frente al umbral requerido de 0.55, abortando preventivamente la orden de compra contra la EMA200 ($2,490.24) para proteger el capital.
+    - **HYPE [1d]:** Aplicación estricta de la regla de *Cooldown post-Stop Loss* (49.2 horas restantes de 72h) tras la salida técnica defensiva a $75.38 del 24 de octubre, erradicando el sesgo psicológico de revenge-trading.
+
+
 
 
 
