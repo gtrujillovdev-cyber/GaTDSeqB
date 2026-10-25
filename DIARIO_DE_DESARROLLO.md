@@ -795,6 +795,22 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
     - **ETH [4h]:** Detección de agotamiento bajista secuencial con **TD Count -9** en cotización de $2,362.80 (RSI 43.1). El filtro algorítmico institucional *Funnel Gate* evaluó la convicción en 0.40 frente al umbral requerido de 0.55, abortando preventivamente la orden de compra contra la EMA200 ($2,490.24) para proteger el capital.
     - **HYPE [1d]:** Aplicación estricta de la regla de *Cooldown post-Stop Loss* (49.2 horas restantes de 72h) tras la salida técnica defensiva a $75.38 del 24 de octubre, erradicando el sesgo psicológico de revenge-trading.
 
+### 29. Erradicación de Sesgo Direccional en Funnel Gate, Desacoplamiento de Momentum y Blindaje Anti-Choking (25 de Octubre de 2026)
+- **Eliminación de Sesgo Direccional en Eje DeMark (`calculate_confidence_score`):**
+  - **Diagnóstico:** Se identificó que la evaluación `count = abs(candle.get('td_count', 0))` asignaba ciegamente +0.30 de convicción a órdenes BUY aun cuando el mercado registraba un conteo alcista agotado (`+9`), premiando compras en techos.
+  - **Corrección Simétrica:** Se aplicó validación direccional estricta. Para compras (`BUY`), se exige conteo bajista `td_count <= -9` (+0.30, con +0.05 adicional si `td_perfected` es True) y se penaliza activamente la sobrecompra `td_count >= 9` (-0.10). Para ventas (`SELL`), se exige conteo alcista `td_count >= 9` y se penaliza la sobreventa `td_count <= -9` (-0.10).
+- **Desacoplamiento y Filtro Anti-Sesgo en Eje Momentum (RSI & Divergencias):**
+  - Se erradicó la exclusividad mutua (`elif`) que ignoraba el RSI cuando existía divergencia. Ahora ambos componentes se ponderan de forma conjunta y simétrica (máximo 0.25).
+  - Se añadió penalización táctica (-0.10) si existe una divergencia contraria al sentido de la orden (e.g. divergencia bajista activa durante una señal de compra).
+- **Normalización de Confirmación de Setup DeMark en Motor Central (`bot.py`):**
+  - Se flexibilizó la condición de entrada para aceptar la perfección formal de Tom DeMark (`td_perfected`) o giros de cierre favorables (`close > prev_close`), eliminando el sesgo ultra-restrictivo que exigía cerrar por encima del máximo absoluto de la vela anterior.
+- **Erradicación del "Choke Effect" en Matriz de Hiperparámetros (`fleet_optimized.json`):**
+  - Conforme al manual de investigación `docs/RESEARCH_FUNNEL_ARCHITECTURE.md`, se estandarizó el umbral de activación de Break-Even (`be_threshold_atr`) de 0.5 a **1.0 ATR** en todas las configuraciones, impidiendo que el ruido normal del mercado cierre prematuramente posiciones ganadoras a precio de entrada.
+- **Suite de Pruebas Unitarias y Despliegue en Producción:**
+  - Desarrollo de batería de pruebas `tests/test_confidence_gate.py` (5/5 tests superados).
+  - Despliegue en la Raspberry Pi 3B mediante `rsync`, validación de tests nativos en procesador ARM y reinicio sin incidencias de `gatdseq-bot.service`.
+
+
 
 
 

@@ -6,7 +6,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": false
     },
     "metrics": {
@@ -26,7 +26,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
@@ -46,7 +46,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
@@ -86,7 +86,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
@@ -106,7 +106,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
@@ -126,7 +126,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
@@ -146,7 +146,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
@@ -166,7 +166,7 @@
     "best_params": {
       "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 0.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {

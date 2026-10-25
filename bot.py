@@ -423,34 +423,69 @@ MIN_CONFIDENCE = 0.55
 
 def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng_index=50, funding_rate=0.0, weekly_context=None):
     """
-    Funnel Architecture: Calcula una puntuación de convicción multidimensional (0.0 a 1.0).
-    Ejes: 
-    1. Setup DeMark (30%) 
-    2. Momentum RSI (25%) 
-    3. Volumen (25%) 
-    4. Tendencia EMA200 (20%)
-    5. Macro Confluence: Fear & Greed Index (Modulador ±10%)
-    6. Carry Cost: Tasa de financiación en futuros (Modulador ±5%)
-    7. Top-Down Macro Alignment: TD Sequential Semanal [1W] (Modulador ±15%)
+    Funnel Architecture: Calcula una puntuacion de conviccion multidimensional (0.0 a 1.0) sin sesgo direccional.
+    Ejes:
+    1. Setup DeMark (30%) - Verificacion direccional simetrica (Buy Setup: <=-9, Sell Setup: >=+9)
+    2. Momentum RSI y Divergencia (25%) - Desacoplado con penalizacion ante divergencias contrarias
+    3. Volumen Institucional vs SMA 20 (25%)
+    4. Tendencia Macro EMA 200 (20%)
+    5. Macro Confluence: Fear & Greed Index (Modulador +-10%)
+    6. Carry Cost: Tasa de financiacion en futuros (Modulador +-5%)
+    7. Top-Down Macro Alignment: TD Sequential Semanal [1W] (Modulador +-15%)
     """
     score = 0.0
-    # 1. Setup DeMark
-    count = abs(candle.get('td_count', 0))
-    if count >= 9: score += 0.30
-    elif count >= 7: score += 0.15
     
-    # 2. RSI & Divergencia
-    rsi = candle.get('rsi', 50.0)
+    # 1. Setup DeMark (30%) - Verificacion direccional estricta (Anti-Directional Bias)
+    raw_count = candle.get('td_count', 0)
+    is_perf = bool(candle.get('td_perfected', False))
     if action == "BUY":
-        if divergence == 'BULLISH': score += 0.25
-        elif rsi <= 30: score += 0.20
-        elif rsi <= 40: score += 0.10
-    else:
-        if divergence == 'BEARISH': score += 0.25
-        elif rsi >= 70: score += 0.20
-        elif rsi >= 60: score += 0.10
+        if raw_count <= -9:
+            score += 0.30
+            if is_perf: score += 0.05  # Bonificacion por perfeccion formal DeMark
+        elif raw_count <= -7:
+            score += 0.15
+        elif raw_count >= 9:
+            score -= 0.10  # Penalizacion: agotamiento alcista activo (techo), riesgo de comprar en sobrecompra
+    elif action == "SELL":
+        if raw_count >= 9:
+            score += 0.30
+            if is_perf: score += 0.05  # Bonificacion por perfeccion formal DeMark
+        elif raw_count >= 7:
+            score += 0.15
+        elif raw_count <= -9:
+            score -= 0.10  # Penalizacion: agotamiento bajista activo (suelo), riesgo de vender en soporte
+    
+    # 2. RSI & Divergencia (25% max) - Desacoplado de exclusividad mutua
+    rsi = candle.get('rsi', 50.0)
+    mom_score = 0.0
+    if action == "BUY":
+        if divergence == 'BULLISH':
+            mom_score += 0.15
+        elif divergence == 'BEARISH':
+            mom_score -= 0.10  # Filtro anti-sesgo: divergencia bajista desaconseja compra
+            
+        if rsi <= 30:
+            mom_score += 0.10
+        elif rsi <= 40:
+            mom_score += 0.05
+        elif rsi >= 70:
+            mom_score -= 0.10  # Sobrecompra severa desaconseja compra
+    else:  # SELL
+        if divergence == 'BEARISH':
+            mom_score += 0.15
+        elif divergence == 'BULLISH':
+            mom_score -= 0.10  # Filtro anti-sesgo: divergencia alcista desaconseja venta
+            
+        if rsi >= 70:
+            mom_score += 0.10
+        elif rsi >= 60:
+            mom_score += 0.05
+        elif rsi <= 30:
+            mom_score -= 0.10  # Sobreventa severa desaconseja venta
+            
+    score += max(-0.15, min(0.25, mom_score))
         
-    # 3. Volumen Institucional vs SMA 20
+    # 3. Volumen Institucional vs SMA 20 (25%)
     vol = candle.get('volume', 0.0)
     avg_vol = candle.get('volume_sma', vol)
     if avg_vol > 0:
@@ -459,24 +494,24 @@ def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng
         elif vol_ratio >= 1.0: score += 0.15
         else: score += 0.05
         
-    # 4. Tendencia Macro EMA 200
+    # 4. Tendencia Macro EMA 200 (20%)
     if not is_counter_trend:
         score += 0.20
     else:
         score += 0.05
         
-    # 5. Macro Confluence: Fear & Greed Index
+    # 5. Macro Confluence: Fear & Greed Index (Modulador +-10%)
     if fng_index is not None:
         if action == "BUY":
-            if fng_index <= 25: score += 0.10     # Pánico Extremo: Smart Money acumula
-            elif fng_index <= 40: score += 0.05    # Pánico moderado: Descuento
-            elif fng_index >= 75: score -= 0.10    # Euforia Extrema: Riesgo de atrapar cuchillos en techos
+            if fng_index <= 25: score += 0.10     # Panico Extremo: Smart Money acumula
+            elif fng_index <= 40: score += 0.05    # Panico moderado: Descuento
+            elif fng_index >= 75: score -= 0.10    # Euforia Extrema: Riesgo de atrapar techos
         elif action == "SELL":
-            if fng_index >= 75: score += 0.10     # Euforia Extrema: Distribución institucional
+            if fng_index >= 75: score += 0.10     # Euforia Extrema: Distribucion institucional
             elif fng_index >= 60: score += 0.05    # Codicia: Buen punto de agotamiento
-            elif fng_index <= 25: score -= 0.10    # Pánico Extremo: Riesgo de vender en el suelo
+            elif fng_index <= 25: score -= 0.10    # Panico Extremo: Riesgo de vender en el suelo
             
-    # 6. Carry Cost: Funding Rate en Perpetuos
+    # 6. Carry Cost: Funding Rate en Perpetuos (Modulador +-5%)
     if funding_rate != 0.0:
         if action == "BUY":
             if funding_rate > 0.0004: score -= 0.05   # Longs pagando funding caro (>0.04%/8h)
@@ -485,24 +520,24 @@ def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng
             if funding_rate < -0.0004: score -= 0.05  # Shorts pagando funding caro
             elif funding_rate > 0.0002: score += 0.05  # Longs pagando a shorts (carry positivo)
 
-    # 7. Top-Down Macro Alignment: DeMark Semanal [1W] (Anti-Bias Shield Ponderado con Perfección)
+    # 7. Top-Down Macro Alignment: DeMark Semanal [1W] (Anti-Bias Shield Ponderado con Perfeccion)
     if weekly_context:
         is_sell_exh = weekly_context.get('is_sell_exhaustion_active', False)
         is_buy_exh = weekly_context.get('is_buy_exhaustion_active', False)
-        macro_modulator = weekly_context.get('macro_weight', 0.06)
+        macro_weight = weekly_context.get('macro_weight', 0.06)
         
         if is_sell_exh:
             if action == "SELL":
-                score += macro_modulator  # Viento a favor macro verificado
+                score += macro_weight  # Viento a favor macro verificado
             elif action == "BUY":
-                score -= macro_modulator  # Leve filtro de prudencia en compras cerca de resistencia semanal
+                score -= macro_weight  # Leve filtro de prudencia en compras cerca de resistencia semanal
         elif is_buy_exh:
             if action == "BUY":
-                score += macro_modulator  # Viento a favor macro verificado
+                score += macro_weight  # Viento a favor macro verificado
             elif action == "SELL":
-                score -= macro_modulator  # Leve filtro de prudencia en ventas cerca de soporte semanal
+                score -= macro_weight  # Leve filtro de prudencia en ventas cerca de soporte semanal
 
-    return round(score, 2)
+    return max(0.0, min(1.0, round(score, 2)))
 
 def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_context=None):
     global TIMEFRAME, SYMBOL, STATE_FILE, TRADES_FILE
@@ -615,8 +650,9 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
             _remaining_h = (_cooldown - (time.time() - _last_sl)) / 3600
             print(f"[{bot_id}] Cooldown post-SL activo: {_remaining_h:.1f}h restantes. Sin entrada.")
             return
-        td_buy = (count <= -9) and (closed_candle['close'] > df.iloc[-3]['high']) # Confirmación de reversión
-        td_sell = (count >= 9) and (closed_candle['close'] < df.iloc[-3]['low']) # Confirmación de reversión
+        td_perf = bool(closed_candle.get('td_perfected', False))
+        td_buy = (count <= -9) and (td_perf or closed_candle['close'] > df.iloc[-3]['close'] or closed_candle['close'] > df.iloc[-3]['high'])
+        td_sell = (count >= 9) and (td_perf or closed_candle['close'] < df.iloc[-3]['close'] or closed_candle['close'] < df.iloc[-3]['low'])
         
         trigger_buy = False
         trigger_sell = False
