@@ -101,13 +101,13 @@ def get_bot_params(symbol="BTC", timeframe="1h", strategy="HYB"):
     global _FLEET_PARAMS_CACHE
     defaults = {
         "atr_sl_trend": 1.5,
-        "atr_tp_trend": 2.5,
+        "atr_tp_trend": 3.5,
         "atr_sl_counter": 1.5,
-        "atr_tp_counter": 2.0,
+        "atr_tp_counter": 2.5,
         "atr_sl_wyckoff": 1.5,
-        "atr_tp_wyckoff": 2.0,
-        "be_threshold_atr": 1.0,
-        "scale_out_atr": 1.0,
+        "atr_tp_wyckoff": 3.0,
+        "be_threshold_atr": 1.5,
+        "scale_out_atr": 2.0,
         "scale_out_pct": 0.5,
         "enable_scale_out": True
     }
@@ -583,7 +583,7 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
         val = vp_data['val']
         divergence = precomputed_context.get('divergence')
     else:
-        vp_data = calculate_volume_profile(df.tail(100), bins=20)
+        vp_data = calculate_volume_profile(df.tail(min(300, len(df))), bins=20)
         poc = vp_data['poc']
         vah = vp_data['vah']
         val = vp_data['val']
@@ -667,6 +667,20 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 trigger_sell = True
                 reason_sell = "TD9 Sell"
                 
+            # FIX: Anti-duplicacion TD9+HYB — HYB no opera TD9 si TD9 ya entro o esta activo esta vela
+            if strategy_type == "HYB" and trigger_buy and "TD9" in reason_buy:
+                _td_state = load_state(f"state_{SYMBOL}_TD9_{TIMEFRAME}.json")
+                if _td_state.get("last_trigger_time") == trigger_time or _td_state.get("status") == "IN_TRADE":
+                    trigger_buy = False
+                    reason_buy = ""
+                    print(f"[{bot_id}] DEDUP: HYB salta TD9 Buy — TD9 ya lo opero en {SYMBOL} [{TIMEFRAME}]")
+            if strategy_type == "HYB" and trigger_sell and "TD9" in reason_sell:
+                _td_state = load_state(f"state_{SYMBOL}_TD9_{TIMEFRAME}.json")
+                if _td_state.get("last_trigger_time") == trigger_time or _td_state.get("status") == "IN_TRADE":
+                    trigger_sell = False
+                    reason_sell = ""
+                    print(f"[{bot_id}] DEDUP: HYB salta TD9 Sell — TD9 ya lo opero en {SYMBOL} [{TIMEFRAME}]")
+
         if strategy_type in ["WYK", "HYB"]:
             # FIX 1: Hard veto EMA200 — Wyckoff Spring solo si precio >= EMA200 (con tendencia alcista)
             # Sin este filtro, el bot entraba en BUY en pleno downtrend repetidamente
@@ -704,13 +718,14 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 fng_val = get_fear_and_greed()
                 funding_val = get_funding_rate(SYMBOL)
                 conf_score = calculate_confidence_score(closed_candle, "BUY", divergence, is_counter_trend, fng_val, funding_val, weekly_context)
+                req_conf = 0.70 if SYMBOL == "HYPE" else MIN_CONFIDENCE
                 w_td_str = f" | 1W TD: {weekly_context.get('td_count', 0)}" if weekly_context else ""
-                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%{w_td_str}")
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {req_conf}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%{w_td_str}")
 
                 # --- PORTFOLIO & CORRELATION SHIELD ---
                 fleet_stats = get_fleet_position_stats()
-                if conf_score < MIN_CONFIDENCE:
-                    print(f"🛑 SKIP: Señal BUY descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                if conf_score < req_conf:
+                    print(f"🛑 SKIP: Señal BUY descartada por baja convicción ({conf_score:.2f} < {req_conf}).")
                 elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and weekly_context.get('is_sell_exhaustion_active'):
                     print(f"🛑 MACRO SHIELD: Compra contra-tendencia descartada en {SYMBOL} [4h] por corrección semanal activa.")
                 elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and (-8 <= weekly_context.get('td_count', 0) < 0):
@@ -768,13 +783,14 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                 fng_val = get_fear_and_greed()
                 funding_val = get_funding_rate(SYMBOL)
                 conf_score = calculate_confidence_score(closed_candle, "SELL", divergence, is_counter_trend, fng_val, funding_val, weekly_context)
+                req_conf = 0.70 if SYMBOL == "HYPE" else MIN_CONFIDENCE
                 w_td_str = f" | 1W TD: {weekly_context.get('td_count', 0)}" if weekly_context else ""
-                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {MIN_CONFIDENCE}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%{w_td_str}")
+                print(f"🎯 Funnel Gate ({SYMBOL} [{TIMEFRAME}]) | Convicción: {conf_score:.2f} (Umbral: {req_conf}) | F&G: {fng_val} | Funding: {funding_val*100:+.3f}%{w_td_str}")
 
                 # --- PORTFOLIO & CORRELATION SHIELD ---
                 fleet_stats = get_fleet_position_stats()
-                if conf_score < MIN_CONFIDENCE:
-                    print(f"🛑 SKIP: Señal SELL descartada por baja convicción ({conf_score:.2f} < {MIN_CONFIDENCE}).")
+                if conf_score < req_conf:
+                    print(f"🛑 SKIP: Señal SELL descartada por baja convicción ({conf_score:.2f} < {req_conf}).")
                 elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and weekly_context.get('is_buy_exhaustion_active'):
                     print(f"🛑 MACRO SHIELD: Venta contra-tendencia descartada en {SYMBOL} [4h] por rebote semanal activo.")
                 elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and (0 < weekly_context.get('td_count', 0) <= 8):
@@ -1321,7 +1337,7 @@ if __name__ == "__main__":
                     if df is not None and len(df) >= 5:
                         df_cache[symbol] = df
                         # Precalcular Volume Profile y Divergencias Wyckoff 1 SOLA VEZ por activo y timeframe
-                        vp_data = calculate_volume_profile(df.tail(min(100, len(df))), bins=20)
+                        vp_data = calculate_volume_profile(df.tail(min(300, len(df))), bins=20)
                         divergence = detect_divergences(df.iloc[:-1])
                         market_context_cache[symbol] = {
                             'vp_data': vp_data,

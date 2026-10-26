@@ -826,6 +826,26 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
     - **ETH [4h]:** Configuración de agotamiento bajista secuencial en desarrollo con **TD Count -7** (precio $2,328.26, RSI 41.2, bajo EMA200 $2,476.69). Se proyecta potencial setup de compra TD9 si la tendencia completa 2 velas bajistas adicionales (~8 horas) y supera el filtro algorítmico *Funnel Gate*.
     - **HYPE [1d/4h]:** Cooldown institucional post-Stop Loss activo con 12.2 horas restantes para completar la ventana de 72h, impidiendo el over-trading hasta consolidación técnica.
 
+### 31. Re-calibración Institucional Definitiva de la Estrategia y Reset para Forward Testing (26 de Octubre de 2026)
+- **Diagnóstico Cuantitativo Forense de Rentabilidad:**
+  - Se determinó que el 96.95% de las pérdidas históricas (-\$8,576.93 de -\$8,846.29) se originaron en HYPE entre el 13 y el 24 de octubre debido a la matriz arcaica de riesgo (15% por trade en 1d), falta de cooldown post-SL y trampas contra-tendencia sin EMA200.
+  - La única operación abierta con las reglas reformadas (Short BTC [1w]) reportaba beneficios consolidados (+2.39%), confirmando la validez de la nueva infraestructura.
+- **Inyección de las 5 Correcciones Arquitectónicas y Paramétricas Definitivas:**
+  - **Des-duplicación TD9 vs HYB (Anti-Double Exposure):** Verificación cruzada en `bot.py` para que los bots híbridos (`HYB`) no dupliquen órdenes DeMark si el bot puro `TD9` ya operó o está dentro de posición en la vela.
+  - **Re-calibración del Ratio Riesgo/Beneficio (Positive Payoff Expectancy):**
+    - `atr_tp_trend` elevado de 2.5 a **3.5 ATR** para dejar correr tendencias ganadoras.
+    - `be_threshold_atr` elevado de 1.0 a **1.5 ATR** para evitar que el ruido normal de mercado active el Break-Even prematuramente y ahogue el trade.
+    - `scale_out_atr` ajustado a **2.0 ATR** (toma de 50% con +2R limpios).
+    - `atr_tp_wyckoff` a **3.0 ATR** y `atr_tp_counter` a **2.5 ATR**.
+  - **Filtro Institucional de Convicción para Altcoins de Alta Beta (HYPE):** Umbral endurecido a **0.70 de convicción** (`req_conf = 0.70 if SYMBOL == "HYPE" else MIN_CONFIDENCE`) en `analyze_market` para neutralizar barridos de liquidez (*stop hunts*).
+  - **Ampliación de Muestra de Volume Profile Wyckoff:** Lookback ampliado de 100 a **300 velas** (`min(300, len(df))`), cubriendo 50 días en 4h para calcular POC, VAL y VAH institucionales fiables.
+  - **Sincronización Total de Matriz de Hiperparámetros:** Regeneración completa de `fleet_optimized.json` cubriendo las 30 configuraciones de los 27 bots de la flota.
+- **Protocolo de Reseteo y Despliegue en Producción (Raspberry Pi 3B):**
+  - **Preservación Forense:** Creación de backup histórico seguro en `/home/raspberry/GaTDSEQ/backups/archive_pre_forward_test_20261026_223733`.
+  - **Forward Test Clean State:** Purga atómica de archivos dinámicos de estado y logs antiguos. Inicio formal del forward test desde capital base nominal ($10,000 USD / bot, $270,000 USD total portfolio, PnL $0.00, 100% IDLE).
+  - **Validación y Despliegue:** Sincronización vía `rsync`, ejecución de suite unitaria (`tests/test_confidence_gate.py` superado con 5/5 OK) y reinicio nominal de `gatdseq-server.service` y `gatdseq-bot.service`.
+
+
 
 
 
