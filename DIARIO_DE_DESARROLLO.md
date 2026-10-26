@@ -856,6 +856,27 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - **`HYPE/USDT [4h]`:** Cero operaciones erráticas tomadas. El endurecimiento de convicción a 0.70 y el filtro de tendencia EMA200 blindaron el capital, erradicando los falsos springs que causaron pérdidas en el pasado.
   - **Conclusión Cuantitativa:** El portafolio consolidado en backtest arroja una rentabilidad neta combinada positiva de **+$291.57 USD** con un Drawdown máximo ultra-acotado (<3.1%), validando que la nueva parametrización genera valor esperado positivo y preservación estricta de capital.
 
+### 33. Despliegue de Palancas Institucionales: Conviction Leverage Booster y Arquitectura Runner (27 de Octubre de 2026)
+- **Diagnóstico de Eficiencia de Capital y Retorno sobre Inversión (ROI):**
+  - Las simulaciones cuantitativas confirmaron que el fondo operaba con una esperanza matemática positiva y un Drawdown extremadamente bajo (<3.0%), pero el ROI nominal permanecía modesto debido a un excesivo sub-apalancamiento (96% de caja inactiva por bot) y al corte prematuro de tendencias prolongadas en 3.5 ATR.
+- **Implementación de las 2 Palancas Cuantitativas de Retorno:**
+  - **Palanca A — Conviction Leverage Booster (Escalado Dinámico de Exposición):**
+    - Se incorporó un multiplicador de riesgo dinámico en `bot.py` y `backtesting/engine.py` exclusivo para activos de máxima liquidez y profundidad de libro (**BTC** y **ETH**).
+    - Confluencia Institucional Máxima (`conf_score >= 0.75`): El riesgo se amplifica a **2.0x** (ej. de 2.0% a 4.0% en timeframe diario), aprovechando setups de probabilidad óptima (alineación de TD9, Wyckoff, volumen y divergencia).
+    - Confluencia Alta (`conf_score >= 0.65`): El riesgo se amplifica a **1.5x**.
+    - Activos de alta beta (**HYPE**): Mantienen amortiguación sin multiplicador para salvaguardar la cuenta ante gaps de liquidez.
+  - **Palanca B — Arquitectura Runner (Gestión de Salida en 3 Fases):**
+    - Se erradicó el límite rígido de toma de ganancias que cerraba el 100% de la posición en 3.5 ATR, permitiendo explotar colas largas (*fat-tail macro trends*) de 10x a 20x ATR.
+    - **Fase 1 (Scale-Out @ +2.0 ATR):** Venta/cierre del 50% inicial, asegurando +2R monetarios y elevando el Stop Loss a precio de entrada (Break-Even garantizado).
+    - **Fase 2 (Take Profit Parcial @ +3.5 ATR):** Cierre del 50% de las unidades remanentes (equivalente al 25% del volumen inicial del trade).
+    - **Fase 3 (Macro Runner del 25% Final):** El 25% final se libera de Take Profit (`take_profit = 0.0`), se blinda el Stop Loss a una ganancia mínima garantizada de **+2.0 ATR**, y se activa un Trailing Stop holgado a **2.5 ATR** sobre velas cerradas (`runner_active = True`). Si el mercado entra en un rally o capitulación macro, este runner permanece abierto capturando el 100% de la extensión tendencial.
+- **Despliegue y Control Operativo en Producción (Raspberry Pi 3B):**
+  - Paridad total entre el motor de backtest (`backtesting/engine.py`) y el motor de ejecución en vivo (`bot.py`).
+  - Sincronización atómica mediante `rsync` hacia `/home/raspberry/GaTDSEQ/`.
+  - Validación de la suite de pruebas unitarias (`tests/test_confidence_gate.py` y suite de riesgo) con 5/5 tests exitosos (OK).
+  - Reinicio nominal de `gatdseq-bot.service` (`active (running)`).
+  - Preservación intacta de las 2 posiciones vivas en corto en **BTC [1w]** (`BTC_TD9_1w` y `BTC_HYB_1w`), monitoreadas en tiempo real.
+
 
 
 

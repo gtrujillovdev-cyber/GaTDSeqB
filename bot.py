@@ -774,7 +774,18 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                     
                     # Dynamic Portfolio Dampening: Si ya hay 2 o más posiciones LONG, modular riesgo al 75%
                     portfolio_dampening = 0.75 if fleet_stats['longs'] >= 2 else 1.0
-                    final_risk = base_risk * conviction_multiplier * asset_dampener * portfolio_dampening
+
+                    # Palanca A: Conviction Leverage Booster (BTC y ETH con alta confluencia institucional)
+                    conviction_boost = 1.0
+                    if SYMBOL in ["BTC", "ETH"]:
+                        if conf_score >= 0.75:
+                            conviction_boost = 2.0
+                            print(f"⚡ CONVICTION LEVERAGE BOOST: Confluencia institucional máxima ({conf_score:.2f} >= 0.75). Riesgo amplificado 2.0x.")
+                        elif conf_score >= 0.65:
+                            conviction_boost = 1.5
+                            print(f"⚡ CONVICTION LEVERAGE BOOST: Confluencia alta ({conf_score:.2f} >= 0.65). Riesgo amplificado 1.5x.")
+
+                    final_risk = base_risk * conviction_multiplier * asset_dampener * portfolio_dampening * conviction_boost
                     execute_trade("BUY", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
         elif trigger_sell:
@@ -839,7 +850,18 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                     
                     # Dynamic Portfolio Dampening: Si ya hay 2 o más posiciones SHORT, modular riesgo al 75%
                     portfolio_dampening = 0.75 if fleet_stats['shorts'] >= 2 else 1.0
-                    final_risk = base_risk * conviction_multiplier * asset_dampener * portfolio_dampening
+
+                    # Palanca A: Conviction Leverage Booster (BTC y ETH con alta confluencia institucional)
+                    conviction_boost = 1.0
+                    if SYMBOL in ["BTC", "ETH"]:
+                        if conf_score >= 0.75:
+                            conviction_boost = 2.0
+                            print(f"⚡ CONVICTION LEVERAGE BOOST: Confluencia institucional máxima ({conf_score:.2f} >= 0.75). Riesgo amplificado 2.0x.")
+                        elif conf_score >= 0.65:
+                            conviction_boost = 1.5
+                            print(f"⚡ CONVICTION LEVERAGE BOOST: Confluencia alta ({conf_score:.2f} >= 0.65). Riesgo amplificado 1.5x.")
+
+                    final_risk = base_risk * conviction_multiplier * asset_dampener * portfolio_dampening * conviction_boost
                     execute_trade("SELL", current_live_price, stop_loss, take_profit, reason, trigger_time, final_risk)
 
     elif state.get("status") == "IN_TRADE":
@@ -1097,7 +1119,8 @@ def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context
             
 
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
-        new_sl = current_closed_price - (atr * 2.0)
+        trail_mult = 2.5 if state.get("runner_active") else 2.0
+        new_sl = current_closed_price - (atr * trail_mult)
         if new_sl > updated_sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
@@ -1105,29 +1128,43 @@ def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context
             
         # Evaluate against the candle wicks (low/high) for realism
         if low_price <= updated_sl:
-            print("❌ Stop Loss impactado en la mecha inferior.")
+            close_reason = "Runner Trailing Exit (+Macro Trend)" if state.get("runner_active") else "Stop Loss"
+            print(f"❌ {close_reason} impactado en la mecha inferior.")
             pnl_dollars = (updated_sl - entry) * size_btc
             exit_fee = (updated_sl * size_btc) * 0.0004
             pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
-            close_reason = "Stop Loss"
             current_live_price = updated_sl # For closing log
-        elif high_price >= tp:
-            if live_candle.get('rsi', 50) >= 65:
-                # Dynamic TP Extension (Let winners run)
-                print(f"🔥 Take Profit alcanzado pero mercado eufórico (RSI >= 65). Extendiendo TP.")
-                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp + (atr * 2.5):,.2f}\n<b>Locked SL:</b> ${max(updated_sl, tp - (atr * 1.0)):,.2f}")
-                state["take_profit"] = tp + (atr * 2.5)
-                if (tp - (atr * 1.0)) > updated_sl:
-                    updated_sl = tp - (atr * 1.0)
-            else:
-                print("✅ Take Profit alcanzado en la mecha superior.")
-                pnl_dollars = (tp - entry) * size_btc
-                exit_fee = (tp * size_btc) * 0.0004
-                pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
-                closed = True
-                close_reason = "Take Profit"
-                current_live_price = tp # For closing log
+        elif not state.get("runner_active") and high_price >= tp:
+            # Palanca B: Runner Architecture (Tier-2 TP 25% + 25% Macro Runner)
+            import datetime as dt_mod
+            tp2_units = size_btc * 0.5
+            tp2_pnl = ((tp - entry) * tp2_units) - (state.get("entry_fee_usd", 0) * 0.5) - (tp * tp2_units * 0.0004)
+            trades = load_trades()
+            trades.append({
+                "trade_id": trade_id + "_tp2",
+                "time": dt_mod.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "type": "VENTA (Cierre Parcial TP2 25%)",
+                "reason": "Take Profit Objetivo (+3.5 ATR)",
+                "price": tp,
+                "pnl": tp2_pnl
+            })
+            save_trades(trades)
+            
+            # El 25% final se convierte en Runner
+            state["size_btc"] = size_btc * 0.5
+            state["size_usd"] = state.get("size_usd", 0) * 0.5
+            state["entry_fee_usd"] = state.get("entry_fee_usd", 0) * 0.5
+            state["runner_active"] = True
+            
+            # Bloquear Stop Loss a +2.0 ATR garantizado
+            updated_sl = max(updated_sl, entry + (atr * 2.0))
+            state["stop_loss"] = updated_sl
+            state["take_profit"] = float('inf')
+            save_state(state)
+            
+            send_telegram(f"🚀 <b>RUNNER DEPLOYED (25%) | {SYMBOL} [{TIMEFRAME}]</b>\nTier-2 Take Profit locked (+${tp2_pnl:,.2f}).\n\nFinal 25% Runner unlocked to capture macro trend.\n<b>Guaranteed Minimum Profit:</b> +2.0 ATR (${updated_sl:,.2f})\n<b>Target:</b> Open-Ended Macro Run")
+            print(f"🚀 RUNNER ACTIVADO (BUY)! 25% restante libre de TP, Stop Loss asegurado a ${updated_sl:.2f} (+2.0 ATR).")
             
     elif action == "SELL":
         # Scale-Out Parcial (Asegurar 50% de Ganancias en dynamic ATR)
@@ -1160,7 +1197,8 @@ def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context
             send_telegram(f"💰 <b>SCALE-OUT (50%) | {SYMBOL} [{TIMEFRAME}]</b>\nLocked in profit on half the position. Risk neutralized to Breakeven.\n\n<b>Partial PnL:</b> ${partial_pnl:,.2f}")
 
         # Trailing stop based strictly on firmly closed candle to avoid Time Paradox
-        new_sl = current_closed_price + (atr * 2.0)
+        trail_mult = 2.5 if state.get("runner_active") else 2.0
+        new_sl = current_closed_price + (atr * trail_mult)
         if new_sl < updated_sl:
             updated_sl = new_sl
             print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
@@ -1168,29 +1206,43 @@ def check_exit_conditions(live_candle, closed_candle, atr, state, weekly_context
             
         # Evaluate against the candle wicks (low/high) for realism
         if high_price >= updated_sl:
-            print("❌ Stop Loss impactado en la mecha superior.")
+            close_reason = "Runner Trailing Exit (+Macro Trend)" if state.get("runner_active") else "Stop Loss"
+            print(f"❌ {close_reason} impactado en la mecha superior.")
             pnl_dollars = (entry - updated_sl) * size_btc
             exit_fee = (updated_sl * size_btc) * 0.0004
             pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
             closed = True
-            close_reason = "Stop Loss"
             current_live_price = updated_sl # For closing log
-        elif low_price <= tp:
-            if live_candle.get('rsi', 50) <= 35:
-                # Dynamic TP Extension (Let winners run)
-                print(f"🔥 Take Profit alcanzado pero mercado eufórico (RSI <= 35). Extendiendo TP.")
-                send_telegram(f"🔥 <b>TP EXTENSION | {SYMBOL} [{TIMEFRAME}]</b>\nStrong momentum detected at Take Profit. Letting the winner run.\n\n<b>New TP:</b> ${tp - (atr * 2.5):,.2f}\n<b>Locked SL:</b> ${min(updated_sl, tp + (atr * 1.0)):,.2f}")
-                state["take_profit"] = tp - (atr * 2.5)
-                if (tp + (atr * 1.0)) < updated_sl:
-                    updated_sl = tp + (atr * 1.0)
-            else:
-                print("✅ Take Profit alcanzado en la mecha inferior.")
-                pnl_dollars = (entry - tp) * size_btc
-                exit_fee = (tp * size_btc) * 0.0004
-                pnl_dollars -= (state.get("entry_fee_usd", 0) + exit_fee)
-                closed = True
-                close_reason = "Take Profit"
-                current_live_price = tp # For closing log
+        elif not state.get("runner_active") and low_price <= tp:
+            # Palanca B: Runner Architecture (Tier-2 TP 25% + 25% Macro Runner)
+            import datetime as dt_mod
+            tp2_units = size_btc * 0.5
+            tp2_pnl = ((entry - tp) * tp2_units) - (state.get("entry_fee_usd", 0) * 0.5) - (tp * tp2_units * 0.0004)
+            trades = load_trades()
+            trades.append({
+                "trade_id": trade_id + "_tp2",
+                "time": dt_mod.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "type": "COMPRA (Cierre Parcial TP2 25%)",
+                "reason": "Take Profit Objetivo (+3.5 ATR)",
+                "price": tp,
+                "pnl": tp2_pnl
+            })
+            save_trades(trades)
+            
+            # El 25% final se convierte en Runner
+            state["size_btc"] = size_btc * 0.5
+            state["size_usd"] = state.get("size_usd", 0) * 0.5
+            state["entry_fee_usd"] = state.get("entry_fee_usd", 0) * 0.5
+            state["runner_active"] = True
+            
+            # Bloquear Stop Loss a +2.0 ATR garantizado
+            updated_sl = min(updated_sl, entry - (atr * 2.0))
+            state["stop_loss"] = updated_sl
+            state["take_profit"] = 0.0
+            save_state(state)
+            
+            send_telegram(f"🚀 <b>RUNNER DEPLOYED (25%) | {SYMBOL} [{TIMEFRAME}]</b>\nTier-2 Take Profit locked (+${tp2_pnl:,.2f}).\n\nFinal 25% Runner unlocked to capture macro trend.\n<b>Guaranteed Minimum Profit:</b> +2.0 ATR (${updated_sl:,.2f})\n<b>Target:</b> Open-Ended Macro Run")
+            print(f"🚀 RUNNER ACTIVADO (SELL)! 25% restante libre de TP, Stop Loss asegurado a ${updated_sl:.2f} (+2.0 ATR).")
 
     # Save state if trailing stop moved
     if updated_sl != sl and not closed:

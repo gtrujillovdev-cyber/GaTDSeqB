@@ -302,7 +302,13 @@ class BacktestEngine:
                     reason += f" + RSI {rsi:.1f}"
                     
                 conviction = 1.25 if rsi < 30 else 1.0
-                final_risk = self._get_base_risk() * conviction
+                conviction_boost = 1.0
+                if self.symbol in ["BTC", "ETH"]:
+                    if conf >= 0.75:
+                        conviction_boost = 2.0
+                    elif conf >= 0.65:
+                        conviction_boost = 1.5
+                final_risk = self._get_base_risk() * conviction * conviction_boost
                 self._open_trade("BUY", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
             
         elif trigger_sell and rsi > 30:
@@ -324,7 +330,13 @@ class BacktestEngine:
                     reason += f" + RSI {rsi:.1f}"
                     
                 conviction = 1.25 if rsi > 70 else 1.0
-                final_risk = self._get_base_risk() * conviction
+                conviction_boost = 1.0
+                if self.symbol in ["BTC", "ETH"]:
+                    if conf >= 0.75:
+                        conviction_boost = 2.0
+                    elif conf >= 0.65:
+                        conviction_boost = 1.5
+                final_risk = self._get_base_risk() * conviction * conviction_boost
                 self._open_trade("SELL", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
 
     def _open_trade(self, action: str, price: float, sl: float, tp: float, reason: str, time_stamp, risk_pct: float, atr: float):
@@ -366,6 +378,7 @@ class BacktestEngine:
             "scaled_out": False,
             "reinforced_13": False,
             "breakeven_active": False,
+            "runner_active": False,
             "atr_at_entry": atr,
             "entry_fee_total": entry_fee
         }
@@ -449,12 +462,11 @@ class BacktestEngine:
                 })
                 units = t['size_units']
                 
-        # 4. Trailing Stop (+2.0 ATR sobre vela cerrada)
-        # CORRECCION DEL BUG CRITICO DE BOT.PY:
-        # Se debe comparar contra 'updated_sl', no contra el 'sl' inmutable inicial para no anular el Breakeven!
+        # 4. Trailing Stop (2.0 ATR normal, 2.5 ATR para macro runners)
         if self.params["enable_trailing"]:
             c_closed = closed_candle['close']
-            tr_dist = atr * self.params["trailing_atr"]
+            trail_mult = 2.5 if t.get('runner_active') else self.params["trailing_atr"]
+            tr_dist = atr * trail_mult
             if action == "BUY":
                 new_sl = c_closed - tr_dist
                 if new_sl > updated_sl:
@@ -479,19 +491,40 @@ class BacktestEngine:
             if sl_hit:
                 closed = True
                 exit_price = updated_sl
-                close_reason = "Stop Loss" if updated_sl < entry else "Breakeven / Trailing SL"
-            elif tp_hit:
-                # Comprobar extension dinamica de TP
-                rsi_now = live_candle['rsi']
-                if self.params["enable_tp_extension"] and rsi_now >= 65:
-                    # Let winners run
-                    t['take_profit'] = tp + (atr * 2.5)
-                    updated_sl = max(updated_sl, tp - (atr * 1.0))
-                    t['stop_loss'] = updated_sl
+                if t.get('runner_active'):
+                    close_reason = "Runner Trailing Exit (+Macro Trend)"
                 else:
-                    closed = True
-                    exit_price = tp
-                    close_reason = "Take Profit"
+                    close_reason = "Stop Loss" if updated_sl < entry else "Breakeven / Trailing SL"
+            elif not t.get('runner_active') and tp_hit:
+                # Palanca B: Runner Architecture (Tier-2 TP 25% + 25% Macro Runner)
+                tp2_units = units * 0.5
+                pnl_tp2 = (tp - entry) * tp2_units
+                tp2_fee = (tp * tp2_units) * self.taker_fee
+                net_tp2_pnl = pnl_tp2 - tp2_fee
+                self.bank += net_tp2_pnl
+                
+                t['size_units'] -= tp2_units
+                t['size_usd'] = t['size_units'] * entry
+                t['runner_active'] = True
+                
+                # Bloquear beneficio garantizado a +2.0 ATR y liberar TP para macro trend
+                updated_sl = max(updated_sl, entry + (atr * 2.0))
+                t['take_profit'] = 999999999.0
+                t['stop_loss'] = updated_sl
+                
+                self.trades.append({
+                    "id": f"{t['id']}_tp2",
+                    "action": action,
+                    "type": "TAKE_PROFIT_25%",
+                    "entry_time": t['entry_time'],
+                    "exit_time": time_stamp,
+                    "entry_price": entry,
+                    "exit_price": tp,
+                    "pnl": net_tp2_pnl,
+                    "reason": "Take Profit Objetivo (+3.5 ATR)",
+                    "bank": self.bank
+                })
+                units = t['size_units']
                     
         elif action == "SELL":
             sl_hit = high_p >= updated_sl
@@ -500,17 +533,40 @@ class BacktestEngine:
             if sl_hit:
                 closed = True
                 exit_price = updated_sl
-                close_reason = "Stop Loss" if updated_sl > entry else "Breakeven / Trailing SL"
-            elif tp_hit:
-                rsi_now = live_candle['rsi']
-                if self.params["enable_tp_extension"] and rsi_now <= 35:
-                    t['take_profit'] = tp - (atr * 2.5)
-                    updated_sl = min(updated_sl, tp + (atr * 1.0))
-                    t['stop_loss'] = updated_sl
+                if t.get('runner_active'):
+                    close_reason = "Runner Trailing Exit (+Macro Trend)"
                 else:
-                    closed = True
-                    exit_price = tp
-                    close_reason = "Take Profit"
+                    close_reason = "Stop Loss" if updated_sl > entry else "Breakeven / Trailing SL"
+            elif not t.get('runner_active') and tp_hit:
+                # Palanca B: Runner Architecture (Tier-2 TP 25% + 25% Macro Runner)
+                tp2_units = units * 0.5
+                pnl_tp2 = (entry - tp) * tp2_units
+                tp2_fee = (tp * tp2_units) * self.taker_fee
+                net_tp2_pnl = pnl_tp2 - tp2_fee
+                self.bank += net_tp2_pnl
+                
+                t['size_units'] -= tp2_units
+                t['size_usd'] = t['size_units'] * entry
+                t['runner_active'] = True
+                
+                # Bloquear beneficio garantizado a +2.0 ATR y liberar TP para macro trend
+                updated_sl = min(updated_sl, entry - (atr * 2.0))
+                t['take_profit'] = 0.0
+                t['stop_loss'] = updated_sl
+                
+                self.trades.append({
+                    "id": f"{t['id']}_tp2",
+                    "action": action,
+                    "type": "TAKE_PROFIT_25%",
+                    "entry_time": t['entry_time'],
+                    "exit_time": time_stamp,
+                    "entry_price": entry,
+                    "exit_price": tp,
+                    "pnl": net_tp2_pnl,
+                    "reason": "Take Profit Objetivo (+3.5 ATR)",
+                    "bank": self.bank
+                })
+                units = t['size_units']
                     
         if closed:
             if action == "BUY":
