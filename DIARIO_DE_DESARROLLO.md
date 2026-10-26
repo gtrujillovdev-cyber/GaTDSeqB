@@ -842,8 +842,8 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - **Sincronización Total de Matriz de Hiperparámetros:** Regeneración completa de `fleet_optimized.json` cubriendo las 30 configuraciones de los 27 bots de la flota.
 - **Protocolo de Reseteo y Despliegue en Producción (Raspberry Pi 3B):**
   - **Preservación Forense:** Creación de backup histórico seguro en `/home/raspberry/GaTDSEQ/backups/archive_pre_forward_test_20261026_223733`.
-  - **Forward Test Clean State:** Purga atómica de archivos dinámicos de estado y logs antiguos. Inicio formal del forward test desde capital base nominal ($10,000 USD / bot, $270,000 USD total portfolio, PnL $0.00, 100% IDLE).
-  - **Validación y Despliegue:** Sincronización vía `rsync`, ejecución de suite unitaria (`tests/test_confidence_gate.py` superado con 5/5 OK) y reinicio nominal de `gatdseq-server.service` y `gatdseq-bot.service`.
+  - **Forward Test Clean State con Continuidad de Trades Activos:** Purga atómica del historial cerrado antiguo y migración a backup. Se restauraron y mantuvieron activas las dos posiciones cortas abiertas en BTC [1w] (`BTC_TD9_1w` y `BTC_HYB_1w` a $82,116.00 con +2.39% ROE a favor) para que continúen su ciclo de gestión bajo los nuevos parámetros definitivos.
+  - **Validación y Despliegue:** Sincronización vía `rsync`, ejecución de suite unitaria (`tests/test_confidence_gate.py` superado con 5/5 OK) y reinicio nominal de `gatdseq-server.service` y `gatdseq-bot.service`. Telemetría confirmando gestión activa en tiempo real de los dos trades.
 
 
 
