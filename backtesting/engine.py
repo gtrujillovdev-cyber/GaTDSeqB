@@ -27,13 +27,13 @@ class BacktestEngine:
         # Parametros configurables (con defaults calibrados)
         default_params = {
             "atr_sl_trend": 1.5,
-            "atr_tp_trend": 2.5,
+            "atr_tp_trend": 3.5,
             "atr_sl_counter": 1.5,
-            "atr_tp_counter": 2.0,
+            "atr_tp_counter": 2.5,
             "atr_sl_wyckoff": 1.5,
-            "atr_tp_wyckoff": 2.0,
-            "be_threshold_atr": 1.0,
-            "scale_out_atr": 1.0,
+            "atr_tp_wyckoff": 3.0,
+            "be_threshold_atr": 1.5,
+            "scale_out_atr": 2.0,
             "scale_out_pct": 0.5,
             "trailing_atr": 2.0,
             "min_confidence": 0.55,
@@ -43,6 +43,24 @@ class BacktestEngine:
             "enable_trailing": True,
             "enable_tp_extension": True
         }
+        
+        # Cargar parámetros específicos desde fleet_optimized.json si existen
+        try:
+            import json, os
+            fleet_file = "fleet_optimized.json"
+            if os.path.exists(fleet_file):
+                with open(fleet_file, "r") as f:
+                    data = json.load(f)
+                    clean_sym = symbol.replace("/", "_")
+                    for k, v in data.items():
+                        k_clean = k.replace("/", "_")
+                        if clean_sym in k_clean and f"_{timeframe}_" in k_clean and f"_{strategy}" in k_clean:
+                            bp = v.get("best_params", {})
+                            default_params.update(bp)
+                            break
+        except Exception:
+            pass
+
         if params:
             default_params.update(params)
         self.params = default_params
@@ -65,25 +83,52 @@ class BacktestEngine:
         return 0.015 # 1d
 
     def _get_base_risk(self) -> float:
-        risk_matrix = {"1d": 0.15, "4h": 0.10, "1h": 0.05, "15m": 0.02, "5m": 0.01}
-        return risk_matrix.get(self.timeframe, 0.05)
+        risk_matrix = {"1w": 0.025, "1d": 0.02, "4h": 0.015, "1h": 0.01, "15m": 0.005, "5m": 0.005}
+        base = risk_matrix.get(self.timeframe, 0.015)
+        if "HYPE" in self.symbol:
+            base *= 0.65
+        return base
 
     def _calculate_confidence_score(self, candle, action, divergence, is_counter_trend, fng_index=50, funding_rate=0.0) -> float:
+        try:
+            from bot import calculate_confidence_score
+            return calculate_confidence_score(candle, action, divergence, is_counter_trend, fng_index, funding_rate)
+        except Exception:
+            pass
+            
         score = 0.0
-        count = abs(candle.get('td_count', 0))
-        if count >= 9: score += 0.30
-        elif count >= 7: score += 0.15
+        raw_count = candle.get('td_count', 0)
+        is_perf = bool(candle.get('td_perfected', False))
+        if action == "BUY":
+            if raw_count <= -9:
+                score += 0.30
+                if is_perf: score += 0.05
+            elif raw_count <= -7: score += 0.15
+            elif raw_count >= 9: score -= 0.10
+        elif action == "SELL":
+            if raw_count >= 9:
+                score += 0.30
+                if is_perf: score += 0.05
+            elif raw_count >= 7: score += 0.15
+            elif raw_count <= -9: score -= 0.10
         
         rsi = candle.get('rsi', 50.0)
+        mom_score = 0.0
         if action == "BUY":
-            if divergence == 'BULLISH': score += 0.25
-            elif rsi <= 30: score += 0.20
-            elif rsi <= 40: score += 0.10
+            if divergence == 'BULLISH': mom_score += 0.15
+            elif divergence == 'BEARISH': mom_score -= 0.10
+            if rsi <= 30: mom_score += 0.10
+            elif rsi <= 40: mom_score += 0.05
+            elif rsi >= 70: mom_score -= 0.10
         else:
-            if divergence == 'BEARISH': score += 0.25
-            elif rsi >= 70: score += 0.20
-            elif rsi >= 60: score += 0.10
+            if divergence == 'BEARISH': mom_score += 0.15
+            elif divergence == 'BULLISH': mom_score -= 0.10
+            if rsi >= 70: mom_score += 0.10
+            elif rsi >= 60: mom_score += 0.05
+            elif rsi <= 30: mom_score -= 0.10
             
+        score += max(-0.15, min(0.25, mom_score))
+        
         vol = candle.get('volume', 0.0)
         avg_vol = candle.get('volume_sma', vol)
         if avg_vol > 0:
@@ -189,8 +234,8 @@ class BacktestEngine:
         
         count = closed_candle['td_count']
         
-        # Wyckoff: calcular VP sobre slice previo de 100 velas
-        df_vp_slice = df.iloc[max(0, i-101):i-1]
+        # Wyckoff: calcular VP sobre slice previo de 300 velas
+        df_vp_slice = df.iloc[max(0, i-301):i-1]
         vp = calculate_volume_profile(df_vp_slice, bins=20)
         vah = vp['vah']
         val = vp['val']
@@ -228,16 +273,20 @@ class BacktestEngine:
                 
         if self.strategy in ["WYK", "HYB"]:
             if wyckoff_spring and not trigger_buy:
-                trigger_buy = True
-                reason = "Wyckoff Spring"
+                if signal_price >= ema200:
+                    trigger_buy = True
+                    reason = "Wyckoff Spring"
             elif wyckoff_upthrust and not trigger_sell:
-                trigger_sell = True
-                reason = "Wyckoff Upthrust"
+                if signal_price <= ema200:
+                    trigger_sell = True
+                    reason = "Wyckoff Upthrust"
                 
+        req_conf = 0.70 if "HYPE" in self.symbol else self.params.get("min_confidence", 0.55)
+
         if trigger_buy and rsi < 70:
             is_counter = signal_price < ema200
             conf = self._calculate_confidence_score(closed_candle, "BUY", divergence, is_counter)
-            if conf >= self.params.get("min_confidence", 0.65):
+            if conf >= req_conf:
                 if "TD9" in reason:
                     if is_counter:
                         sl = current_live_price - (atr * self.params["atr_sl_counter"])
@@ -252,14 +301,14 @@ class BacktestEngine:
                     tp = current_live_price + (atr * self.params["atr_tp_wyckoff"])
                     reason += f" + RSI {rsi:.1f}"
                     
-                conviction = 1.5 if rsi < 30 else 1.0
+                conviction = 1.25 if rsi < 30 else 1.0
                 final_risk = self._get_base_risk() * conviction
                 self._open_trade("BUY", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
             
         elif trigger_sell and rsi > 30:
             is_counter = signal_price > ema200
             conf = self._calculate_confidence_score(closed_candle, "SELL", divergence, is_counter)
-            if conf >= self.params.get("min_confidence", 0.65):
+            if conf >= req_conf:
                 if "TD9" in reason:
                     if is_counter:
                         sl = current_live_price + (atr * self.params["atr_sl_counter"])
@@ -274,7 +323,7 @@ class BacktestEngine:
                     tp = current_live_price - (atr * self.params["atr_tp_wyckoff"])
                     reason += f" + RSI {rsi:.1f}"
                     
-                conviction = 1.5 if rsi > 70 else 1.0
+                conviction = 1.25 if rsi > 70 else 1.0
                 final_risk = self._get_base_risk() * conviction
                 self._open_trade("SELL", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
 
