@@ -877,6 +877,21 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Reinicio nominal de `gatdseq-bot.service` (`active (running)`).
   - Preservación intacta de las 2 posiciones vivas en corto en **BTC [1w]** (`BTC_TD9_1w` y `BTC_HYB_1w`), monitoreadas en tiempo real.
 
+### 34. Evolución Cuantitativa v2.5: Welles Wilder ADX(14) y Squeeze Detection en Funding Rates (27 de Octubre de 2026)
+- **Integración de Welles Wilder ADX(14) (Fuerza de Régimen Tendencial):**
+  - Implementación matemática exacta del indicador ADX (Average Directional Index) con suavizado RMA de Wilder (`alpha=1/period`) en `bot.py` y `backtesting/indicators.py`.
+  - **ADX Safety Switch (Veto Duro Contra-Tendencia):** Se programó un interruptor de seguridad que bloquea automáticamente entradas en contra de la tendencia si `adx >= 32.0`. Si un activo está en un rally o colapso parabólico, el bot se abstiene de abrir posiciones contrarias a pesar de setups TD9 tempranos, protegiendo el capital de barridos de volatilidad extrema.
+  - **Modulador de Convicción por Régimen:** Inyección en el *Funnel Gate* de bonificación (+0.05) a favor de tendencia cuando `adx >= 25.0` (inercia institucional consolidada) y (+0.05) en operaciones de rango cuando `adx < 20.0` (reversión a la media favorecida en consolidaciones).
+- **Detección Institucional de Squeeze en Tasas de Financiación (Funding Rates):**
+  - Conexión optimizada al endpoint de Binance Futures con caché de 15 minutos (900s) y sanitización universal de pares (`BTC`, `ETH`, `HYPE`).
+  - **Short Squeeze Fuel:** En señales de compra, si `funding_rate <= -0.0003` (-0.03%/8h), se inyecta una bonificación de **+0.10** en convicción ante el hacinamiento masivo de posiciones cortas vulnerables a ser liquidadas. Por el contrario, si la tasa excede `+0.05%/8h` (euforia de minoristas), se aplica penalización de -0.10.
+  - **Long Squeeze Fuel:** En señales de venta, si `funding_rate >= +0.0004`, bonificación de **+0.10** para explotar caídas inducidas por liquidaciones de largos.
+- **Despliegue y Control de Calidad en Producción (Raspberry Pi 3B):**
+  - Ampliación de la suite de pruebas unitarias en `tests/test_confidence_gate.py` a **7/7 tests pasados con 100% de éxito**.
+  - Sincronización y reinicio de `gatdseq-bot.service` en el nodo de producción.
+  - Confirmación en telemetría de `bot_unified.log` registrando en vivo el nuevo parámetro: `BTC [1w] | Price: $80,154.09 | TD: -1 | RSI: 54.6 | ADX: 26.7 | EMA200: $91,821.44`.
+  - Continuidad y blindaje nominal de las posiciones vivas en corto en BTC.
+
 
 
 

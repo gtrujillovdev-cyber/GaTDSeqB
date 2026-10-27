@@ -22,6 +22,42 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     true_range = ranges.max(axis=1)
     return true_range.ewm(alpha=1/period, adjust=False).mean()
 
+def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """
+    Calculo de ADX identico a TradingView / Welles Wilder (14 periodos).
+    Utiliza RMA smoothing (alpha=1/period, adjust=False).
+    """
+    up_move = df['high'] - df['high'].shift(1)
+    down_move = df['low'].shift(1) - df['low']
+    
+    pos_dm = pd.Series(0.0, index=df.index)
+    neg_dm = pd.Series(0.0, index=df.index)
+    
+    pos_mask = (up_move > down_move) & (up_move > 0)
+    neg_mask = (down_move > up_move) & (down_move > 0)
+    
+    pos_dm[pos_mask] = up_move[pos_mask]
+    neg_dm[neg_mask] = down_move[neg_mask]
+    
+    high_low = df['high'] - df['low']
+    high_close = (df['high'] - df['close'].shift(1)).abs()
+    low_close = (df['low'] - df['close'].shift(1)).abs()
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    tr = ranges.max(axis=1)
+    
+    tr_smooth = tr.ewm(alpha=1/period, adjust=False).mean()
+    pos_dm_smooth = pos_dm.ewm(alpha=1/period, adjust=False).mean()
+    neg_dm_smooth = neg_dm.ewm(alpha=1/period, adjust=False).mean()
+    
+    tr_safe = tr_smooth.replace(0, np.nan)
+    plus_di = 100.0 * (pos_dm_smooth / tr_safe)
+    minus_di = 100.0 * (neg_dm_smooth / tr_safe)
+    
+    di_sum = (plus_di + minus_di).replace(0, np.nan)
+    dx = 100.0 * (plus_di - minus_di).abs() / di_sum
+    adx = dx.ewm(alpha=1/period, adjust=False).mean()
+    return adx.fillna(0.0)
+
 def calculate_volume_profile(df_slice: pd.DataFrame, bins: int = 20, value_area_pct: float = 0.70) -> dict:
     """Calcula POC, VAH y VAL vectorizado con NumPy sobre un slice de velas."""
     if len(df_slice) < 5:
@@ -178,6 +214,7 @@ def prepare_market_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['ema_200'] = df['close'].ewm(span=200, adjust=False).mean()
     df['rsi'] = calculate_rsi(df['close'], period=14)
     df['atr'] = calculate_atr(df, period=14)
+    df['adx'] = calculate_adx(df, period=14)
     df['volume_sma'] = df['volume'].rolling(window=20).mean()
     df = calculate_td_sequential(df)
     return df

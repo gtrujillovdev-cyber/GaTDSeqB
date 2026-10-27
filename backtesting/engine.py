@@ -285,59 +285,63 @@ class BacktestEngine:
 
         if trigger_buy and rsi < 70:
             is_counter = signal_price < ema200
-            conf = self._calculate_confidence_score(closed_candle, "BUY", divergence, is_counter)
-            if conf >= req_conf:
-                if "TD9" in reason:
-                    if is_counter:
-                        sl = current_live_price - (atr * self.params["atr_sl_counter"])
-                        tp = current_live_price + (atr * self.params["atr_tp_counter"])
-                        reason += " (Counter-Trend)"
+            adx_val = closed_candle.get('adx', 0.0)
+            if not (is_counter and adx_val >= 32.0): # ADX Safety Switch
+                conf = self._calculate_confidence_score(closed_candle, "BUY", divergence, is_counter)
+                if conf >= req_conf:
+                    if "TD9" in reason:
+                        if is_counter:
+                            sl = current_live_price - (atr * self.params["atr_sl_counter"])
+                            tp = current_live_price + (atr * self.params["atr_tp_counter"])
+                            reason += " (Counter-Trend)"
+                        else:
+                            sl = current_live_price - (atr * self.params["atr_sl_trend"])
+                            tp = current_live_price + (atr * self.params["atr_tp_trend"])
+                            reason += " (Trend)"
                     else:
-                        sl = current_live_price - (atr * self.params["atr_sl_trend"])
-                        tp = current_live_price + (atr * self.params["atr_tp_trend"])
-                        reason += " (Trend)"
-                else:
-                    sl = current_live_price - (atr * self.params["atr_sl_wyckoff"])
-                    tp = current_live_price + (atr * self.params["atr_tp_wyckoff"])
-                    reason += f" + RSI {rsi:.1f}"
-                    
-                conviction = 1.25 if rsi < 30 else 1.0
-                conviction_boost = 1.0
-                if self.symbol in ["BTC", "ETH"]:
-                    if conf >= 0.75:
-                        conviction_boost = 2.0
-                    elif conf >= 0.65:
-                        conviction_boost = 1.5
-                final_risk = self._get_base_risk() * conviction * conviction_boost
-                self._open_trade("BUY", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
+                        sl = current_live_price - (atr * self.params["atr_sl_wyckoff"])
+                        tp = current_live_price + (atr * self.params["atr_tp_wyckoff"])
+                        reason += f" + RSI {rsi:.1f}"
+                        
+                    conviction = 1.25 if rsi < 30 else 1.0
+                    conviction_boost = 1.0
+                    if self.symbol in ["BTC", "ETH"]:
+                        if conf >= 0.75:
+                            conviction_boost = 2.0
+                        elif conf >= 0.65:
+                            conviction_boost = 1.5
+                    final_risk = self._get_base_risk() * conviction * conviction_boost
+                    self._open_trade("BUY", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
             
         elif trigger_sell and rsi > 30:
             is_counter = signal_price > ema200
-            conf = self._calculate_confidence_score(closed_candle, "SELL", divergence, is_counter)
-            if conf >= req_conf:
-                if "TD9" in reason:
-                    if is_counter:
-                        sl = current_live_price + (atr * self.params["atr_sl_counter"])
-                        tp = current_live_price - (atr * self.params["atr_tp_counter"])
-                        reason += " (Counter-Trend)"
+            adx_val = closed_candle.get('adx', 0.0)
+            if not (is_counter and adx_val >= 32.0): # ADX Safety Switch
+                conf = self._calculate_confidence_score(closed_candle, "SELL", divergence, is_counter)
+                if conf >= req_conf:
+                    if "TD9" in reason:
+                        if is_counter:
+                            sl = current_live_price + (atr * self.params["atr_sl_counter"])
+                            tp = current_live_price - (atr * self.params["atr_tp_counter"])
+                            reason += " (Counter-Trend)"
+                        else:
+                            sl = current_live_price - (atr * self.params["atr_sl_trend"])
+                            tp = current_live_price - (atr * self.params["atr_tp_trend"])
+                            reason += " (Trend)"
                     else:
-                        sl = current_live_price + (atr * self.params["atr_sl_trend"])
-                        tp = current_live_price - (atr * self.params["atr_tp_trend"])
-                        reason += " (Trend)"
-                else:
-                    sl = current_live_price + (atr * self.params["atr_sl_wyckoff"])
-                    tp = current_live_price - (atr * self.params["atr_tp_wyckoff"])
-                    reason += f" + RSI {rsi:.1f}"
-                    
-                conviction = 1.25 if rsi > 70 else 1.0
-                conviction_boost = 1.0
-                if self.symbol in ["BTC", "ETH"]:
-                    if conf >= 0.75:
-                        conviction_boost = 2.0
-                    elif conf >= 0.65:
-                        conviction_boost = 1.5
-                final_risk = self._get_base_risk() * conviction * conviction_boost
-                self._open_trade("SELL", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
+                        sl = current_live_price - (atr * self.params["atr_sl_wyckoff"])
+                        tp = current_live_price - (atr * self.params["atr_tp_wyckoff"])
+                        reason += f" + RSI {rsi:.1f}"
+                        
+                    conviction = 1.25 if rsi > 70 else 1.0
+                    conviction_boost = 1.0
+                    if self.symbol in ["BTC", "ETH"]:
+                        if conf >= 0.75:
+                            conviction_boost = 2.0
+                        elif conf >= 0.65:
+                            conviction_boost = 1.5
+                    final_risk = self._get_base_risk() * conviction * conviction_boost
+                    self._open_trade("SELL", current_live_price, sl, tp, reason, live_candle['datetime'], final_risk, atr)
 
     def _open_trade(self, action: str, price: float, sl: float, tp: float, reason: str, time_stamp, risk_pct: float, atr: float):
         risk_amount = self.bank * risk_pct

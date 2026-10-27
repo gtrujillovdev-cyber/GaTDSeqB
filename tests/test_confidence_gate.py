@@ -46,6 +46,33 @@ class TestConfidenceGate(unittest.TestCase):
         self.assertLessEqual(score, 1.0)
         self.assertGreaterEqual(score, 0.0)
 
+    def test_adx_trend_regime(self):
+        """Verifica moduladores de ADX: tendencia estructurada vs contratendencia acelerada."""
+        base_candle = {'td_count': -9, 'td_perfected': False, 'rsi': 45.0, 'volume': 100.0, 'volume_sma': 100.0}
+        
+        # Con tendencia: ADX alto (fuerte) debe dar mayor score que ADX plano (<18)
+        candle_strong_adx = dict(base_candle, adx=28.0)
+        candle_flat_adx = dict(base_candle, adx=15.0)
+        score_strong = calculate_confidence_score(candle_strong_adx, "BUY", "NONE", False)
+        score_flat = calculate_confidence_score(candle_flat_adx, "BUY", "NONE", False)
+        self.assertGreater(score_strong, score_flat)
+        
+        # Contra tendencia: ADX alto (tendencia violenta en contra) debe penalizar
+        score_counter_violent = calculate_confidence_score(candle_strong_adx, "BUY", "NONE", True)
+        score_counter_calm = calculate_confidence_score(candle_flat_adx, "BUY", "NONE", True)
+        self.assertLess(score_counter_violent, score_counter_calm)
+
+    def test_funding_rate_short_squeeze_boost(self):
+        """Verifica que un funding rate muy negativo (short squeeze fuel) amplifique convicción de compra."""
+        candle = {'td_count': -9, 'td_perfected': False, 'rsi': 45.0, 'volume': 100.0, 'volume_sma': 100.0}
+        
+        score_neutral_funding = calculate_confidence_score(candle, "BUY", "NONE", False, funding_rate=0.0)
+        score_negative_funding = calculate_confidence_score(candle, "BUY", "NONE", False, funding_rate=-0.0004) # Shorts hacinados
+        score_euphoric_funding = calculate_confidence_score(candle, "BUY", "NONE", False, funding_rate=0.0006)  # Euforia longs
+        
+        self.assertGreater(score_negative_funding, score_neutral_funding)
+        self.assertLess(score_euphoric_funding, score_neutral_funding)
+
     def test_breakeven_threshold_non_choking(self):
         """Verifica que ningún parámetro de breakeven en fleet_optimized.json sea menor a 1.0 ATR."""
         with open("fleet_optimized.json", "r") as f:

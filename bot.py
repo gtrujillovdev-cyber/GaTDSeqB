@@ -1,6 +1,7 @@
 import time
 import ccxt
 import pandas as pd
+import numpy as np
 from volume_profile import calculate_volume_profile
 from wycoff_logic import detect_divergences
 import json
@@ -167,6 +168,43 @@ def calculate_atr(df, period=14):
     # TradingView EXACT MATCH: Wilder's Smoothing (RMA) instead of Simple Moving Average (SMA)
     return true_range.ewm(alpha=1/period, adjust=False).mean()
 
+def calculate_adx(df, period=14):
+    """
+    TradingView EXACT MATCH: Wilder's DMI / ADX (14 periodos).
+    Utiliza RMA smoothing (alpha=1/period, adjust=False).
+    Mide la fuerza del régimen tendencial (0 a 100), independiente de la dirección.
+    """
+    up_move = df['high'] - df['high'].shift(1)
+    down_move = df['low'].shift(1) - df['low']
+    
+    pos_dm = pd.Series(0.0, index=df.index)
+    neg_dm = pd.Series(0.0, index=df.index)
+    
+    pos_mask = (up_move > down_move) & (up_move > 0)
+    neg_mask = (down_move > up_move) & (down_move > 0)
+    
+    pos_dm[pos_mask] = up_move[pos_mask]
+    neg_dm[neg_mask] = down_move[neg_mask]
+    
+    high_low = df['high'] - df['low']
+    high_close = (df['high'] - df['close'].shift(1)).abs()
+    low_close = (df['low'] - df['close'].shift(1)).abs()
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    tr = ranges.max(axis=1)
+    
+    tr_smooth = tr.ewm(alpha=1/period, adjust=False).mean()
+    pos_dm_smooth = pos_dm.ewm(alpha=1/period, adjust=False).mean()
+    neg_dm_smooth = neg_dm.ewm(alpha=1/period, adjust=False).mean()
+    
+    tr_safe = tr_smooth.replace(0, np.nan)
+    plus_di = 100.0 * (pos_dm_smooth / tr_safe)
+    minus_di = 100.0 * (neg_dm_smooth / tr_safe)
+    
+    di_sum = (plus_di + minus_di).replace(0, np.nan)
+    dx = 100.0 * (plus_di - minus_di).abs() / di_sum
+    adx = dx.ewm(alpha=1/period, adjust=False).mean()
+    return adx.fillna(0.0)
+
 def get_data(symbol="BTC/USDT", timeframe="4h", limit=1500):
     for attempt in range(3):
         try:
@@ -190,6 +228,9 @@ def get_data(symbol="BTC/USDT", timeframe="4h", limit=1500):
         
         # Volatilidad para Stop Loss Dinámico (ATR)
         df['atr'] = calculate_atr(df, 14)
+
+        # Regimen y Fuerza de Tendencia (ADX 14)
+        df['adx'] = calculate_adx(df, 14)
         
         # Filtro de Volumen (Institucional)
         df['volume_sma'] = df['volume'].rolling(window=20).mean()
@@ -396,24 +437,26 @@ def get_fear_and_greed():
 
 def get_funding_rate(symbol):
     """
-    Consulta la tasa de financiación de Binance Futures para el símbolo con caché de 1 hora.
+    Consulta la tasa de financiación de Binance Futures para el símbolo con caché de 15 minutos (900s).
+    Sanitiza el símbolo para admitir 'BTC', 'BTC/USDT' o 'BTCUSDT'.
     Retorna la tasa como float (ej: 0.0001 = 0.01%). Fallback seguro 0.0.
     """
     global _FUNDING_CACHE
     now = time.time()
-    cached = _FUNDING_CACHE.get(symbol)
-    if cached and (now - cached['last_fetch'] < 3600):
+    clean_sym = symbol.replace("/", "").replace("USDT", "")
+    cached = _FUNDING_CACHE.get(clean_sym)
+    if cached and (now - cached['last_fetch'] < 900):
         return cached['rate']
     
-    pair = f"{symbol}USDT"
+    pair = f"{clean_sym}USDT"
     try:
         url = f"https://fapi.binance.com/fapi/v1/fundingRate?symbol={pair}&limit=1"
-        resp = requests.get(url, headers={'User-Agent': 'GaTDSEQ/2.2'}, timeout=4)
+        resp = requests.get(url, headers={'User-Agent': 'GaTDSEQ/2.5'}, timeout=4)
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, list) and len(data) > 0:
                 rate = float(data[0].get('fundingRate', 0.0))
-                _FUNDING_CACHE[symbol] = {'rate': rate, 'last_fetch': now}
+                _FUNDING_CACHE[clean_sym] = {'rate': rate, 'last_fetch': now}
                 return rate
     except Exception:
         pass
@@ -511,16 +554,31 @@ def calculate_confidence_score(candle, action, divergence, is_counter_trend, fng
             elif fng_index >= 60: score += 0.05    # Codicia: Buen punto de agotamiento
             elif fng_index <= 25: score -= 0.10    # Panico Extremo: Riesgo de vender en el suelo
             
-    # 6. Carry Cost: Funding Rate en Perpetuos (Modulador +-5%)
+    # 6. Derivatives Sentiment & Carry Cost: Funding Rate en Perpetuos (Modulador +-10%)
+    # Detección cuantitativa de Short Squeeze / Long Squeeze inminente
     if funding_rate != 0.0:
         if action == "BUY":
-            if funding_rate > 0.0004: score -= 0.05   # Longs pagando funding caro (>0.04%/8h)
-            elif funding_rate < -0.0002: score += 0.05 # Shorts pagando a longs (carry positivo)
+            if funding_rate <= -0.0003: score += 0.10     # Short Squeeze Fuel: Shorts masivamente hacinados (< -0.03%/8h)
+            elif funding_rate < -0.0001: score += 0.05    # Carry positivo para Longs
+            elif funding_rate >= 0.0005: score -= 0.10    # Trampa de Euforia Long: Financiación disparada (> +0.05%/8h)
+            elif funding_rate > 0.0002: score -= 0.05     # Longs pagando carry caro
         elif action == "SELL":
-            if funding_rate < -0.0004: score -= 0.05  # Shorts pagando funding caro
-            elif funding_rate > 0.0002: score += 0.05  # Longs pagando a shorts (carry positivo)
+            if funding_rate >= 0.0004: score += 0.10     # Long Squeeze Fuel: Longs sobre-apalancados a punto de capitular
+            elif funding_rate > 0.0001: score += 0.05     # Carry positivo para Shorts
+            elif funding_rate <= -0.0005: score -= 0.10   # Trampa de Pánico Short: Financiación muy negativa
+            elif funding_rate < -0.0002: score -= 0.05    # Shorts pagando carry caro
 
-    # 7. Top-Down Macro Alignment: DeMark Semanal [1W] (Anti-Bias Shield Ponderado con Perfeccion)
+    # 7. Regimen de Tendencia y Volatilidad: ADX (14) (Modulador +-5%)
+    adx_val = candle.get('adx', 0.0)
+    if adx_val > 0.0:
+        if not is_counter_trend:
+            if adx_val >= 25.0: score += 0.05   # Tendencia estructurada y potente a favor del trade
+            elif adx_val < 18.0: score -= 0.05  # Mercado sin inercia (Chop / compresión plana)
+        else:
+            if adx_val < 20.0: score += 0.05    # Rango lateral/baja tendencia: reversión a la media favorecida
+            elif adx_val >= 28.0: score -= 0.05 # Contra-tendencia en tendencia acelerada
+
+    # 8. Top-Down Macro Alignment: DeMark Semanal [1W] (Anti-Bias Shield Ponderado con Perfeccion)
     if weekly_context:
         is_sell_exh = weekly_context.get('is_sell_exhaustion_active', False)
         is_buy_exh = weekly_context.get('is_buy_exhaustion_active', False)
@@ -638,7 +696,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
     
     if abs(count) >= 7 or state.get("status") == "IN_TRADE":
         st_label = f" [{strategy_type}]" if strategy_type else ""
-        print(f"[{bot_id}] {SYMBOL} [{TIMEFRAME}]{st_label} | Price: ${current_live_price:,.2f} | TD: {count} | RSI: {rsi:.1f} | EMA200: ${ema200:,.2f}")
+        adx_log = closed_candle.get('adx', 0.0)
+        print(f"[{bot_id}] {SYMBOL} [{TIMEFRAME}]{st_label} | Price: ${current_live_price:,.2f} | TD: {count} | RSI: {rsi:.1f} | ADX: {adx_log:.1f} | EMA200: ${ema200:,.2f}")
 
     
     if state.get("status") == "IDLE":
@@ -730,6 +789,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                     print(f"🛑 MACRO SHIELD: Compra contra-tendencia descartada en {SYMBOL} [4h] por corrección semanal activa.")
                 elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and (-8 <= weekly_context.get('td_count', 0) < 0):
                     print(f"🛑 MACRO TREND SHIELD: Compra contra-tendencia descartada en {SYMBOL} [4h] por impulso bajista semanal en curso (1W TD: {weekly_context.get('td_count', 0)}).")
+                elif is_counter_trend and closed_candle.get('adx', 0.0) >= 32.0:
+                    print(f"🛑 ADX SAFETY SWITCH: Compra contra-tendencia descartada en {SYMBOL} [{TIMEFRAME}] por tendencia bajista extrema (ADX {closed_candle.get('adx', 0.0):.1f} >= 32.0).")
                 elif fleet_stats['total'] >= MAX_TOTAL_FLEET_TRADES:
                     print(f"🛑 PORTFOLIO SHIELD: Cap total de cartera alcanzado ({fleet_stats['total']}/{MAX_TOTAL_FLEET_TRADES} trades activos). Omitiendo BUY.")
                 elif fleet_stats['longs'] >= MAX_DIRECTIONAL_TRADES:
@@ -806,6 +867,8 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                     print(f"🛑 MACRO SHIELD: Venta contra-tendencia descartada en {SYMBOL} [4h] por rebote semanal activo.")
                 elif TIMEFRAME == "4h" and is_counter_trend and weekly_context and (0 < weekly_context.get('td_count', 0) <= 8):
                     print(f"🛑 MACRO TREND SHIELD: Venta contra-tendencia descartada en {SYMBOL} [4h] por impulso alcista semanal en curso (1W TD: +{weekly_context.get('td_count', 0)}).")
+                elif is_counter_trend and closed_candle.get('adx', 0.0) >= 32.0:
+                    print(f"🛑 ADX SAFETY SWITCH: Venta contra-tendencia descartada en {SYMBOL} [{TIMEFRAME}] por rally alcista extremo (ADX {closed_candle.get('adx', 0.0):.1f} >= 32.0).")
                 elif fleet_stats['total'] >= MAX_TOTAL_FLEET_TRADES:
                     print(f"🛑 PORTFOLIO SHIELD: Cap total de cartera alcanzado ({fleet_stats['total']}/{MAX_TOTAL_FLEET_TRADES} trades activos). Omitiendo SELL.")
                 elif fleet_stats['shorts'] >= MAX_DIRECTIONAL_TRADES:
