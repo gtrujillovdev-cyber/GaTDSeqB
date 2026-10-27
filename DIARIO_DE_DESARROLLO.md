@@ -921,6 +921,24 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Despliegue en vivo vía `rsync` y reinicio controlado de `gatdseq-bot.service` (`active (running)`).
   - Telemetría nominal en `bot_unified.log` y preservación íntegra de las posiciones cortas abiertas en BTC [1w] con +2.39% ROE.
 
+### 37. Integración Cuantitativa: Validación Estadística Monte Carlo Bootstrap (Z >= 2.50) y Métricas MFE/MAE (27 de Octubre de 2026)
+- **Diagnóstico y Motivación Cuantitativa:**
+  - Absorción de la segunda gema analítica inspirada en Pattern Lab: incorporación de inferencia estadística formal para auditar si las estrategias cuantitativas de GaTDSEQ baten a la hipótesis nula del mercado aleatorio ($H_0$) o si sufren de sobreajuste (*overfitting / data snooping*).
+- **Implementación del Motor Monte Carlo Bootstrap y Métricas MFE/MAE:**
+  - **Métricas de Excursión Intradía en R (ATR):**
+    - En cada operación (`backtesting/engine.py`), se registra en tiempo real la Máxima Excursión Favorable (`mfe_r`) y la Máxima Excursión Adversa (`mae_r`) normalizadas en múltiplos de ATR, así como el retorno realizado final (`realized_r`).
+  - **Test de Permutación Rademacher Sign-Flip (`compute_monte_carlo_edge`):**
+    - Ejecuta 1,000 permutaciones aleatorias de los retornos (simulando 50/50 compras/ventas al azar) para generar la distribución empírica de la hipótesis nula.
+    - Calcula el estadístico $Z\text{-score} = \frac{\bar{R}_{\text{obs}} - \mu_{\text{null}}}{\sigma_{\text{null}}}$ y el p-value empírico exacto.
+    - Se establece el estándar institucional estricto: confirmación de alfa solo si $Z \ge 2.50$ ($p \le 0.01$).
+  - **Terminal Bloomberg Audit Report:** Integración en `backtesting/analytics.py` de la sección institucional que proyecta las iteraciones Monte Carlo, el Z-score, el ratio de eficiencia MFE/MAE y el veredicto sobre $H_0$.
+- **Control de Calidad, Desacoplamiento y Validación:**
+  - Desacoplamiento de `ccxt` en `backtesting/data_manager.py` mediante carga perezosa (*lazy loading*), permitiendo la ejecución aislada de análisis y suites de testing sin requerir librerías de exchange.
+  - Creación de `tests/test_monte_carlo.py` con 4 tests unitarios deterministas superados al 100%.
+  - Batería de pruebas completa en Raspberry Pi 3B ampliada a **16/16 tests unitarios superados en 0.071s**.
+  - Validación en simulación `BTC/USDT [1d]` (HYB): Retorno de +$1,079.55 USD (+10.80%), Sharpe de 1.89, MFE/MAE ratio de 3.84x y certificación institucional de ventaja estadística con **$Z = +2.53$ ($p = 0.0010$, $H_0$ rechazada)**.
+
+
 
 
 

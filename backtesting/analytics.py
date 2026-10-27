@@ -3,6 +3,90 @@ import numpy as np
 import pandas as pd
 from typing import List, Dict, Any
 
+def compute_monte_carlo_edge(
+    trades: List[Dict[str, Any]],
+    n_simulations: int = 1000,
+    seed: int = 42
+) -> Dict[str, Any]:
+    """
+    Test de Hipótesis Nula e Inferencia Estadística Cuantitativa (Monte Carlo Bootstrap).
+    Evalúa si la distribución de retornos generada por la estrategia bate al azar
+    con significancia Z >= 2.50 (p <= 0.01) mediante permutación aleatoria (Rademacher Sign-Flip).
+    Calcula además la Máxima Excursión Favorable (MFE) y Adversa (MAE) normalizadas en ATR.
+    """
+    if not trades:
+        return {
+            "has_data": False,
+            "z_score": 0.0,
+            "p_value": 1.0,
+            "is_significant": False,
+            "avg_mfe_r": 0.0,
+            "avg_mae_r": 0.0,
+            "mfe_mae_ratio": 0.0,
+            "avg_realized_r": 0.0,
+            "n_simulations": n_simulations
+        }
+        
+    mfes = [float(t.get('mfe_r', 0.0)) for t in trades if 'mfe_r' in t]
+    maes = [float(t.get('mae_r', 0.0)) for t in trades if 'mae_r' in t]
+    realized_rs = [float(t.get('realized_r', 0.0)) for t in trades if 'realized_r' in t]
+    
+    avg_mfe = float(np.mean(mfes)) if mfes else 0.0
+    avg_mae = float(np.mean(maes)) if maes else 0.0
+    mfe_mae_ratio = (avg_mfe / avg_mae) if avg_mae > 0 else 0.0
+    avg_realized = float(np.mean(realized_rs)) if realized_rs else 0.0
+    
+    # Se requieren al menos 3 trades cerrados para inferencia estadística
+    if len(realized_rs) < 3:
+        return {
+            "has_data": True,
+            "z_score": 0.0,
+            "p_value": 1.0,
+            "is_significant": False,
+            "null_mean": 0.0,
+            "null_std": 0.0,
+            "observed_mean": avg_realized,
+            "avg_mfe_r": avg_mfe,
+            "avg_mae_r": avg_mae,
+            "mfe_mae_ratio": mfe_mae_ratio,
+            "avg_realized_r": avg_realized,
+            "n_simulations": n_simulations
+        }
+        
+    rng = np.random.default_rng(seed)
+    rs_arr = np.array(realized_rs)
+    observed_mean = float(np.mean(rs_arr))
+    
+    # Rademacher Sign-Flip Permutation: simula asignación direccional 50/50 al azar
+    signs = rng.choice([-1.0, 1.0], size=(n_simulations, len(rs_arr)))
+    null_means = np.mean(signs * rs_arr, axis=1)
+    
+    null_mean = float(np.mean(null_means))
+    null_std = float(np.std(null_means, ddof=1))
+    
+    if null_std > 0:
+        z_score = float((observed_mean - null_mean) / null_std)
+    else:
+        z_score = 0.0
+        
+    p_value = float(np.mean(null_means >= observed_mean))
+    is_significant = (z_score >= 2.50) and (p_value <= 0.01)
+    
+    return {
+        "has_data": True,
+        "z_score": z_score,
+        "p_value": p_value,
+        "is_significant": is_significant,
+        "null_mean": null_mean,
+        "null_std": null_std,
+        "observed_mean": observed_mean,
+        "avg_mfe_r": avg_mfe,
+        "avg_mae_r": avg_mae,
+        "mfe_mae_ratio": mfe_mae_ratio,
+        "avg_realized_r": avg_realized,
+        "n_simulations": n_simulations
+    }
+
 def compute_metrics(
     initial_bank: float,
     final_bank: float,
@@ -25,7 +109,8 @@ def compute_metrics(
             "profit_factor": 0.0,
             "max_drawdown_pct": 0.0,
             "sharpe_ratio": 0.0,
-            "sortino_ratio": 0.0
+            "sortino_ratio": 0.0,
+            "monte_carlo": compute_monte_carlo_edge([])
         }
         
     pnls = [t['pnl'] for t in trades]
@@ -57,7 +142,6 @@ def compute_metrics(
         
         # Returns for Sharpe & Sortino
         returns = equity_series.pct_change().dropna()
-        # Periods per year
         if timeframe == '5m': periods_per_year = 365 * 24 * 12
         elif timeframe == '15m': periods_per_year = 365 * 24 * 4
         elif timeframe == '1h': periods_per_year = 365 * 24
@@ -82,6 +166,8 @@ def compute_metrics(
         sharpe_ratio = 0.0
         sortino_ratio = 0.0
         
+    mc_edge = compute_monte_carlo_edge(trades)
+        
     return {
         "initial_bank": initial_bank,
         "final_bank": final_bank,
@@ -101,7 +187,8 @@ def compute_metrics(
         "max_drawdown_pct": max_drawdown_pct,
         "max_drawdown_usd": max_drawdown_usd,
         "sharpe_ratio": sharpe_ratio,
-        "sortino_ratio": sortino_ratio
+        "sortino_ratio": sortino_ratio,
+        "monte_carlo": mc_edge
     }
 
 def print_bloomberg_report(metrics: Dict[str, Any], symbol: str, timeframe: str, strategy: str, period_str: str = ""):
@@ -149,4 +236,28 @@ def print_bloomberg_report(metrics: Dict[str, Any], symbol: str, timeframe: str,
     print(f"    Average Win:            ${metrics['avg_win']:>12,.2f} USD")
     print(f"    Average Loss:           ${metrics['avg_loss']:>12,.2f} USD")
     print(f"    Expectancy / Trade:     ${metrics['expectancy']:>12,.2f} USD")
+    
+    mc = metrics.get("monte_carlo", {})
+    if mc and mc.get("has_data"):
+        print(subsep)
+        print(f"  {amber}STATISTICAL EDGE & NOISE REJECTION (MONTE CARLO BOOTSTRAP){reset}")
+        print(f"    Monte Carlo Runs:        {mc['n_simulations']:>12,d} permutations")
+        print(f"    Average Realized R:      {mc['avg_realized_r']:>+12.2f} R")
+        print(f"    Avg. MFE (Max Favorable):{mc['avg_mfe_r']:>+12.2f} R")
+        print(f"    Avg. MAE (Max Adverse):  {mc['avg_mae_r']:>+12.2f} R")
+        print(f"    MFE / MAE Ratio:         {mc['mfe_mae_ratio']:>12.2f}x")
+        
+        z_str = f"{mc['z_score']:+.2f}"
+        p_str = f"{mc['p_value']:.4f}"
+        if mc["is_significant"]:
+            status_color = "\033[92m"
+            verdict = "REJECTED (CONFIRMED EDGE)"
+        else:
+            status_color = "\033[93m"
+            verdict = "ACCEPTED (INSUFFICIENT SAMPLE / NOISE)"
+            
+        print(f"    Z-Score vs Random Walk:  {status_color}{z_str:>12s}{reset} (Threshold: Z >= +2.50)")
+        print(f"    Empirical p-Value:       {p_str:>12s} (Significance: p <= 0.01)")
+        print(f"    H0 Null Hypothesis:      {status_color}{verdict:>12s}{reset}")
+        
     print(sep + "\n")

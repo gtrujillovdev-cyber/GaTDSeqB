@@ -384,7 +384,9 @@ class BacktestEngine:
             "breakeven_active": False,
             "runner_active": False,
             "atr_at_entry": atr,
-            "entry_fee_total": entry_fee
+            "entry_fee_total": entry_fee,
+            "max_fav_excursion": 0.0,
+            "max_adv_excursion": 0.0
         }
 
     def _manage_active_trade(self, live_candle, closed_candle, df, i):
@@ -400,6 +402,17 @@ class BacktestEngine:
         low_p = live_candle['low']
         close_p = live_candle['close']
         time_stamp = live_candle['datetime']
+        
+        # Actualizar excursiones máxima favorable (MFE) y adversa (MAE)
+        if action == "BUY":
+            fav = max(0.0, high_p - entry)
+            adv = max(0.0, entry - low_p)
+        else:
+            fav = max(0.0, entry - low_p)
+            adv = max(0.0, high_p - entry)
+            
+        t['max_fav_excursion'] = max(t.get('max_fav_excursion', 0.0), fav)
+        t['max_adv_excursion'] = max(t.get('max_adv_excursion', 0.0), adv)
         
         countdown = closed_candle['td_countdown']
         
@@ -462,7 +475,10 @@ class BacktestEngine:
                     "exit_price": so_price,
                     "pnl": net_partial_pnl,
                     "reason": "Scale-Out Táctico (+1.0 ATR)",
-                    "bank": self.bank
+                    "bank": self.bank,
+                    "mfe_r": t.get('max_fav_excursion', 0.0) / atr if atr > 0 else 0.0,
+                    "mae_r": t.get('max_adv_excursion', 0.0) / atr if atr > 0 else 0.0,
+                    "realized_r": ((so_price - entry) if action == "BUY" else (entry - so_price)) / atr if atr > 0 else 0.0
                 })
                 units = t['size_units']
                 
@@ -526,7 +542,10 @@ class BacktestEngine:
                     "exit_price": tp,
                     "pnl": net_tp2_pnl,
                     "reason": "Take Profit Objetivo (+3.5 ATR)",
-                    "bank": self.bank
+                    "bank": self.bank,
+                    "mfe_r": t.get('max_fav_excursion', 0.0) / atr if atr > 0 else 0.0,
+                    "mae_r": t.get('max_adv_excursion', 0.0) / atr if atr > 0 else 0.0,
+                    "realized_r": ((tp - entry) if action == "BUY" else (entry - tp)) / atr if atr > 0 else 0.0
                 })
                 units = t['size_units']
                     
@@ -568,7 +587,10 @@ class BacktestEngine:
                     "exit_price": tp,
                     "pnl": net_tp2_pnl,
                     "reason": "Take Profit Objetivo (+3.5 ATR)",
-                    "bank": self.bank
+                    "bank": self.bank,
+                    "mfe_r": t.get('max_fav_excursion', 0.0) / atr if atr > 0 else 0.0,
+                    "mae_r": t.get('max_adv_excursion', 0.0) / atr if atr > 0 else 0.0,
+                    "realized_r": ((tp - entry) if action == "BUY" else (entry - tp)) / atr if atr > 0 else 0.0
                 })
                 units = t['size_units']
                     
@@ -593,7 +615,10 @@ class BacktestEngine:
                 "pnl": net_pnl,
                 "reason": close_reason,
                 "model": t['reason'],
-                "bank": self.bank
+                "bank": self.bank,
+                "mfe_r": t.get('max_fav_excursion', 0.0) / atr if atr > 0 else 0.0,
+                "mae_r": t.get('max_adv_excursion', 0.0) / atr if atr > 0 else 0.0,
+                "realized_r": ((exit_price - entry) if action == "BUY" else (entry - exit_price)) / atr if atr > 0 else 0.0
             })
             self.active_trade = None
 

@@ -1,7 +1,6 @@
 import os
 import time
 import datetime
-import ccxt
 import pandas as pd
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -17,6 +16,7 @@ def fetch_historical_ohlcv(symbol: str = "BTC/USDT", timeframe: str = "1h", days
     """
     Descarga datos historicos de Binance con paginacion para superar el limite de 1000/1500 velas.
     """
+    import ccxt
     exchange = ccxt.binance({'enableRateLimit': True})
     
     # Calcular timestamp de inicio (milisegundos)
