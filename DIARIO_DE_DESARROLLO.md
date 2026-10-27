@@ -907,6 +907,21 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
     1. *Algoritmo "Line of Sight" (Visión Directa entre Pivots):* Verificación geométrica para sanear la detección de divergencias en osciladores, evitando rupturas espurias entre extremos.
     2. *Validación Monte Carlo por Permutación de Barras (Bar-Shuffling Bootstrap):* Test estadístico contra la hipótesis nula del azar ($Z \ge 2.5$) para auditar la robustez y evitar sobreajuste en el motor de backtesting (`backtesting/engine.py`).
 
+### 36. Integración Cuantitativa: Algoritmo Geométrico "Line of Sight" y Fractales Swing para Divergencias RSI (27 de Octubre de 2026)
+- **Diagnóstico y Motivación Técnica:**
+  - La inspección del código fuente reveló que la detección previa de divergencias en `wycoff_logic.py` y `backtesting/indicators.py` utilizaba un método naive (`idxmin()`/`idxmax()` sobre una ventana fija sin validación de pivotes), lo que inducía falsos positivos ante mechazos intermedios que quebraban la estructura del swing.
+- **Implementación del Algoritmo "Line of Sight" (Visión Directa) y Fractales:**
+  - **Función Vectorial `sightline_check(y_series, i0, i1, is_low, tol)`:** Evalúa en tiempo lineal $\mathcal{O}(N)$ que ningún valor intermedio rebase la recta secante $y = mx + k$ que conecta dos pivotes. Para mínimos (Spring / Bullish), comprueba que ninguna vela intermedia caiga por debajo de la recta menos una tolerancia adaptativa de $0.25 \times \text{ATR}$; para máximos (Upthrust / Bearish), que ninguna vela supere la recta más la tolerancia.
+  - **Detector de Pivotes Fractales `find_swing_pivots`:** Exige que los puntos extremos sean pivotes estructurales con mínimos/máximos locales confirmados frente a sus vecinos inmediatos, con separación mínima garantizada de 3 barras.
+  - **Doble Validación Cruzada (Precio & RSI):** Se exige visión directa tanto en la serie de precios como en la serie de oscilador RSI, eliminando divergencias espurias o ruido intradiario.
+  - **Paridad 1:1:** Implementación sincronizada de forma idéntica en el motor en vivo (`wycoff_logic.py`) y en el motor de simulación (`backtesting/indicators.py`, `backtesting/engine.py`).
+- **Suite de Pruebas Unitarias y Despliegue en Producción (Raspberry Pi 3B):**
+  - Creación de `tests/test_divergences_sightline.py` con 5 casos de prueba unitarios (divergencias alcistas/bajistas limpias, rupturas espurias de línea de visión y tendencias continuas sin divergencia), superados al 100%.
+  - Batería de pruebas en producción ampliada a **12/12 tests unitarios superados con éxito en 0.058s**.
+  - Despliegue en vivo vía `rsync` y reinicio controlado de `gatdseq-bot.service` (`active (running)`).
+  - Telemetría nominal en `bot_unified.log` y preservación íntegra de las posiciones cortas abiertas en BTC [1w] con +2.39% ROE.
+
+
 
 
 

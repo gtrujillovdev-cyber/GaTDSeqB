@@ -240,8 +240,8 @@ class BacktestEngine:
         vah = vp['vah']
         val = vp['val']
         
-        div_slice = df.iloc[max(0, i-21):i-1]
-        divergence = detect_divergences(div_slice, lookback=10)
+        div_slice = df.iloc[max(0, i-31):i]
+        divergence = detect_divergences(div_slice, lookback=20)
         
         avg_vol = df['volume'].iloc[max(0, i-21):i-1].mean()
         volume = closed_candle['volume']

@@ -108,29 +108,104 @@ def calculate_volume_profile(df_slice: pd.DataFrame, bins: int = 20, value_area_
     val = float(price_bins[lower_idx])
     return {"poc": poc, "vah": vah, "val": val}
 
-def detect_divergences(df_slice: pd.DataFrame, lookback: int = 10) -> str:
-    """Detecta divergencias RSI Bullish/Bearish."""
-    if len(df_slice) < lookback + 2:
+def sightline_check(y_series, i0: int, i1: int, is_low: bool = True, tol: float = 0.0) -> bool:
+    """Verifica que los valores entre (i0, i1) no violen la línea de visión directa."""
+    dx = i1 - i0
+    if dx <= 1:
+        return True
+    y0 = float(y_series[i0])
+    y1 = float(y_series[i1])
+    slope = (y1 - y0) / dx
+    for k in range(i0 + 1, i1):
+        line_val = y0 + slope * (k - i0)
+        val = float(y_series[k])
+        if np.isnan(val):
+            continue
+        if is_low and val < (line_val - tol):
+            return False
+        if not is_low and val > (line_val + tol):
+            return False
+    return True
+
+def find_swing_pivots(series, is_low: bool = True, radius: int = 1) -> list:
+    """Identifica índices de extremos relativos (fractales swing)."""
+    n = len(series)
+    pivots = []
+    for i in range(radius, n - radius):
+        val = series[i]
+        if np.isnan(val):
+            continue
+        if is_low:
+            if all(val <= series[i - r] and val <= series[i + r] for r in range(1, radius + 1)):
+                pivots.append(i)
+        else:
+            if all(val >= series[i - r] and val >= series[i + r] for r in range(1, radius + 1)):
+                pivots.append(i)
+    return pivots
+
+def detect_divergences(df_slice: pd.DataFrame, lookback: int = 20, min_separation: int = 3, delta_rsi: float = 1.0) -> str:
+    """Detecta divergencias RSI Bullish/Bearish con validación geométrica Line of Sight."""
+    if len(df_slice) < min_separation + 2 or 'rsi' not in df_slice.columns:
         return "NONE"
         
-    recent_low_idx = df_slice['low'].iloc[-lookback:-1].idxmin()
-    recent_high_idx = df_slice['high'].iloc[-lookback:-1].idxmax()
-    
-    current_low = df_slice['low'].iloc[-1]
-    current_high = df_slice['high'].iloc[-1]
-    current_rsi = df_slice['rsi'].iloc[-1]
-    
-    past_low = df_slice['low'].loc[recent_low_idx]
-    past_rsi_low = df_slice['rsi'].loc[recent_low_idx]
-    
-    past_high = df_slice['high'].loc[recent_high_idx]
-    past_rsi_high = df_slice['rsi'].loc[recent_high_idx]
-    
-    if current_low < past_low and current_rsi > past_rsi_low:
-        return 'BULLISH'
-    if current_high > past_high and current_rsi < past_rsi_high:
-        return 'BEARISH'
+    sub = df_slice.tail(lookback + 2).copy().reset_index(drop=True)
+    n = len(sub)
+    if n < min_separation + 2:
+        return "NONE"
         
+    lows = sub['low'].values
+    highs = sub['high'].values
+    rsis = sub['rsi'].values
+    
+    if 'atr' in sub.columns and pd.notna(sub['atr'].iloc[-1]) and sub['atr'].iloc[-1] > 0:
+        atr = float(sub['atr'].iloc[-1])
+    else:
+        atr = float((sub['high'] - sub['low']).mean())
+        if atr <= 0 or np.isnan(atr):
+            atr = float(sub['close'].iloc[-1]) * 0.005
+            
+    tol_price = 0.25 * atr
+    tol_rsi = 2.5
+    curr_idx = n - 1
+    if np.isnan(rsis[curr_idx]):
+        return "NONE"
+        
+    # 1. Bullish Divergence
+    low_pivots = find_swing_pivots(lows, is_low=True, radius=1)
+    valid_low_pivots = [p for p in low_pivots if (curr_idx - p) >= min_separation]
+    if not valid_low_pivots:
+        search_range = range(0, curr_idx - min_separation)
+        if search_range:
+            p_min = min(search_range, key=lambda idx: lows[idx])
+            valid_low_pivots = [p_min]
+            
+    for p1 in reversed(valid_low_pivots):
+        if np.isnan(rsis[p1]): continue
+        price_lower = lows[curr_idx] < (lows[p1] + tol_price * 0.5)
+        rsi_higher = rsis[curr_idx] > (rsis[p1] + delta_rsi)
+        if price_lower and rsi_higher:
+            if sightline_check(lows, p1, curr_idx, is_low=True, tol=tol_price) and \
+               sightline_check(rsis, p1, curr_idx, is_low=True, tol=tol_rsi):
+                return 'BULLISH'
+                
+    # 2. Bearish Divergence
+    high_pivots = find_swing_pivots(highs, is_low=False, radius=1)
+    valid_high_pivots = [p for p in high_pivots if (curr_idx - p) >= min_separation]
+    if not valid_high_pivots:
+        search_range = range(0, curr_idx - min_separation)
+        if search_range:
+            p_max = max(search_range, key=lambda idx: highs[idx])
+            valid_high_pivots = [p_max]
+            
+    for p1 in reversed(valid_high_pivots):
+        if np.isnan(rsis[p1]): continue
+        price_higher = highs[curr_idx] > (highs[p1] - tol_price * 0.5)
+        rsi_lower = rsis[curr_idx] < (rsis[p1] - delta_rsi)
+        if price_higher and rsi_lower:
+            if sightline_check(highs, p1, curr_idx, is_low=False, tol=tol_price) and \
+               sightline_check(rsis, p1, curr_idx, is_low=False, tol=tol_rsi):
+                return 'BEARISH'
+                
     return "NONE"
 
 def calculate_td_sequential(df: pd.DataFrame) -> pd.DataFrame:
