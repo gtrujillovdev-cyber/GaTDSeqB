@@ -938,6 +938,25 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - Batería de pruebas completa en Raspberry Pi 3B ampliada a **16/16 tests unitarios superados en 0.071s**.
   - Validación en simulación `BTC/USDT [1d]` (HYB): Retorno de +$1,079.55 USD (+10.80%), Sharpe de 1.89, MFE/MAE ratio de 3.84x y certificación institucional de ventaja estadística con **$Z = +2.53$ ($p = 0.0010$, $H_0$ rechazada)**.
 
+### 38. Re-optimización de la Flota con Datos Frescos (90 días) y Despliegue en Producción (30 de Octubre de 2026)
+- **Diagnóstico Previo — Caché Parquet Obsoleto:**
+  - Se detectó que el `data_manager.py` usaba caché Parquet con 13-14 días de antigüedad (última vela: 16-Oct-2026) sin actualizar, debido a la condición permisiva `span_days >= 10` que acepta cualquier caché de más de 10 días sin refrescar.
+  - HYPE/USDT solo tenía 23 días en caché, insuficiente para un análisis de 90 días.
+- **Auditoría del Pipeline de Señales (BTC/USDT 4h, 90 días):**
+  - Trazado bar-by-bar del embudo de filtros: de 541 velas activas, 314 sin TD9, 25 bloqueadas por Price Flip DeMark (close > high de hace 2 velas), y solo 2 señales pasando todos los filtros con confianza mínima (0.55). Conclusión: los timeframes 4h/1d requieren ventanas de 180-365 días para densidad estadística suficiente en el Grid Search.
+- **Estrategia de Corrección — Optimización en Timeframe 1h:**
+  - Se refrescaron todos los Parquet con `force_refresh=True` descargando 180 días desde Binance para BTC/ETH (4,320 velas 1h) y los datos disponibles de HYPE (36 días, token reciente).
+  - Se ejecutó Grid Search de 54 combinaciones × 9 bots (HYB/TD9/WYK × BTC/ETH/HYPE) en timeframe 1h con ventana de 90 días.
+- **Resultados de la Optimización 1h (90 días):**
+  - `ETH/USDT_1h_HYB` y `ETH/USDT_1h_TD9`: **Sharpe=3.54 | PnL=+2.89% | WR=75% | 4 trades** — mejor ratio riesgo/recompensa de la flota.
+  - `BTC/USDT_1h_HYB` y `BTC/USDT_1h_TD9`: **Sharpe=2.09 | PnL=+3.60% | WR=50% | 8 trades** — mayor densidad de señales.
+  - WYK puro: 0 trades en todos los assets (la condición Spring/Upthrust requiere confluencia de 3 factores simultáneos — climatic volume + divergencia + precio fuera de VAH/VAL — raramente se da en 1h).
+  - HYPE: 0 trades en todos los timeframes (historia insuficiente, token listado hace ~36 días).
+  - Insight técnico: HYB e TD9 producen resultados idénticos porque el filtro Wyckoff AND doble en HYB nunca se activa solo, degradando HYB a TD9 puro en este ciclo de mercado.
+- **Despliegue Zero-Downtime en Producción:**
+  - `fleet_optimized.json` (36 entradas, 17,384 bytes) desplegado vía `rsync` a `rpi:~/GaTDSEQ/` con servicios `gatdseq-bot` y `gatdseq-server` en estado `active`.
+  - Hot-swap automático absorbido por `get_bot_params()` en el siguiente ciclo de candle close (TTL 60s), sin reinicio de servicios ni interrupción de posiciones abiertas.
+
 
 
 
