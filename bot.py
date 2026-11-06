@@ -655,8 +655,12 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
     if candle_range == 0: candle_range = 1
     close_pct = (closed_candle['close'] - closed_candle['low']) / candle_range
     
-    wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5) and (divergence == 'BULLISH')
-    wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5) and (divergence == 'BEARISH')
+    # Wyckoff Spring/Upthrust: 3 condiciones estructurales (precio, volumen, morfología de vela).
+    # La divergencia RSI se elimina como requisito binario aquí — ya vive en calculate_confidence_score
+    # como bonus +0.15 (confirmación) o penalización -0.10 (contradicción), permitiendo señales
+    # graduales: Spring sin divergencia puede pasar con score ~0.50-0.60, con divergencia sube a ~0.70+.
+    wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5)
+    wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5)
     
     # Cargar y sincronizar estado con Dirty-Check para preservar la vida útil de la MicroSD
     state = load_state()
@@ -741,29 +745,24 @@ def analyze_market(df, bot_id, strategy_type, precomputed_context=None, weekly_c
                     print(f"[{bot_id}] DEDUP: HYB salta TD9 Sell — TD9 ya lo opero en {SYMBOL} [{TIMEFRAME}]")
 
         if strategy_type in ["WYK", "HYB"]:
-            # FIX 1: Hard veto EMA200 — Wyckoff Spring solo si precio >= EMA200 (con tendencia alcista)
-            # Sin este filtro, el bot entraba en BUY en pleno downtrend repetidamente
+            # EMA200 hard veto eliminado: el Spring de Wyckoff es un evento de support-test
+            # que ocurre principalmente en correcciones (price < EMA200). El ADX safety switch
+            # (ADX >= 32 → bloquea counter-trend) y el confidence score (counter-trend +0.05 vs
+            # +0.20 con tendencia) son los guardianes. Solo springs con RSI oversold + divergencia
+            # pasan el umbral 0.55.
             if wyckoff_spring and not trigger_buy:
-                if current_live_price >= ema200:
-                    trigger_buy = True
-                    reason_buy = "Wyckoff Spring"
-                else:
-                    print(f"[{bot_id}] WYCKOFF VETO: Spring ignorado, {SYMBOL} en downtrend (precio ${current_live_price:,.2f} < EMA200 ${ema200:,.2f})")
-            # FIX 3: Anti-duplicacion WYK+HYB — HYB no opera Wyckoff si WYK ya entro esta vela
-            # Sin esto, ambos bots entraban con la misma señal duplicando la exposicion
+                trigger_buy = True
+                reason_buy = "Wyckoff Spring"
+            # Anti-duplicacion WYK+HYB — HYB no opera Wyckoff si WYK ya entro esta vela
             if strategy_type == "HYB" and trigger_buy and "Wyckoff" in reason_buy:
                 _wyk_state = load_state(f"state_{SYMBOL}_WYK_{TIMEFRAME}.json")
                 if _wyk_state.get("last_trigger_time") == trigger_time or _wyk_state.get("status") == "IN_TRADE":
                     trigger_buy = False
                     reason_buy = ""
                     print(f"[{bot_id}] DEDUP: HYB salta Wyckoff Spring — WYK ya lo opero en {SYMBOL} [{TIMEFRAME}]")
-            # FIX 1: Hard veto EMA200 — Wyckoff Upthrust solo si precio <= EMA200 (con tendencia bajista)
             if wyckoff_upthrust and not trigger_sell:
-                if current_live_price <= ema200:
-                    trigger_sell = True
-                    reason_sell = "Wyckoff Upthrust"
-                else:
-                    print(f"[{bot_id}] WYCKOFF VETO: Upthrust ignorado, {SYMBOL} en uptrend (precio ${current_live_price:,.2f} > EMA200 ${ema200:,.2f})")
+                trigger_sell = True
+                reason_sell = "Wyckoff Upthrust"
             if strategy_type == "HYB" and trigger_sell and "Wyckoff" in reason_sell:
                 _wyk_state = load_state(f"state_{SYMBOL}_WYK_{TIMEFRAME}.json")
                 if _wyk_state.get("last_trigger_time") == trigger_time or _wyk_state.get("status") == "IN_TRADE":

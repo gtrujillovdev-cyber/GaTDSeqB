@@ -251,8 +251,11 @@ class BacktestEngine:
         if candle_range <= 0: candle_range = 1.0
         close_pct = (closed_candle['close'] - closed_candle['low']) / candle_range
         
-        wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5) and (divergence == 'BULLISH')
-        wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5) and (divergence == 'BEARISH')
+        # Divergencia RSI eliminada como requisito binario — ya vive en _calculate_confidence_score
+        # como bonus +0.15 / penalización -0.10. Spring sin divergencia pasa con score ~0.50-0.60;
+        # con divergencia sube a ~0.70+. Misma lógica que bot.py para consistencia train/deploy.
+        wyckoff_spring = (closed_candle['low'] < val) and climatic_volume and (close_pct >= 0.5)
+        wyckoff_upthrust = (closed_candle['high'] > vah) and climatic_volume and (close_pct <= 0.5)
         
         # Senales TD9 con confirmacion
         candle_2_ago = df.iloc[i-3]
@@ -272,14 +275,17 @@ class BacktestEngine:
                 reason = "TD9 Sell"
                 
         if self.strategy in ["WYK", "HYB"]:
+            # EMA200 hard veto eliminado: el Spring de Wyckoff ES por definición un evento
+            # de support-test que ocurre principalmente en correcciones (price < EMA200).
+            # El ADX safety switch (ADX >= 32 → bloquea counter-trend) y el confidence score
+            # (counter-trend recibe +0.05 vs +0.20 trend → -0.15 de penalización efectiva)
+            # son los guardianes correctos. Solo springs con RSI oversold + divergencia alcanzan 0.55.
             if wyckoff_spring and not trigger_buy:
-                if signal_price >= ema200:
-                    trigger_buy = True
-                    reason = "Wyckoff Spring"
+                trigger_buy = True
+                reason = "Wyckoff Spring"
             elif wyckoff_upthrust and not trigger_sell:
-                if signal_price <= ema200:
-                    trigger_sell = True
-                    reason = "Wyckoff Upthrust"
+                trigger_sell = True
+                reason = "Wyckoff Upthrust"
                 
         req_conf = 0.70 if "HYPE" in self.symbol else self.params.get("min_confidence", 0.55)
 

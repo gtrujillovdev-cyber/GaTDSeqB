@@ -957,6 +957,44 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
   - `fleet_optimized.json` (36 entradas, 17,384 bytes) desplegado vía `rsync` a `rpi:~/GaTDSEQ/` con servicios `gatdseq-bot` y `gatdseq-server` en estado `active`.
   - Hot-swap automático absorbido por `get_bot_params()` en el siguiente ciclo de candle close (TTL 60s), sin reinicio de servicios ni interrupción de posiciones abiertas.
 
+---
+
+## 📅 Auditoría + Evaluación Estratégica (06 de Noviembre de 2026)
+
+### Diagnóstico de Rendimiento — Flota 27 Bots
+
+**Estado del sistema:** SSH a Pi no disponible (autenticación pendiente de verificar). Análisis realizado sobre snapshot `backups/production_20261017_snapshot/` y `fleet_optimized.json`.
+
+#### Hallazgos Críticos — Root Cause del bajo rendimiento
+
+**1. Trade Starvation en 25/27 bots**
+De las 36 entradas calibradas en `fleet_optimized.json`, solo 3 combinaciones produjeron trades reales en el backtest de 90 días:
+- `BTC/USDT_1h_HYB`: 8 trades | PnL +3.60% | Sharpe 2.09 | WR 50%
+- `ETH/USDT_1h_HYB`: 4 trades | PnL +2.89% | Sharpe 3.54 | WR 75%
+- `BTC/USDT_4h_HYB`: 2 trades | PnL -0.13% | Sharpe -0.28 | WR 0% — NEGATIVO
+- Resto: 0 trades en todas las estrategias/timeframes
+
+**2. Wyckoff Spring — 4 condiciones AND = probabilidad ~0.1%**
+La condición requiere simultáneamente: `price < VAL`, `volume > 1.5×SMA`, `close_pct >= 0.5` y `divergence == BULLISH`. Probabilidad conjunta estimada en 4h/1d/1w: ~0.15%. Nunca se dispara.
+
+**3. HYB strategy degenerada a TD9 puro**
+El DEDUP anti-duplicación hace que HYB nunca opere si TD9 ya tomó la señal. Resultado: HYB queda sin señal propia.
+
+**4. Optimizer sin datos para TD9/WYK en 4h+**
+El Grid Search de 90 días no encontró ninguna señal en timeframes altos para estas estrategias.
+
+#### Propuestas de Mejora Priorizadas
+
+**[ALTA] Relajar Wyckoff Spring:** Mover `divergence == BULLISH` del requisito binario al confidence score como bonus. Mantener solo 3 de 4 condiciones como mínimo. Impacto: multiplicar señales WYK por ~10×.
+
+**[ALTA] Redefinir HYB:** HYB debe operar como amplificador independiente cuando TD9 Setup + contexto Wyckoff (VAL + volumen) coincidan, sin bloqueo DEDUP contra TD9. conviction_boost = 2.0 cuando ambos alinean.
+
+**[MEDIA] Re-optimizar con más historia:** Correr `optimize_fleet.py --days 180` para 4h y `--days 365` para 1d/1w para obtener densidad estadística suficiente.
+
+**[MEDIA] Umbral confidence diferenciado por TF:** Bajar MIN_CONFIDENCE a 0.45 para 1d/1w (señales más raras pero estructuralmente más sólidas).
+
+**[BAJA] TD-13 Countdown como entrada:** Usar el agotamiento completo (countdown=13) como trigger adicional de entrada con bonus +0.08 en confidence.
+
 
 
 

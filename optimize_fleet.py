@@ -18,8 +18,8 @@ from backtesting.indicators import prepare_market_indicators
 from backtesting.optimizer import run_grid_search
 
 DEFAULT_SYMBOLS = ["BTC/USDT", "ETH/USDT", "HYPE/USDT"]
-DEFAULT_TIMEFRAMES = ["4h", "1d"]
-DEFAULT_STRATEGIES = ["HYB"]
+DEFAULT_TIMEFRAMES = ["1h", "4h", "1d"]   # 1h añadido: WYK tiene edge confirmado en 1h (Z>=2.50)
+DEFAULT_STRATEGIES = ["HYB", "TD9", "WYK"] # Todas las estrategias — WYK activo tras relajar Spring
 
 def optimize_target(symbol: str, tf: str, strategy: str, days: int, bank: float):
     print(f"\n⚡ [OPTIMIZER] Iniciando barrido para {symbol} [{tf}] | Estrategia: {strategy} ({days} días)...")
