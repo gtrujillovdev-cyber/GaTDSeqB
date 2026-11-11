@@ -10,10 +10,12 @@ import bot
 from backtesting.analytics import compute_metrics, compute_monte_carlo_edge
 from backtesting.engine import BacktestEngine
 from backtesting.indicators import prepare_market_indicators
+from backtesting.research_lab import check_go_nogo_gates, fragility_top5_removal
 from core.strategy import (
     DEFAULT_BOT_PARAMS,
     compute_conviction_boost,
     compute_entry_levels,
+    evaluate_orthogonal_signal,
 )
 from core.telemetry import aggregate_trade_ledger
 
@@ -220,6 +222,76 @@ class TestBacktestAndRiskInvariants(unittest.TestCase):
         self.assertEqual(agg["wins_count"], 1)
         self.assertAlmostEqual(agg["win_rate"], 50.0, places=2)
         self.assertAlmostEqual(agg["bank"], 10350.0, places=2)
+
+    def test_research_lab_donchian_and_fragility_gates(self):
+        """Verifica que TREND_DC genere entradas Donchian sin look-ahead y fragility_top5_removal detecte fragilidad."""
+        n = 95
+        dates = pd.date_range("2025-01-01", periods=n, freq="4h")
+        closes = np.concatenate([np.full(40, 100.0), np.linspace(101.0, 140.0, 40), np.linspace(138.0, 120.0, 15)])
+        df = pd.DataFrame(
+            {
+                "datetime": dates,
+                "open": closes - 0.2,
+                "high": closes + 0.5,
+                "low": closes - 0.5,
+                "close": closes,
+                "volume": np.full(n, 1000.0),
+            }
+        )
+        df = prepare_market_indicators(df)
+        self.assertIn("dc_high_20", df.columns)
+
+        eng = BacktestEngine(
+            symbol="BTC/USDT",
+            timeframe="4h",
+            strategy="TREND_DC",
+            params={
+                "dc_period": 20,
+                "adx_min": 0.0,
+                "use_ema200_filter": False,
+                "atr_sl_trend": 2.5,
+                "atr_tp_trend": 25.0,
+                "enable_breakeven": False,
+                "enable_scale_out": False,
+                "enable_trailing": True,
+                "trailing_atr": 3.0,
+                "enable_dca_13": False,
+                "enable_runner": False,
+                "enable_channel_exit": True,
+            },
+        )
+        res = eng.run(df)
+        self.assertGreater(len(res["trades"]), 0)
+        self.assertGreater(res["final_bank"], 10000.0)
+
+        frag = fragility_top5_removal([{"pnl": 500.0}] + [{"pnl": -20.0}] * 19)
+        self.assertFalse(frag["survived"])
+        gates = check_go_nogo_gates(
+            {"trades": 50, "avg_sharpe": 0.5, "avg_calmar": 0.3},
+            {"oos_trades": 50, "oos_profit_factor": 0.9, "oos_z_score": 0.4, "oos_p_value": 0.3},
+            frag,
+            {"net_pnl": -100.0, "profit_factor": 0.8},
+        )
+        self.assertFalse(gates["passed_all"])
+
+    def test_orthogonal_mr_and_dual_signals(self):
+        """Verifica que MR solo dispare en rango (ADX<=24) y DUAL cambie a Donchian en tendencia (ADX>24)."""
+        c2 = pd.Series({"close": 100.0, "high": 102.0, "low": 98.0})
+        closed_range = pd.Series(
+            {"close": 105.0, "td_count": -9, "td_perfected": True, "dc_high_55": 110.0, "dc_low_55": 90.0}
+        )
+        self.assertIsNotNone(evaluate_orthogonal_signal("MR", closed_range, c2, 18.0, 100.0, DEFAULT_BOT_PARAMS))
+        self.assertIsNone(evaluate_orthogonal_signal("MR", closed_range, c2, 28.0, 100.0, DEFAULT_BOT_PARAMS))
+
+        sig_mr = evaluate_orthogonal_signal("DUAL", closed_range, c2, 18.0, 100.0, DEFAULT_BOT_PARAMS)
+        self.assertEqual(sig_mr["mode"], "REGIME_MR")
+
+        closed_trend = pd.Series(
+            {"close": 115.0, "td_count": 3, "td_perfected": False, "dc_high_55": 110.0, "dc_low_55": 90.0}
+        )
+        sig_tr = evaluate_orthogonal_signal("DUAL", closed_trend, c2, 28.0, 100.0, DEFAULT_BOT_PARAMS)
+        self.assertEqual(sig_tr["mode"], "REGIME_TREND")
+        self.assertEqual(sig_tr["action"], "BUY")
 
 
 if __name__ == "__main__":

@@ -122,3 +122,91 @@ def load_dataset(
             print(f"⚠️ Red no disponible ({e}). Usando cache local existente: {os.path.basename(cache_file)}")
             return cached_df
         raise
+
+
+def fetch_historical_funding(symbol: str = "BTC/USDT", days: int = 1460) -> pd.DataFrame:
+    """Descarga historico real de Funding Rate de Binance Futures (8h)."""
+    import requests
+
+    pair = symbol.replace("/", "").replace(":USDT", "").upper()
+    if not pair.endswith("USDT"):
+        pair = f"{pair}USDT"
+
+    now_ms = int(time.time() * 1000)
+    start_ms = now_ms - (days * 24 * 60 * 60 * 1000)
+    current_since = start_ms
+    all_rows = []
+    retries = 0
+
+    print(f"📥 Descargando {days} días de Funding Rate histórico para {pair}...")
+    while True:
+        try:
+            resp = requests.get(
+                "https://fapi.binance.com/fapi/v1/fundingRate",
+                params={"symbol": pair, "startTime": current_since, "limit": 1000},
+                headers={"User-Agent": "GaTDSEQ/3.0"},
+                timeout=8,
+            )
+            if resp.status_code != 200:
+                raise RuntimeError(f"HTTP {resp.status_code}")
+            batch = resp.json()
+            if not isinstance(batch, list) or not batch:
+                break
+            all_rows.extend(batch)
+            last_ts = int(batch[-1]["fundingTime"])
+            retries = 0
+            if len(batch) < 1000 or last_ts >= now_ms - 3600000:
+                break
+            current_since = last_ts + 1
+            time.sleep(0.15)
+        except Exception as e:
+            retries += 1
+            if retries > 3:
+                raise RuntimeError(f"Fallo descargando funding {pair}: {e}") from e
+            time.sleep(1.5)
+
+    if not all_rows:
+        return pd.DataFrame(columns=["timestamp", "fundingRate", "datetime"])
+
+    df = pd.DataFrame(all_rows)
+    df["timestamp"] = df["fundingTime"].astype("int64")
+    df["fundingRate"] = df["fundingRate"].astype("float64")
+    df = df[["timestamp", "fundingRate"]].drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+    df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
+    print(f"✅ Funding descargado ({pair}): {len(df)} registros ({df['datetime'].iloc[0]} -> {df['datetime'].iloc[-1]})")
+    return df
+
+
+def load_funding_dataset(
+    symbol: str = "BTC/USDT",
+    days: int = 1460,
+    force_refresh: bool = False,
+    data_dir: str = DEFAULT_DATA_DIR,
+) -> pd.DataFrame:
+    """Carga o descarga el historico de Funding Rate en cache Parquet."""
+    ensure_data_dir(data_dir)
+    sanitized = symbol.replace("/", "_").replace(":", "_")
+    cache_file = os.path.join(data_dir, f"{sanitized}_funding.parquet")
+    cached_df = None
+
+    if os.path.exists(cache_file):
+        try:
+            cached_df = pd.read_parquet(cache_file)
+            if not cached_df.empty and "datetime" in cached_df.columns:
+                span_days = (cached_df["datetime"].iloc[-1] - cached_df["datetime"].iloc[0]).total_seconds() / 86400.0
+                last_ts = cached_df["datetime"].iloc[-1].timestamp()
+                if not force_refresh and span_days >= (days * 0.85) and (time.time() - last_ts) <= 86400:
+                    return cached_df
+        except Exception:
+            cached_df = None
+
+    try:
+        df = fetch_historical_funding(symbol=symbol, days=days)
+        if not df.empty:
+            df.to_parquet(cache_file, index=False)
+        return df
+    except Exception as e:
+        if cached_df is not None and not cached_df.empty:
+            return cached_df
+        print(f"⚠️ Funding histórico no disponible ({symbol}): {e}")
+        return pd.DataFrame(columns=["timestamp", "fundingRate", "datetime"])

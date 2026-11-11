@@ -22,6 +22,7 @@ from core.indicators import (
     calculate_td_sequential,
     calculate_volume_profile,
     detect_divergences,
+    prepare_market_indicators,
 )
 from core.strategy import (
     FLEET_ASSETS,
@@ -35,22 +36,23 @@ from core.strategy import (
     compute_conviction_multiplier,
     compute_entry_levels,
     compute_weekly_context,
+    evaluate_orthogonal_signal,
     get_base_risk,
     get_scaled_atr,
     load_fleet_params,
 )
 
 # Defaults globales (respaldo para llamadas legacy; en produccion se pasan explicitos)
-TIMEFRAME = "4h"
+TIMEFRAME = "1d"
 SYMBOL = "BTC"
 STATE_FILE = "state.json"
 TRADES_FILE = "trades.json"
 INITIAL_BANK = 10000.0
 FLEET_OPTIMIZED_FILE = "fleet_optimized.json"
 
-MAX_TOTAL_FLEET_TRADES = 9
-MAX_DIRECTIONAL_TRADES = 6
-MAX_TRADES_PER_SYMBOL = 3
+MAX_TOTAL_FLEET_TRADES = 6
+MAX_DIRECTIONAL_TRADES = 4
+MAX_TRADES_PER_SYMBOL = 2
 MAX_FLEET_DRAWDOWN_PCT = 15.0
 
 _TELEGRAM_TOKEN: Optional[str] = None
@@ -164,7 +166,7 @@ def get_bot_params(symbol: str = "BTC", timeframe: str = "4h", strategy: str = "
     )
 
 
-def get_data(symbol: str = "BTC/USDT", timeframe: str = "4h", limit: int = 1500) -> Optional[pd.DataFrame]:
+def get_data(symbol: str = "BTC/USDT", timeframe: str = "4h", limit: int = 350) -> Optional[pd.DataFrame]:
     ex = get_exchange()
     ohlcv = None
     for attempt in range(3):
@@ -179,16 +181,7 @@ def get_data(symbol: str = "BTC/USDT", timeframe: str = "4h", limit: int = 1500)
     try:
         df = pd.DataFrame(ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        df["ema_200"] = df["close"].ewm(span=200, adjust=False).mean()
-        df["rsi"] = calculate_rsi(df["close"], 14)
-        df["atr"] = calculate_atr(df, 14)
-        df["adx"] = calculate_adx(df, 14)
-        df["volume_sma"] = df["volume"].rolling(window=20).mean()
-        df["sma_20"] = df["close"].rolling(window=20).mean()
-        df["std_20"] = df["close"].rolling(window=20).std()
-        df["bb_upper"] = df["sma_20"] + (df["std_20"] * 2)
-        df["bb_lower"] = df["sma_20"] - (df["std_20"] * 2)
-        return df
+        return prepare_market_indicators(df)
     except Exception as e:
         print(f"Error fetching data ({symbol} {timeframe}): {e}")
         return None
@@ -225,7 +218,8 @@ def get_fleet_position_stats(base_dir: str = ".") -> Dict[str, Any]:
     # Drawdown agregado de cartera sobre los bots con ledger
     trade_files = glob.glob(os.path.join(base_dir, "trades_*.json"))
     if trade_files:
-        total_initial = INITIAL_BANK * 27.0
+        fleet_count = max(1, len(FLEET_ASSETS) * len(FLEET_TIMEFRAMES) * len(FLEET_STRATEGIES))
+        total_initial = INITIAL_BANK * float(fleet_count)
         total_realized = 0.0
         for tf_file in trade_files:
             try:
@@ -302,6 +296,7 @@ def _clear_trade_fields(state: Dict[str, Any]):
         "atr_at_entry",
         "trade_id",
         "timestamp",
+        "strategy_mode",
     ]
     for k in trade_keys:
         state.pop(k, None)
@@ -393,6 +388,7 @@ def execute_trade(
     state_file: Optional[str] = None,
     trades_file: Optional[str] = None,
     existing_state: Optional[Dict[str, Any]] = None,
+    strategy_mode: str = "HYB",
 ):
     sym = symbol or SYMBOL
     tf = timeframe or TIMEFRAME
@@ -462,6 +458,7 @@ def execute_trade(
             "scaled_out": False,
             "runner_active": False,
             "reinforced_13": False,
+            "strategy_mode": strategy_mode,
         }
     )
     save_state(state, s_file)
@@ -532,8 +529,13 @@ def check_exit_conditions(
     updated_sl = sl
     close_reason = ""
 
-    # 1. Macro Weekly Confluence Shield
-    if weekly_context:
+    strat_mode = state.get("strategy_mode", strategy_type)
+    is_regime_mr = (strat_mode == "REGIME_MR") or (strategy_type == "MR")
+    is_regime_trend = (strat_mode == "REGIME_TREND")
+    is_hybrid = (not is_regime_mr) and (not is_regime_trend)
+
+    # 1. Macro Weekly Confluence Shield (solo para HYB)
+    if is_hybrid and weekly_context:
         is_sell_exh = weekly_context.get("is_sell_exhaustion_active", False)
         is_buy_exh = weekly_context.get("is_buy_exhaustion_active", False)
         if action == "BUY" and is_sell_exh and current_live_price > entry and updated_sl < entry:
@@ -552,21 +554,22 @@ def check_exit_conditions(
     be_mult = max(1.0, float(bot_params.get("be_threshold_atr", 1.5)))
     so_mult = float(bot_params.get("scale_out_atr", 2.0))
     so_pct = float(bot_params.get("scale_out_pct", 0.5))
-    enable_so = bool(bot_params.get("enable_scale_out", True))
+    enable_so = is_hybrid and bool(bot_params.get("enable_scale_out", True))
 
-    # 3. Breakeven Shield
-    if action == "BUY" and high_price >= (entry + (trade_atr * be_mult)):
-        if updated_sl < entry:
-            updated_sl = entry
-            state["stop_loss"] = updated_sl
-            print(f"✅ BREAK EVEN ACTIVADO! SL subido a ${updated_sl:.2f} (+{be_mult:.2f} ATR)")
-            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {sym} [{tf}]</b>\nStop Loss moved to Entry (${entry:,.2f}).")
-    elif action == "SELL" and low_price <= (entry - (trade_atr * be_mult)):
-        if updated_sl > entry:
-            updated_sl = entry
-            state["stop_loss"] = updated_sl
-            print(f"✅ BREAK EVEN ACTIVADO! SL bajado a ${updated_sl:.2f} (+{be_mult:.2f} ATR)")
-            send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {sym} [{tf}]</b>\nStop Loss moved to Entry (${entry:,.2f}).")
+    # 3. Breakeven Shield (solo para HYB)
+    if is_hybrid:
+        if action == "BUY" and high_price >= (entry + (trade_atr * be_mult)):
+            if updated_sl < entry:
+                updated_sl = entry
+                state["stop_loss"] = updated_sl
+                print(f"✅ BREAK EVEN ACTIVADO! SL subido a ${updated_sl:.2f} (+{be_mult:.2f} ATR)")
+                send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {sym} [{tf}]</b>\nStop Loss moved to Entry (${entry:,.2f}).")
+        elif action == "SELL" and low_price <= (entry - (trade_atr * be_mult)):
+            if updated_sl > entry:
+                updated_sl = entry
+                state["stop_loss"] = updated_sl
+                print(f"✅ BREAK EVEN ACTIVADO! SL bajado a ${updated_sl:.2f} (+{be_mult:.2f} ATR)")
+                send_telegram(f"🛡 <b>BREAKEVEN SHIELD | {sym} [{tf}]</b>\nStop Loss moved to Entry (${entry:,.2f}).")
 
     if action == "BUY":
         if enable_so and high_price >= entry + (trade_atr * so_mult) and not state.get("scaled_out", False):
@@ -598,11 +601,15 @@ def check_exit_conditions(
             save_state(state, s_file)
             send_telegram(f"💰 <b>SCALE-OUT ({int(so_pct * 100)}%) | {sym} [{tf}]</b>\nPartial PnL: ${partial_pnl:,.2f}")
 
-        trail_mult = 2.5 if state.get("runner_active") else float(bot_params.get("trailing_atr", 2.0))
-        new_sl = current_closed_price - (trade_atr * trail_mult)
-        if new_sl > updated_sl:
-            updated_sl = new_sl
-            print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
+        if is_regime_trend or is_hybrid:
+            trail_mult = 2.5 if state.get("runner_active") else (3.5 if is_regime_trend else float(bot_params.get("trailing_atr", 2.0)))
+            new_sl = current_closed_price - (trade_atr * trail_mult)
+            if new_sl > updated_sl:
+                updated_sl = new_sl
+                print(f"Trailing Stop (Buy) actualizado a ${updated_sl:.2f}")
+
+        dc_low_10 = closed_candle.get("dc_low_10")
+        ch_exit = is_regime_trend and dc_low_10 is not None and dc_low_10 == dc_low_10 and current_closed_price < float(dc_low_10)
 
         if low_price <= updated_sl:
             close_reason = "Runner Trailing Exit (+Macro Trend)" if state.get("runner_active") else (
@@ -613,33 +620,47 @@ def check_exit_conditions(
             pnl_dollars -= (float(state.get("entry_fee_usd", 0.0)) + exit_fee)
             closed = True
             current_live_price = updated_sl
+        elif ch_exit:
+            close_reason = "Donchian Channel Exit"
+            pnl_dollars = (current_live_price - entry) * size_btc
+            exit_fee = (current_live_price * size_btc) * 0.0004
+            pnl_dollars -= (float(state.get("entry_fee_usd", 0.0)) + exit_fee)
+            closed = True
         elif not state.get("runner_active") and tp_val is not None and high_price >= tp_val:
-            tp2_units = size_btc * 0.5
-            alloc_fee = float(state.get("entry_fee_usd", 0.0)) * 0.5
-            tp2_pnl = ((tp_val - entry) * tp2_units) - alloc_fee - (tp_val * tp2_units * 0.0004)
-            pct_label = "25%" if state.get("scaled_out") else "50%"
-            trades = load_trades(t_file)
-            trades.append(
-                {
-                    "trade_id": trade_id + "_tp2",
-                    "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "type": f"VENTA (Cierre Parcial TP2 {pct_label})",
-                    "reason": "Take Profit Objetivo",
-                    "price": tp_val,
-                    "pnl": tp2_pnl,
-                }
-            )
-            save_trades(trades, t_file)
+            if not is_hybrid:
+                close_reason = "Take Profit"
+                pnl_dollars = (tp_val - entry) * size_btc
+                exit_fee = (tp_val * size_btc) * 0.0004
+                pnl_dollars -= (float(state.get("entry_fee_usd", 0.0)) + exit_fee)
+                closed = True
+                current_live_price = tp_val
+            else:
+                tp2_units = size_btc * 0.5
+                alloc_fee = float(state.get("entry_fee_usd", 0.0)) * 0.5
+                tp2_pnl = ((tp_val - entry) * tp2_units) - alloc_fee - (tp_val * tp2_units * 0.0004)
+                pct_label = "25%" if state.get("scaled_out") else "50%"
+                trades = load_trades(t_file)
+                trades.append(
+                    {
+                        "trade_id": trade_id + "_tp2",
+                        "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "type": f"VENTA (Cierre Parcial TP2 {pct_label})",
+                        "reason": "Take Profit Objetivo",
+                        "price": tp_val,
+                        "pnl": tp2_pnl,
+                    }
+                )
+                save_trades(trades, t_file)
 
-            state["size_btc"] = size_btc - tp2_units
-            state["size_usd"] = float(state.get("size_usd", 0.0)) * 0.5
-            state["entry_fee_usd"] = float(state.get("entry_fee_usd", 0.0)) - alloc_fee
-            state["runner_active"] = True
-            updated_sl = max(updated_sl, entry + (trade_atr * 2.0))
-            state["stop_loss"] = updated_sl
-            state["take_profit"] = None  # JSON estandar valido (null)
-            save_state(state, s_file)
-            send_telegram(f"🚀 <b>RUNNER DEPLOYED ({pct_label}) | {sym} [{tf}]</b>\nTP2 Locked: +${tp2_pnl:,.2f}")
+                state["size_btc"] = size_btc - tp2_units
+                state["size_usd"] = float(state.get("size_usd", 0.0)) * 0.5
+                state["entry_fee_usd"] = float(state.get("entry_fee_usd", 0.0)) - alloc_fee
+                state["runner_active"] = True
+                updated_sl = max(updated_sl, entry + (trade_atr * 2.0))
+                state["stop_loss"] = updated_sl
+                state["take_profit"] = None  # JSON estandar valido (null)
+                save_state(state, s_file)
+                send_telegram(f"🚀 <b>RUNNER DEPLOYED ({pct_label}) | {sym} [{tf}]</b>\nTP2 Locked: +${tp2_pnl:,.2f}")
 
     elif action == "SELL":
         if enable_so and low_price <= entry - (trade_atr * so_mult) and not state.get("scaled_out", False):
@@ -671,11 +692,15 @@ def check_exit_conditions(
             save_state(state, s_file)
             send_telegram(f"💰 <b>SCALE-OUT ({int(so_pct * 100)}%) | {sym} [{tf}]</b>\nPartial PnL: ${partial_pnl:,.2f}")
 
-        trail_mult = 2.5 if state.get("runner_active") else float(bot_params.get("trailing_atr", 2.0))
-        new_sl = current_closed_price + (trade_atr * trail_mult)
-        if new_sl < updated_sl:
-            updated_sl = new_sl
-            print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
+        if is_regime_trend or is_hybrid:
+            trail_mult = 2.5 if state.get("runner_active") else (3.5 if is_regime_trend else float(bot_params.get("trailing_atr", 2.0)))
+            new_sl = current_closed_price + (trade_atr * trail_mult)
+            if new_sl < updated_sl:
+                updated_sl = new_sl
+                print(f"Trailing Stop (Sell) actualizado a ${updated_sl:.2f}")
+
+        dc_high_10 = closed_candle.get("dc_high_10")
+        ch_exit = is_regime_trend and dc_high_10 is not None and dc_high_10 == dc_high_10 and current_closed_price > float(dc_high_10)
 
         if high_price >= updated_sl:
             close_reason = "Runner Trailing Exit (+Macro Trend)" if state.get("runner_active") else (
@@ -686,33 +711,47 @@ def check_exit_conditions(
             pnl_dollars -= (float(state.get("entry_fee_usd", 0.0)) + exit_fee)
             closed = True
             current_live_price = updated_sl
+        elif ch_exit:
+            close_reason = "Donchian Channel Exit"
+            pnl_dollars = (entry - current_live_price) * size_btc
+            exit_fee = (current_live_price * size_btc) * 0.0004
+            pnl_dollars -= (float(state.get("entry_fee_usd", 0.0)) + exit_fee)
+            closed = True
         elif not state.get("runner_active") and tp_val is not None and low_price <= tp_val:
-            tp2_units = size_btc * 0.5
-            alloc_fee = float(state.get("entry_fee_usd", 0.0)) * 0.5
-            tp2_pnl = ((entry - tp_val) * tp2_units) - alloc_fee - (tp_val * tp2_units * 0.0004)
-            pct_label = "25%" if state.get("scaled_out") else "50%"
-            trades = load_trades(t_file)
-            trades.append(
-                {
-                    "trade_id": trade_id + "_tp2",
-                    "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "type": f"COMPRA (Cierre Parcial TP2 {pct_label})",
-                    "reason": "Take Profit Objetivo",
-                    "price": tp_val,
-                    "pnl": tp2_pnl,
-                }
-            )
-            save_trades(trades, t_file)
+            if not is_hybrid:
+                close_reason = "Take Profit"
+                pnl_dollars = (entry - tp_val) * size_btc
+                exit_fee = (tp_val * size_btc) * 0.0004
+                pnl_dollars -= (float(state.get("entry_fee_usd", 0.0)) + exit_fee)
+                closed = True
+                current_live_price = tp_val
+            else:
+                tp2_units = size_btc * 0.5
+                alloc_fee = float(state.get("entry_fee_usd", 0.0)) * 0.5
+                tp2_pnl = ((entry - tp_val) * tp2_units) - alloc_fee - (tp_val * tp2_units * 0.0004)
+                pct_label = "25%" if state.get("scaled_out") else "50%"
+                trades = load_trades(t_file)
+                trades.append(
+                    {
+                        "trade_id": trade_id + "_tp2",
+                        "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "type": f"COMPRA (Cierre Parcial TP2 {pct_label})",
+                        "reason": "Take Profit Objetivo",
+                        "price": tp_val,
+                        "pnl": tp2_pnl,
+                    }
+                )
+                save_trades(trades, t_file)
 
-            state["size_btc"] = size_btc - tp2_units
-            state["size_usd"] = float(state.get("size_usd", 0.0)) * 0.5
-            state["entry_fee_usd"] = float(state.get("entry_fee_usd", 0.0)) - alloc_fee
-            state["runner_active"] = True
-            updated_sl = min(updated_sl, entry - (trade_atr * 2.0))
-            state["stop_loss"] = updated_sl
-            state["take_profit"] = None  # JSON estandar valido (null)
-            save_state(state, s_file)
-            send_telegram(f"🚀 <b>RUNNER DEPLOYED ({pct_label}) | {sym} [{tf}]</b>\nTP2 Locked: +${tp2_pnl:,.2f}")
+                state["size_btc"] = size_btc - tp2_units
+                state["size_usd"] = float(state.get("size_usd", 0.0)) * 0.5
+                state["entry_fee_usd"] = float(state.get("entry_fee_usd", 0.0)) - alloc_fee
+                state["runner_active"] = True
+                updated_sl = min(updated_sl, entry - (trade_atr * 2.0))
+                state["stop_loss"] = updated_sl
+                state["take_profit"] = None  # JSON estandar valido (null)
+                save_state(state, s_file)
+                send_telegram(f"🚀 <b>RUNNER DEPLOYED ({pct_label}) | {sym} [{tf}]</b>\nTP2 Locked: +${tp2_pnl:,.2f}")
 
     if updated_sl != sl and not closed:
         state["stop_loss"] = updated_sl
@@ -777,7 +816,13 @@ def analyze_market(
     live_candle = df.iloc[-1]
 
     current_live_price = float(closed_candle["close"])
-    ema200 = float(closed_candle["ema_200"])
+    # Guard contra activos recien listados sin historia suficiente para EMA200 (ej. HYPE 1w/1d)
+    if len(df) >= 200:
+        ema200 = float(closed_candle["ema_200"])
+    elif len(df) >= 50:
+        ema200 = float(df["close"].iloc[:-1].ewm(span=50, adjust=False).mean().iloc[-1])
+    else:
+        ema200 = current_live_price  # Neutraliza sesgo direccional falso cuando hay < 50 velas
     rsi = float(closed_candle["rsi"])
     raw_atr = float(closed_candle["atr"])
     atr = get_scaled_atr(raw_atr, current_live_price, tf)
@@ -812,7 +857,13 @@ def analyze_market(
         "td_perfected": td_perf,
         "tdst_res": tdst_res_val,
         "tdst_sup": tdst_sup_val,
+        "adx": round(float(closed_candle.get("adx", 0.0)), 1),
     }
+    if weekly_context:
+        updates["w_td_count"] = int(weekly_context.get("td_count", 0))
+        updates["w_td_perfected"] = bool(weekly_context.get("td_perfected", False))
+        updates["w_tdst_res"] = round(float(weekly_context.get("tdst_res", 0.0)), 2)
+        updates["w_tdst_sup"] = round(float(weekly_context.get("tdst_sup", 0.0)), 2)
     for k, v in updates.items():
         if state.get(k) != v:
             state[k] = v
@@ -833,6 +884,25 @@ def analyze_market(
         if cooldown > 0 and (time.time() - last_sl) < cooldown:
             rem_h = (cooldown - (time.time() - last_sl)) / 3600.0
             print(f"[{bot_id}] Cooldown post-SL activo: {rem_h:.1f}h restantes.")
+            return
+
+        if strategy_type in ("MR", "DUAL"):
+            adx_val = float(closed_candle.get("adx", 0.0))
+            bot_params = get_bot_params(sym, tf, strategy_type)
+            sig = evaluate_orthogonal_signal(strategy_type, closed_candle, df.iloc[-3], adx_val, ema200, bot_params)
+            if sig is not None:
+                _enter_orthogonal(
+                    sig=sig,
+                    price=current_live_price,
+                    atr=atr,
+                    trigger_time=trigger_time,
+                    bot_id=bot_id,
+                    symbol=sym,
+                    timeframe=tf,
+                    state=state,
+                    state_file=s_file,
+                    trades_file=t_file,
+                )
             return
 
         td_buy, td_sell = check_td_signal(closed_candle, df.iloc[-3])
@@ -923,14 +993,16 @@ def analyze_market(
 
     elif state.get("status") == "IN_TRADE":
         pos = state.get("position")
-        if pos == "BUY" and countdown == -13 and not state.get("reinforced_13"):
-            execute_reinforcement(
-                current_live_price, atr, state, "BUY", symbol=sym, timeframe=tf, state_file=s_file, trades_file=t_file
-            )
-        elif pos == "SELL" and countdown == 13 and not state.get("reinforced_13"):
-            execute_reinforcement(
-                current_live_price, atr, state, "SELL", symbol=sym, timeframe=tf, state_file=s_file, trades_file=t_file
-            )
+        strat_mode = state.get("strategy_mode", strategy_type)
+        if strat_mode == "HYB":
+            if pos == "BUY" and countdown == -13 and not state.get("reinforced_13"):
+                execute_reinforcement(
+                    current_live_price, atr, state, "BUY", symbol=sym, timeframe=tf, state_file=s_file, trades_file=t_file
+                )
+            elif pos == "SELL" and countdown == 13 and not state.get("reinforced_13"):
+                execute_reinforcement(
+                    current_live_price, atr, state, "SELL", symbol=sym, timeframe=tf, state_file=s_file, trades_file=t_file
+                )
         check_exit_conditions(
             live_candle,
             closed_candle,
@@ -943,6 +1015,67 @@ def analyze_market(
             state_file=s_file,
             trades_file=t_file,
         )
+
+
+def _enter_orthogonal(
+    sig: Dict[str, Any],
+    price: float,
+    atr: float,
+    trigger_time: str,
+    bot_id: str,
+    symbol: str,
+    timeframe: str,
+    state: Dict[str, Any],
+    state_file: str,
+    trades_file: str,
+):
+    action = sig["action"]
+    fleet_stats = get_fleet_position_stats()
+    if fleet_stats.get("fleet_drawdown_pct", 0.0) >= MAX_FLEET_DRAWDOWN_PCT:
+        print(f"🛑 CIRCUIT BREAKER: Drawdown {fleet_stats['fleet_drawdown_pct']:.2f}% >= {MAX_FLEET_DRAWDOWN_PCT}%.")
+        return
+    if fleet_stats["total"] >= MAX_TOTAL_FLEET_TRADES:
+        print(f"🛑 PORTFOLIO SHIELD [{bot_id}]: Cap total ({fleet_stats['total']}/{MAX_TOTAL_FLEET_TRADES}).")
+        return
+    dir_key = "longs" if action == "BUY" else "shorts"
+    if fleet_stats[dir_key] >= MAX_DIRECTIONAL_TRADES:
+        print(f"🛑 CORRELATION SHIELD [{bot_id}]: Cap direccional {action} alcanzado.")
+        return
+    if fleet_stats["by_symbol"].get(symbol, 0) >= MAX_TRADES_PER_SYMBOL:
+        print(f"🛑 ASSET SHIELD [{bot_id}]: Cap de {symbol} alcanzado.")
+        return
+    if state.get("last_trigger_time") == trigger_time:
+        return
+
+    sl_mult = float(sig["sl_mult"])
+    tp_mult = float(sig["tp_mult"])
+    if action == "BUY":
+        sl = price - (atr * sl_mult)
+        tp = price + (atr * tp_mult)
+    else:
+        sl = price + (atr * sl_mult)
+        tp = price - (atr * tp_mult)
+
+    base_risk = get_base_risk(symbol, timeframe)
+    portfolio_dampening = 0.75 if fleet_stats[dir_key] >= 2 else 1.0
+    final_risk = base_risk * portfolio_dampening
+
+    execute_trade(
+        action=action,
+        price=price,
+        sl=sl,
+        tp=tp,
+        reason=sig["reason"],
+        trigger_time=trigger_time,
+        risk_pct=final_risk,
+        atr=atr,
+        symbol=symbol,
+        timeframe=timeframe,
+        state_file=state_file,
+        trades_file=trades_file,
+        existing_state=state,
+        strategy_mode=sig["mode"],
+    )
 
 
 def _evaluate_and_enter(
@@ -1030,6 +1163,7 @@ def _evaluate_and_enter(
         state_file=state_file,
         trades_file=trades_file,
         existing_state=state,
+        strategy_mode="HYB",
     )
 
 
@@ -1043,9 +1177,10 @@ def main():
     args = parser.parse_args()
 
     INITIAL_BANK = args.bank
-    print(f"Iniciando GaTDSEQ Bot UNIFICADO (27 BOTS) | Bank: ${INITIAL_BANK}...")
+    n_bots = len(FLEET_ASSETS) * len(FLEET_TIMEFRAMES) * len(FLEET_STRATEGIES)
+    print(f"Iniciando GaTDSEQ Bot UNIFICADO ({n_bots} BOTS) | Bank: ${INITIAL_BANK}...")
     send_telegram(
-        "🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking 27-bot pipeline (4h, 1d & 1w)."
+        f"🏛 <b>SYSTEM INITIALIZED</b>\n\nQuantitative Core online. Engine tracking {n_bots}-bot validated 1D pipeline ({', '.join(FLEET_ASSETS)}) + 1W Macro Shield."
     )
 
     bots = [
@@ -1058,12 +1193,11 @@ def main():
         weekly_context_cache: Dict[str, Dict[str, Any]] = {}
         for symbol in FLEET_ASSETS:
             try:
-                w_raw = get_data(f"{symbol}/USDT", "1w", limit=100)
+                w_raw = get_data(f"{symbol}/USDT", "1w", limit=250)
                 if w_raw is not None and len(w_raw) >= 5:
-                    w_df = calculate_td_sequential(w_raw)
-                    w_ctx = compute_weekly_context(w_df)
+                    w_ctx = compute_weekly_context(w_raw)
                     if w_ctx is not None:
-                        w_ctx["df"] = w_df
+                        w_ctx["df"] = w_raw
                         weekly_context_cache[symbol] = w_ctx
             except Exception as e:
                 print(f"Error fetching weekly context for {symbol}: {e}")
@@ -1076,8 +1210,7 @@ def main():
                     if tf == "1w" and symbol in weekly_context_cache:
                         df = weekly_context_cache[symbol]["df"]
                     else:
-                        raw_df = get_data(f"{symbol}/USDT", tf)
-                        df = calculate_td_sequential(raw_df) if raw_df is not None else None
+                        df = get_data(f"{symbol}/USDT", tf)
 
                     if df is not None and len(df) >= 5:
                         df_cache[symbol] = df

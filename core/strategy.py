@@ -5,9 +5,9 @@ from typing import Any, Dict, Optional, Tuple
 
 MIN_CONFIDENCE = 0.55
 
-FLEET_ASSETS = ["BTC", "ETH", "HYPE"]
-FLEET_TIMEFRAMES = ["4h", "1d", "1w"]
-FLEET_STRATEGIES = ["TD9", "WYK", "HYB"]
+FLEET_ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "LINK"]
+FLEET_TIMEFRAMES = ["1d"]
+FLEET_STRATEGIES = ["HYB", "MR", "DUAL"]
 
 DEFAULT_BOT_PARAMS: Dict[str, Any] = {
     "atr_sl_trend": 1.5,
@@ -429,3 +429,93 @@ def compute_conviction_boost(symbol: str, conf_score: float) -> float:
         if conf_score >= 0.65:
             return 1.5
     return 1.0
+
+
+def evaluate_orthogonal_signal(
+    strategy_type: str,
+    closed_candle,
+    candle_2_ago,
+    adx_val: float,
+    ema200: float,
+    params: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """
+    SSOT para las estrategias ortogonales validadas en laboratorio de 4 anos:
+      - MR (TD9_MR): Reversion a la media en rangos (ADX <= 24), SL 2.0 / TP 3.0 ATR.
+      - DUAL (REGIME_DUAL): ADX <= 24 -> MR TD9; ADX > 24 -> Donchian 55 + EMA200 Trend.
+    Retorna dict con action, reason, sl_mult, tp_mult, mode o None si no hay senal.
+    """
+    strat = strategy_type.upper()
+    signal_price = float(closed_candle["close"])
+
+    if strat in ("MR", "TD9_MR"):
+        adx_max = float(params.get("adx_max", 24.0))
+        if adx_val > adx_max:
+            return None
+        td_buy, td_sell = check_td_signal(closed_candle, candle_2_ago)
+        if td_buy:
+            return {
+                "action": "BUY",
+                "reason": "MR TD9 Buy (Range)",
+                "sl_mult": float(params.get("mr_sl_atr", 2.0)),
+                "tp_mult": float(params.get("mr_tp_atr", 3.0)),
+                "mode": "REGIME_MR",
+            }
+        if td_sell:
+            return {
+                "action": "SELL",
+                "reason": "MR TD9 Sell (Range)",
+                "sl_mult": float(params.get("mr_sl_atr", 2.0)),
+                "tp_mult": float(params.get("mr_tp_atr", 3.0)),
+                "mode": "REGIME_MR",
+            }
+        return None
+
+    if strat in ("DUAL", "REGIME_DUAL"):
+        adx_split = float(params.get("adx_split", 24.0))
+        if adx_val <= adx_split:
+            td_buy, td_sell = check_td_signal(closed_candle, candle_2_ago)
+            if td_buy:
+                return {
+                    "action": "BUY",
+                    "reason": "DUAL MR TD9 Buy",
+                    "sl_mult": float(params.get("mr_sl_atr", 2.0)),
+                    "tp_mult": float(params.get("mr_tp_atr", 3.0)),
+                    "mode": "REGIME_MR",
+                }
+            if td_sell:
+                return {
+                    "action": "SELL",
+                    "reason": "DUAL MR TD9 Sell",
+                    "sl_mult": float(params.get("mr_sl_atr", 2.0)),
+                    "tp_mult": float(params.get("mr_tp_atr", 3.0)),
+                    "mode": "REGIME_MR",
+                }
+            return None
+
+        dc_period = int(params.get("dc_period", 55))
+        dc_hi = closed_candle.get(f"dc_high_{dc_period}")
+        dc_lo = closed_candle.get(f"dc_low_{dc_period}")
+        if dc_hi is None or dc_lo is None or dc_hi != dc_hi or dc_lo != dc_lo:
+            return None
+        dc_hi_f = float(dc_hi)
+        dc_lo_f = float(dc_lo)
+        if signal_price > dc_hi_f and signal_price > ema200:
+            return {
+                "action": "BUY",
+                "reason": f"DUAL Trend DC{dc_period} Buy",
+                "sl_mult": float(params.get("trend_sl_atr", 3.0)),
+                "tp_mult": float(params.get("trend_tp_atr", 30.0)),
+                "mode": "REGIME_TREND",
+            }
+        if signal_price < dc_lo_f and signal_price < ema200:
+            return {
+                "action": "SELL",
+                "reason": f"DUAL Trend DC{dc_period} Sell",
+                "sl_mult": float(params.get("trend_sl_atr", 3.0)),
+                "tp_mult": float(params.get("trend_tp_atr", 30.0)),
+                "mode": "REGIME_TREND",
+            }
+        return None
+
+    return None

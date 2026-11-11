@@ -385,7 +385,10 @@
             <!-- Track 1 -->
             <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
             <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
-            <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">SOL:</span><span class="ticker-price tick-SOL">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">BNB:</span><span class="ticker-price tick-BNB">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">XRP:</span><span class="ticker-price tick-XRP">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">LINK:</span><span class="ticker-price tick-LINK">--</span></div>
             <div class="ticker-item"><span class="ticker-name">BTC.D:</span><span class="ticker-price tick-BTCD">--</span></div>
             <div class="ticker-item"><span class="ticker-name">DXY:</span><span class="ticker-price tick-DXY">--</span></div>
             <div class="ticker-item"><span class="ticker-name">VIX:</span><span class="ticker-price tick-VIX">--</span></div>
@@ -394,7 +397,10 @@
             <!-- Track 2 (Duplicate for Seamless Loop) -->
             <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
             <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
-            <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">SOL:</span><span class="ticker-price tick-SOL">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">BNB:</span><span class="ticker-price tick-BNB">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">XRP:</span><span class="ticker-price tick-XRP">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">LINK:</span><span class="ticker-price tick-LINK">--</span></div>
             <div class="ticker-item"><span class="ticker-name">BTC.D:</span><span class="ticker-price tick-BTCD">--</span></div>
             <div class="ticker-item"><span class="ticker-name">DXY:</span><span class="ticker-price tick-DXY">--</span></div>
             <div class="ticker-item"><span class="ticker-name">VIX:</span><span class="ticker-price tick-VIX">--</span></div>
@@ -406,7 +412,7 @@
     <!-- MACRO KPI BAR -->
     <div id="macro-kpi-bar">
         <div class="kpi-box">
-            <span class="kpi-title" id="global-equity-title">GLOBAL EQUITY (27 BOTS)</span>
+            <span class="kpi-title" id="global-equity-title">GLOBAL EQUITY (18 BOTS)</span>
             <span class="kpi-val" id="global-equity">LOADING...</span>
         </div>
         <div class="kpi-box">
@@ -419,7 +425,7 @@
         </div>
         <div class="kpi-box">
             <span class="kpi-title">ACTIVE POSITIONS</span>
-            <span class="kpi-val" id="active-trades-kpi">0 / 27</span>
+            <span class="kpi-val" id="active-trades-kpi">0 / 18</span>
         </div>
         <div class="kpi-box">
             <span class="kpi-title">FEAR & GREED</span>
@@ -499,8 +505,14 @@
     </div>
 
     <script>
-        let globalPrices = { 'BTC': 0, 'ETH': 0, 'HYPE': 0 };
+        let globalPrices = { 'BTC': 0, 'ETH': 0, 'SOL': 0, 'BNB': 0, 'XRP': 0, 'LINK': 0 };
         let currentFleet = null;
+
+        function smartDecimals(val) {
+            let n = Math.abs(Number(val) || 0);
+            if (n > 0 && n < 10) return 4;
+            return 2;
+        }
 
         // ==========================================
         // INSTITUTIONAL FORMATTING ENGINE (EN-US BLOOMBERG)
@@ -627,7 +639,7 @@
                 let res = await fetch('/api/ticker?_t=' + Date.now(), { cache: 'no-store' });
                 if (res.ok) {
                     let data = await res.json();
-                    for (let sym of ['BTC', 'ETH', 'HYPE', 'BTCD', 'DXY', 'VIX', 'SP500', 'NASDAQ']) {
+                    for (let sym of ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'LINK', 'BTCD', 'DXY', 'VIX', 'SP500', 'NASDAQ']) {
                         if (data[sym]) {
                             let price = data[sym][0];
                             let pct = data[sym][1];
@@ -641,7 +653,7 @@
                             } else if (sym === 'DXY' || sym === 'VIX') {
                                 formattedHtml = `${price.toFixed(2)} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
                             } else {
-                                formattedHtml = `${fmtPrice(price, 2)} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
+                                formattedHtml = `${fmtPrice(price, smartDecimals(price))} <span style="color:${col}; font-weight:bold;">(${sign}${pct.toFixed(2)}%)</span>`;
                             }
 
                             els.forEach(el => {
@@ -692,41 +704,54 @@
                 let totalBank = 0;
                 let allTrades = [];
 
-                // Metrics per Strategy (A/B/C Leaderboard)
+                // Metrics per Strategy (Validated 1D Fleet Leaderboard)
                 let strategyStats = {
-                    'WYK': { name: 'WYCKOFF CORE', realized: 0, trades: 0, wins: 0, bank: 0 },
                     'HYB': { name: 'HYBRID VANGUARD', realized: 0, trades: 0, wins: 0, bank: 0 },
-                    'TD9': { name: 'TD9 PURE', realized: 0, trades: 0, wins: 0, bank: 0 }
+                    'MR': { name: 'TD9 RANGING', realized: 0, trades: 0, wins: 0, bank: 0 },
+                    'DUAL': { name: 'REGIME DUAL', realized: 0, trades: 0, wins: 0, bank: 0 }
                 };
 
-                let assets = ['BTC', 'ETH', 'HYPE'];
-                let timeframes = ['4h', '1d', '1w'];
-                let variants = ['WYK', 'HYB', 'TD9'];
+                let assets = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'LINK'];
+                let assetLabels = {
+                    'BTC': 'BITCOIN',
+                    'ETH': 'ETHEREUM',
+                    'SOL': 'SOLANA',
+                    'BNB': 'BINANCE COIN',
+                    'XRP': 'RIPPLE',
+                    'LINK': 'CHAINLINK'
+                };
+                let timeframes = ['1d'];
+                let variants = ['HYB', 'MR', 'DUAL'];
 
                 let gridHtml = '';
 
                 assets.forEach(asset => {
                     let livePrice = globalPrices[asset] || 0;
-                    let assetPriceStr = livePrice > 0 ? fmtPrice(livePrice, 2) : '--';
+                    let dec = smartDecimals(livePrice);
+                    let assetPriceStr = livePrice > 0 ? fmtPrice(livePrice, dec) : '--';
 
-                    // Top-Down Weekly Context Badge (Institutional Situational Awareness)
-                    let wState = (fleet[`${asset}_TD9`] && fleet[`${asset}_TD9`]['1w']) ? fleet[`${asset}_TD9`]['1w'] : null;
-                    let wTd = wState && wState.td_count !== undefined ? wState.td_count : null;
-                    // FIX ALINEACION: badge corto en el titulo, PERF+TDST en sub-header de altura fija
+                    // Top-Down Weekly Context Badge (guardado en state *_HYB_1d)
+                    let hyb1d = (fleet[`${asset}_HYB`] && fleet[`${asset}_HYB`]['1d']) ? fleet[`${asset}_HYB`]['1d'] : null;
+                    let wTd = (hyb1d && hyb1d.w_td_count !== undefined) ? hyb1d.w_td_count : null;
+                    let wPerfFlag = hyb1d ? hyb1d.w_td_perfected : false;
+                    let wRes = hyb1d ? (hyb1d.w_tdst_res || 0) : 0;
+                    let wSup = hyb1d ? (hyb1d.w_tdst_sup || 0) : 0;
+
                     let wBadge = '';
-                    let wSubContent = '&nbsp;'; // Espacio reservado para mantener altura cuando no hay contexto
+                    let adxStr = (hyb1d && hyb1d.adx !== undefined) ? `ADX ${Number(hyb1d.adx).toFixed(1)} (${Number(hyb1d.adx) <= 24 ? 'RANGE' : 'TREND'})` : '1D VALIDATED';
+                    let wSubContent = `<span style="color:var(--text-dim);">${adxStr}</span>`;
                     if (wTd !== null) {
-                        let wPerf = wState && wState.td_perfected ? 'PERF' : (wState && Math.abs(wTd) >= 9 ? 'UNPERF' : '');
+                        let wPerf = wPerfFlag ? 'PERF' : (Math.abs(wTd) >= 9 ? 'UNPERF' : '');
                         if (wTd >= 8 && wTd <= 12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--accent-red); color:var(--accent-red); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${wTd}</span>`;
-                            let wTdst = (wState && wState.tdst_res > 0) ? ` | TDST:$${Math.round(wState.tdst_res)}` : '';
-                            wSubContent = wPerf ? `<span style="color:var(--accent-red);">[${wPerf}]${wTdst}</span>` : wTdst || '&nbsp;';
+                            let wTdst = wRes > 0 ? ` | TDST:$${Math.round(wRes)}` : '';
+                            wSubContent = `<span style="color:var(--accent-red);">${wPerf ? `[${wPerf}]` : ''}${wTdst}</span> | ${adxStr}`;
                         } else if (wTd > 12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (+${wTd})</span>`;
                         } else if (wTd <= -8 && wTd >= -12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--accent-green); color:var(--accent-green); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${Math.abs(wTd)}</span>`;
-                            let wTdstSup = (wState && wState.tdst_sup > 0) ? ` | TDST:$${Math.round(wState.tdst_sup)}` : '';
-                            wSubContent = wPerf ? `<span style="color:var(--accent-green);">[${wPerf}]${wTdstSup}</span>` : wTdstSup || '&nbsp;';
+                            let wTdstSup = wSup > 0 ? ` | TDST:$${Math.round(wSup)}` : '';
+                            wSubContent = `<span style="color:var(--accent-green);">${wPerf ? `[${wPerf}]` : ''}${wTdstSup}</span> | ${adxStr}`;
                         } else if (wTd < -12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (${wTd})</span>`;
                         }
@@ -735,7 +760,7 @@
                     gridHtml += `
                     <div class="asset-column">
                         <div class="asset-header">
-                            <span class="asset-title">${asset} // ${asset === 'BTC' ? 'BITCOIN' : (asset === 'ETH' ? 'ETHEREUM' : 'HYPERLIQUID')}${wBadge}</span>
+                            <span class="asset-title">${asset} // ${assetLabels[asset] || asset}${wBadge}</span>
                             <span class="asset-live-price" id="price-${asset}">${assetPriceStr}</span>
                         </div>
                         <div class="asset-sub-header">${wSubContent}</div>
@@ -871,7 +896,7 @@
                             let totalRange = avgTp > 0 ? Math.abs(avgTp - avgSl) : 0;
                             let currentProg = isBuy ? (currPrice - avgSl) : (avgSl - currPrice);
                             let pct = totalRange > 0 ? Math.max(0, Math.min(100, (currentProg / totalRange) * 100)) : (isRunnerAny ? 90 : 50);
-                            let tpDisplay = (isRunnerAny && avgTp <= 0) ? 'OPEN RUNNER' : fmtPrice(avgTp, 2);
+                            let tpDisplay = (isRunnerAny && avgTp <= 0) ? 'OPEN RUNNER' : fmtPrice(avgTp, dec);
 
                             gridHtml += `
                                 <div class="active-trade-card">
@@ -886,9 +911,9 @@
                                     <div class="trade-stats-grid">
                                         <div class="row"><span class="label">Side</span><span class="value ${isBuy ? 'val-green' : 'val-red'}">${primaryPos}</span></div>
                                         <div class="row"><span class="label">Invest</span><span class="value">${fmtUSD(totalSizeUsd, false)} (x${effLeverage.toFixed(1)})</span></div>
-                                        <div class="row"><span class="label">Entry</span><span class="value">${fmtPrice(avgEntry, 2)}</span></div>
-                                        <div class="row"><span class="label">Now</span><span class="value">${fmtPrice(currPrice, 2)}</span></div>
-                                        <div class="row"><span class="label">SL</span><span class="value" style="color:var(--accent-red);">${fmtPrice(avgSl, 2)}</span></div>
+                                        <div class="row"><span class="label">Entry</span><span class="value">${fmtPrice(avgEntry, dec)}</span></div>
+                                        <div class="row"><span class="label">Now</span><span class="value">${fmtPrice(currPrice, dec)}</span></div>
+                                        <div class="row"><span class="label">SL</span><span class="value" style="color:var(--accent-red);">${fmtPrice(avgSl, dec)}</span></div>
                                         <div class="row"><span class="label">TP</span><span class="value" style="color:var(--accent-green);">${tpDisplay}</span></div>
                                     </div>
                                     <div class="row" style="margin-top:4px; padding-top:2px;">

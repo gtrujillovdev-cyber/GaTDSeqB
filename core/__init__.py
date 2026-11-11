@@ -33,6 +33,7 @@ from .strategy import (
     compute_entry_levels,
     compute_conviction_multiplier,
     compute_conviction_boost,
+    evaluate_orthogonal_signal,
 )
 
 __all__ = [
@@ -63,4 +64,5 @@ __all__ = [
     "compute_entry_levels",
     "compute_conviction_multiplier",
     "compute_conviction_boost",
+    "evaluate_orthogonal_signal",
 ]

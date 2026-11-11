@@ -16,9 +16,9 @@ import pandas as pd
 from backtesting.data_manager import load_dataset
 from backtesting.indicators import prepare_market_indicators
 from backtesting.optimizer import DEFAULT_PARAM_GRID, run_walk_forward
-from core.strategy import FLEET_STRATEGIES, FLEET_TIMEFRAMES
+from core.strategy import FLEET_ASSETS, FLEET_STRATEGIES, FLEET_TIMEFRAMES
 
-DEFAULT_SYMBOLS = ["BTC/USDT", "ETH/USDT", "HYPE/USDT"]
+DEFAULT_SYMBOLS = [f"{sym}/USDT" for sym in FLEET_ASSETS]
 DEFAULT_TIMEFRAMES = list(FLEET_TIMEFRAMES)
 DEFAULT_STRATEGIES = list(FLEET_STRATEGIES)
 
@@ -104,9 +104,9 @@ def main():
         try:
             with open(args.out, "r") as f:
                 existing = json.load(f)
-            # Conservar entradas vigentes del universo canonico (4h, 1d, 1w) para actualizaciones parciales
+            # Conservar solo entradas que pertenezcan a las estrategias/timeframes vigentes
             for k, v in existing.items():
-                if v.get("timeframe") in DEFAULT_TIMEFRAMES:
+                if v.get("timeframe") in DEFAULT_TIMEFRAMES and v.get("strategy") in DEFAULT_STRATEGIES:
                     fleet_results[k] = v
         except Exception as e:
             print(f"⚠️ Aviso al leer {args.out}: {e}")

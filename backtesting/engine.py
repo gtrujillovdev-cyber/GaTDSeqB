@@ -11,6 +11,7 @@ from core.strategy import (
     compute_conviction_multiplier,
     compute_entry_levels,
     compute_weekly_context,
+    evaluate_orthogonal_signal,
     get_base_risk,
     get_scaled_atr,
     load_fleet_params,
@@ -168,9 +169,11 @@ class BacktestEngine:
         weekly_df: Optional[pd.DataFrame] = None,
         eval_start_idx: Optional[int] = None,
         precomputed_context: Optional[Dict[int, Dict[str, Any]]] = None,
+        funding_df: Optional[pd.DataFrame] = None,
     ) -> Dict[str, Any]:
         """
         Ejecuta la simulacion barra por barra (Event-Driven) con paridad 1:1 con bot.py.
+        Soporta funding_df historico real via merge_asof.
         """
         self.bank = self.initial_bank
         self.trades = []
@@ -179,7 +182,21 @@ class BacktestEngine:
         self._last_sl_ts = None
         self._next_trade_seq = 1
 
-        total_bars = len(df)
+        if funding_df is not None and not funding_df.empty and "datetime" in df.columns and "datetime" in funding_df.columns:
+            work_df = pd.merge_asof(
+                df.sort_values("datetime"),
+                funding_df[["datetime", "fundingRate"]].sort_values("datetime"),
+                on="datetime",
+                direction="backward",
+            )
+            work_df["funding_rate"] = work_df["fundingRate"].fillna(self.funding_rate_8h)
+        else:
+            work_df = df
+            if "funding_rate" not in work_df.columns:
+                work_df = work_df.copy()
+                work_df["funding_rate"] = self.funding_rate_8h
+
+        total_bars = len(work_df)
         if eval_start_idx is not None:
             start_idx = max(30, int(eval_start_idx))
         elif total_bars > 250:
@@ -196,8 +213,8 @@ class BacktestEngine:
             }
 
         for i in range(start_idx, total_bars):
-            closed_candle = df.iloc[i - 1]
-            live_candle = df.iloc[i]
+            closed_candle = work_df.iloc[i - 1]
+            live_candle = work_df.iloc[i]
             timestamp = live_candle["datetime"]
             close_p = float(live_candle["close"])
 
@@ -206,11 +223,11 @@ class BacktestEngine:
 
             # 1. Gestion de Trade Activo
             if self.active_trade is not None:
-                self._manage_active_trade(live_candle, closed_candle, df, i, weekly_ctx)
+                self._manage_active_trade(live_candle, closed_candle, work_df, i, weekly_ctx)
 
             # 2. Gestion de Entrada (si estamos IDLE y aun hay capital)
             if self.active_trade is None and self.bank > 10.0:
-                self._check_entry_signal(closed_candle, live_candle, df, i, weekly_ctx, bar_ctx=bar_ctx)
+                self._check_entry_signal(closed_candle, live_candle, work_df, i, weekly_ctx, bar_ctx=bar_ctx)
 
             # 3. Curva de equidad (mark-to-market)
             unrealized_pnl = 0.0
@@ -257,6 +274,13 @@ class BacktestEngine:
             return
 
         atr = get_scaled_atr(raw_atr, signal_price, self.timeframe)
+        adx_val = float(closed_candle.get("adx", 0.0))
+        funding_val = float(closed_candle.get("funding_rate", self.funding_rate_8h))
+
+        # --- MODOS ORTOGONALES DE INVESTIGACION (CAPA 0 / CAPA 1 / CAPA 2) ---
+        if self.strategy in ("TD9_L0", "TD9_MR", "MR", "TREND_DC", "TREND_EMA", "FUND_SQUEEZE", "REGIME_DUAL", "DUAL"):
+            self._check_research_entry(closed_candle, live_candle, df, i, atr, adx_val, funding_val)
+            return
 
         if bar_ctx is not None:
             vah = bar_ctx["vah"]
@@ -298,7 +322,6 @@ class BacktestEngine:
                 reason = "Wyckoff Upthrust"
 
         req_conf = 0.70 if self.clean_symbol == "HYPE" else float(self.params.get("min_confidence", MIN_CONFIDENCE))
-        adx_val = float(closed_candle.get("adx", 0.0))
 
         if trigger_buy and rsi < 70:
             is_counter = signal_price < ema200
@@ -309,7 +332,7 @@ class BacktestEngine:
                     return
 
             conf = self._calculate_confidence_score(
-                closed_candle, "BUY", divergence, is_counter, weekly_context=weekly_ctx
+                closed_candle, "BUY", divergence, is_counter, funding_rate=funding_val, weekly_context=weekly_ctx
             )
             if conf >= req_conf:
                 entry_price = self._apply_slippage(raw_open_price, "BUY")
@@ -331,7 +354,7 @@ class BacktestEngine:
                     return
 
             conf = self._calculate_confidence_score(
-                closed_candle, "SELL", divergence, is_counter, weekly_context=weekly_ctx
+                closed_candle, "SELL", divergence, is_counter, funding_rate=funding_val, weekly_context=weekly_ctx
             )
             if conf >= req_conf:
                 entry_price = self._apply_slippage(raw_open_price, "SELL")
@@ -343,6 +366,95 @@ class BacktestEngine:
                 boost = compute_conviction_boost(self.clean_symbol, conf)
                 final_risk = self._get_base_risk() * conviction * boost
                 self._open_trade("SELL", entry_price, sl, tp, full_reason, live_candle["datetime"], final_risk, atr)
+
+    def _check_research_entry(self, closed_candle, live_candle, df, i, atr, adx_val, funding_val):
+        raw_open_price = float(live_candle["open"])
+        signal_price = float(closed_candle["close"])
+        ema50 = float(closed_candle.get("ema_50", signal_price))
+        ema200 = float(closed_candle["ema_200"])
+        rsi = float(closed_candle["rsi"])
+        risk_pct = float(self.params.get("risk_pct", self._get_base_risk()))
+        sl_mult = float(self.params.get("atr_sl_trend", 2.0))
+        tp_mult = float(self.params.get("atr_tp_trend", 3.0))
+
+        action = None
+        reason = self.strategy
+
+        if self.strategy in ("TD9_L0", "TD9_MR"):
+            td_buy, td_sell = check_td_signal(closed_candle, df.iloc[i - 3])
+            if self.strategy == "TD9_MR":
+                adx_max = float(self.params.get("adx_max", 24.0))
+                if adx_val > adx_max:
+                    return
+                if self.params.get("require_funding_filter", False):
+                    if td_buy and funding_val > 0.0002:
+                        td_buy = False
+                    if td_sell and funding_val < -0.0002:
+                        td_sell = False
+            if td_buy:
+                action = "BUY"
+            elif td_sell:
+                action = "SELL"
+
+        elif self.strategy == "TREND_DC":
+            dc_period = int(self.params.get("dc_period", 20))
+            high_col = f"dc_high_{dc_period}"
+            low_col = f"dc_low_{dc_period}"
+            dc_hi = float(closed_candle.get(high_col, float("nan")))
+            dc_lo = float(closed_candle.get(low_col, float("nan")))
+            if pd.isna(dc_hi) or pd.isna(dc_lo):
+                return
+            adx_min = float(self.params.get("adx_min", 0.0))
+            if adx_val < adx_min:
+                return
+            use_ema = bool(self.params.get("use_ema200_filter", False))
+            if signal_price > dc_hi and (not use_ema or signal_price > ema200):
+                action = "BUY"
+            elif signal_price < dc_lo and (not use_ema or signal_price < ema200):
+                action = "SELL"
+
+        elif self.strategy == "TREND_EMA":
+            adx_min = float(self.params.get("adx_min", 22.0))
+            if adx_val < adx_min:
+                return
+            prev_candle = df.iloc[i - 2]
+            prev_close = float(prev_candle["close"])
+            prev_ema50 = float(prev_candle.get("ema_50", prev_close))
+            if signal_price > ema200 and ema50 > ema200 and prev_close <= prev_ema50 and signal_price > ema50:
+                action = "BUY"
+            elif signal_price < ema200 and ema50 < ema200 and prev_close >= prev_ema50 and signal_price < ema50:
+                action = "SELL"
+
+        elif self.strategy == "FUND_SQUEEZE":
+            long_f = float(self.params.get("funding_long_max", -0.0002))
+            short_f = float(self.params.get("funding_short_min", 0.0004))
+            if funding_val <= long_f and rsi <= 42.0:
+                action = "BUY"
+            elif funding_val >= short_f and rsi >= 58.0:
+                action = "SELL"
+
+        elif self.strategy in ("MR", "DUAL", "REGIME_DUAL"):
+            sig = evaluate_orthogonal_signal(
+                self.strategy, closed_candle, df.iloc[i - 3], adx_val, ema200, self.params
+            )
+            if sig is None:
+                return
+            action = sig["action"]
+            reason = f"{sig['mode']}:{sig['reason']}"
+            sl_mult = sig["sl_mult"]
+            tp_mult = sig["tp_mult"]
+
+        if action is None:
+            return
+
+        entry_price = self._apply_slippage(raw_open_price, action)
+        if action == "BUY":
+            sl = entry_price - (atr * sl_mult)
+            tp = entry_price + (atr * tp_mult)
+        else:
+            sl = entry_price + (atr * sl_mult)
+            tp = entry_price - (atr * tp_mult)
+        self._open_trade(action, entry_price, sl, tp, reason, live_candle["datetime"], risk_pct, atr)
 
     def _open_trade(
         self,
@@ -427,12 +539,13 @@ class BacktestEngine:
         low_p = float(live_candle["low"])
         time_stamp = live_candle["datetime"]
 
-        # 0. Funding rate cada 8h proporcional a duracion de barra
-        if self.funding_rate_8h != 0.0:
+        # 0. Funding rate cada 8h proporcional a duracion de barra (real historico si existe)
+        bar_funding = float(closed_candle.get("funding_rate", self.funding_rate_8h))
+        if bar_funding != 0.0:
             bar_secs = _TF_BAR_SECONDS.get(self.timeframe, 14400)
             periods_8h = bar_secs / 28800.0
             notional = units * float(live_candle["close"])
-            funding_cost = notional * self.funding_rate_8h * periods_8h
+            funding_cost = notional * bar_funding * periods_8h
             if action == "SELL":
                 funding_cost = -funding_cost  # Shorts cobran funding positivo
             self.bank -= funding_cost
@@ -481,8 +594,14 @@ class BacktestEngine:
 
         countdown = int(closed_candle["td_countdown"])
 
+        is_regime_mr = "REGIME_MR" in t.get("reason", "")
+        is_regime_trend = "REGIME_TREND" in t.get("reason", "")
+        use_be = (not is_regime_mr) and (not is_regime_trend) and bool(self.params.get("enable_breakeven", True))
+        use_so = (not is_regime_mr) and (not is_regime_trend) and bool(self.params.get("enable_scale_out", True))
+        use_dca = (not is_regime_mr) and (not is_regime_trend) and bool(self.params.get("enable_dca_13", True))
+
         # 1. Refuerzo DCA "El Batallon" (TD 13) con tope de riesgo real
-        if self.params.get("enable_dca_13", True) and not t["reinforced_13"]:
+        if use_dca and not t["reinforced_13"]:
             if (action == "BUY" and countdown == -13) or (action == "SELL" and countdown == 13):
                 self._execute_dca_13(float(live_candle["open"]), atr)
                 entry = t["entry_price"]
@@ -493,7 +612,7 @@ class BacktestEngine:
         updated_sl = sl
 
         # 1b. Macro Weekly Shield (si hay weekly_context)
-        if weekly_ctx:
+        if weekly_ctx and not is_regime_mr and not is_regime_trend:
             curr_close = float(live_candle["close"])
             if action == "BUY" and weekly_ctx.get("is_sell_exhaustion_active") and curr_close > entry and updated_sl < entry:
                 updated_sl = entry
@@ -503,7 +622,7 @@ class BacktestEngine:
                 t["breakeven_active"] = True
 
         # 2. Breakeven Shield (>= 1.0 ATR)
-        if self.params.get("enable_breakeven", True):
+        if use_be:
             be_mult = max(1.0, float(self.params.get("be_threshold_atr", 1.5)))
             be_dist = atr * be_mult
             if action == "BUY" and high_p >= (entry + be_dist):
@@ -516,7 +635,7 @@ class BacktestEngine:
                     t["breakeven_active"] = True
 
         # 3. Scale-Out Parcial
-        if self.params.get("enable_scale_out", True) and not t["scaled_out"]:
+        if use_so and not t["scaled_out"]:
             so_mult = float(self.params.get("scale_out_atr", 2.0))
             so_pct = float(self.params.get("scale_out_pct", 0.5))
             so_dist = atr * so_mult
@@ -563,10 +682,11 @@ class BacktestEngine:
                 )
                 units = t["size_units"]
 
-        # 4. Trailing Stop
-        if self.params.get("enable_trailing", True):
+        # 4. Trailing Stop (en REGIME_DUAL solo se activa en rama TREND, no en MR)
+        use_trailing = (not is_regime_mr) and (is_regime_trend or bool(self.params.get("enable_trailing", True)))
+        if use_trailing:
             c_closed = float(closed_candle["close"])
-            trail_mult = 2.5 if t.get("runner_active") else float(self.params.get("trailing_atr", 2.0))
+            trail_mult = 2.5 if t.get("runner_active") else (3.5 if is_regime_trend else float(self.params.get("trailing_atr", 2.0)))
             tr_dist = atr * trail_mult
             if action == "BUY":
                 new_sl = c_closed - tr_dist
@@ -579,14 +699,18 @@ class BacktestEngine:
 
         t["stop_loss"] = updated_sl
 
-        # 5. Evaluacion conservadora SL vs TP
+        # 5. Evaluacion conservadora SL vs Channel Exit vs TP
         closed = False
         exit_price = 0.0
         close_reason = ""
+        enable_runner = (not is_regime_mr) and (not is_regime_trend) and bool(self.params.get("enable_runner", True))
+        enable_ch_exit = (not is_regime_mr) and (is_regime_trend or bool(self.params.get("enable_channel_exit", False)))
 
         if action == "BUY":
             sl_hit = low_p <= updated_sl
             tp_hit = (tp is not None) and (high_p >= tp)
+            dc_exit_lvl = closed_candle.get("dc_low_10", float("nan"))
+            ch_exit = enable_ch_exit and not pd.isna(dc_exit_lvl) and float(closed_candle["close"]) < float(dc_exit_lvl)
             if sl_hit:
                 closed = True
                 exit_price = self._apply_slippage(updated_sl, "SELL")
@@ -594,48 +718,59 @@ class BacktestEngine:
                     close_reason = "Runner Trailing Exit (+Macro Trend)"
                 else:
                     close_reason = "Stop Loss" if updated_sl < entry else "Breakeven / Trailing SL"
+            elif ch_exit:
+                closed = True
+                exit_price = self._apply_slippage(float(live_candle["open"]), "SELL")
+                close_reason = "Donchian Channel Exit"
             elif not t.get("runner_active") and tp_hit:
-                tp2_units = units * 0.5
-                gross_tp2 = (tp - entry) * tp2_units
-                tp2_exit_fee = (tp * tp2_units) * self.taker_fee
-                alloc_entry_fee = t["entry_fee_remaining"] * 0.5
-                t["entry_fee_remaining"] -= alloc_entry_fee
+                if not enable_runner:
+                    closed = True
+                    exit_price = tp
+                    close_reason = "Take Profit"
+                else:
+                    tp2_units = units * 0.5
+                    gross_tp2 = (tp - entry) * tp2_units
+                    tp2_exit_fee = (tp * tp2_units) * self.taker_fee
+                    alloc_entry_fee = t["entry_fee_remaining"] * 0.5
+                    t["entry_fee_remaining"] -= alloc_entry_fee
 
-                self.bank += (gross_tp2 - tp2_exit_fee)
-                net_tp2_pnl = gross_tp2 - tp2_exit_fee - alloc_entry_fee
+                    self.bank += (gross_tp2 - tp2_exit_fee)
+                    net_tp2_pnl = gross_tp2 - tp2_exit_fee - alloc_entry_fee
 
-                pct_label = "25%" if t.get("scaled_out") else "50%"
-                t["size_units"] -= tp2_units
-                t["size_usd"] = t["size_units"] * entry
-                t["runner_active"] = True
+                    pct_label = "25%" if t.get("scaled_out") else "50%"
+                    t["size_units"] -= tp2_units
+                    t["size_usd"] = t["size_units"] * entry
+                    t["runner_active"] = True
 
-                updated_sl = max(updated_sl, entry + (atr * 2.0))
-                t["take_profit"] = None
-                t["stop_loss"] = updated_sl
+                    updated_sl = max(updated_sl, entry + (atr * 2.0))
+                    t["take_profit"] = None
+                    t["stop_loss"] = updated_sl
 
-                self.trades.append(
-                    {
-                        "id": f"{t['id']}_tp2",
-                        "parent_id": t["id"],
-                        "action": action,
-                        "type": f"TAKE_PROFIT_{pct_label}",
-                        "entry_time": t["entry_time"],
-                        "exit_time": time_stamp,
-                        "entry_price": entry,
-                        "exit_price": tp,
-                        "pnl": net_tp2_pnl,
-                        "reason": "Take Profit Objetivo",
-                        "bank": self.bank,
-                        "mfe_r": t["max_fav_excursion"] / atr if atr > 0 else 0.0,
-                        "mae_r": t["max_adv_excursion"] / atr if atr > 0 else 0.0,
-                        "realized_r": (tp - entry) / atr if atr > 0 else 0.0,
-                    }
-                )
-                units = t["size_units"]
+                    self.trades.append(
+                        {
+                            "id": f"{t['id']}_tp2",
+                            "parent_id": t["id"],
+                            "action": action,
+                            "type": f"TAKE_PROFIT_{pct_label}",
+                            "entry_time": t["entry_time"],
+                            "exit_time": time_stamp,
+                            "entry_price": entry,
+                            "exit_price": tp,
+                            "pnl": net_tp2_pnl,
+                            "reason": "Take Profit Objetivo",
+                            "bank": self.bank,
+                            "mfe_r": t["max_fav_excursion"] / atr if atr > 0 else 0.0,
+                            "mae_r": t["max_adv_excursion"] / atr if atr > 0 else 0.0,
+                            "realized_r": (tp - entry) / atr if atr > 0 else 0.0,
+                        }
+                    )
+                    units = t["size_units"]
 
         elif action == "SELL":
             sl_hit = high_p >= updated_sl
             tp_hit = (tp is not None) and (low_p <= tp)
+            dc_exit_lvl = closed_candle.get("dc_high_10", float("nan"))
+            ch_exit = enable_ch_exit and not pd.isna(dc_exit_lvl) and float(closed_candle["close"]) > float(dc_exit_lvl)
             if sl_hit:
                 closed = True
                 exit_price = self._apply_slippage(updated_sl, "BUY")
@@ -643,44 +778,53 @@ class BacktestEngine:
                     close_reason = "Runner Trailing Exit (+Macro Trend)"
                 else:
                     close_reason = "Stop Loss" if updated_sl > entry else "Breakeven / Trailing SL"
+            elif ch_exit:
+                closed = True
+                exit_price = self._apply_slippage(float(live_candle["open"]), "BUY")
+                close_reason = "Donchian Channel Exit"
             elif not t.get("runner_active") and tp_hit:
-                tp2_units = units * 0.5
-                gross_tp2 = (entry - tp) * tp2_units
-                tp2_exit_fee = (tp * tp2_units) * self.taker_fee
-                alloc_entry_fee = t["entry_fee_remaining"] * 0.5
-                t["entry_fee_remaining"] -= alloc_entry_fee
+                if not enable_runner:
+                    closed = True
+                    exit_price = tp
+                    close_reason = "Take Profit"
+                else:
+                    tp2_units = units * 0.5
+                    gross_tp2 = (entry - tp) * tp2_units
+                    tp2_exit_fee = (tp * tp2_units) * self.taker_fee
+                    alloc_entry_fee = t["entry_fee_remaining"] * 0.5
+                    t["entry_fee_remaining"] -= alloc_entry_fee
 
-                self.bank += (gross_tp2 - tp2_exit_fee)
-                net_tp2_pnl = gross_tp2 - tp2_exit_fee - alloc_entry_fee
+                    self.bank += (gross_tp2 - tp2_exit_fee)
+                    net_tp2_pnl = gross_tp2 - tp2_exit_fee - alloc_entry_fee
 
-                pct_label = "25%" if t.get("scaled_out") else "50%"
-                t["size_units"] -= tp2_units
-                t["size_usd"] = t["size_units"] * entry
-                t["runner_active"] = True
+                    pct_label = "25%" if t.get("scaled_out") else "50%"
+                    t["size_units"] -= tp2_units
+                    t["size_usd"] = t["size_units"] * entry
+                    t["runner_active"] = True
 
-                updated_sl = min(updated_sl, entry - (atr * 2.0))
-                t["take_profit"] = None
-                t["stop_loss"] = updated_sl
+                    updated_sl = min(updated_sl, entry - (atr * 2.0))
+                    t["take_profit"] = None
+                    t["stop_loss"] = updated_sl
 
-                self.trades.append(
-                    {
-                        "id": f"{t['id']}_tp2",
-                        "parent_id": t["id"],
-                        "action": action,
-                        "type": f"TAKE_PROFIT_{pct_label}",
-                        "entry_time": t["entry_time"],
-                        "exit_time": time_stamp,
-                        "entry_price": entry,
-                        "exit_price": tp,
-                        "pnl": net_tp2_pnl,
-                        "reason": "Take Profit Objetivo",
-                        "bank": self.bank,
-                        "mfe_r": t["max_fav_excursion"] / atr if atr > 0 else 0.0,
-                        "mae_r": t["max_adv_excursion"] / atr if atr > 0 else 0.0,
-                        "realized_r": (entry - tp) / atr if atr > 0 else 0.0,
-                    }
-                )
-                units = t["size_units"]
+                    self.trades.append(
+                        {
+                            "id": f"{t['id']}_tp2",
+                            "parent_id": t["id"],
+                            "action": action,
+                            "type": f"TAKE_PROFIT_{pct_label}",
+                            "entry_time": t["entry_time"],
+                            "exit_time": time_stamp,
+                            "entry_price": entry,
+                            "exit_price": tp,
+                            "pnl": net_tp2_pnl,
+                            "reason": "Take Profit Objetivo",
+                            "bank": self.bank,
+                            "mfe_r": t["max_fav_excursion"] / atr if atr > 0 else 0.0,
+                            "mae_r": t["max_adv_excursion"] / atr if atr > 0 else 0.0,
+                            "realized_r": (entry - tp) / atr if atr > 0 else 0.0,
+                        }
+                    )
+                    units = t["size_units"]
 
         if closed:
             gross_pnl = ((exit_price - entry) if action == "BUY" else (entry - exit_price)) * units

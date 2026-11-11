@@ -6,22 +6,22 @@
     "is_calibrated": true,
     "best_params": {
       "atr_sl_trend": 1.5,
-      "atr_tp_trend": 2.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
+      "atr_tp_trend": 3.5,
+      "be_threshold_atr": 1.25,
+      "enable_scale_out": false
     },
     "metrics": {
-      "net_pnl": 450.79079706100856,
-      "net_pnl_pct": 4.507907970610086,
-      "bh_return_pct": 23.245364740375496,
-      "alpha_vs_bh_pct": -18.73745676976541,
-      "sharpe": 2.1477981291856385,
-      "profit_factor": 99.9,
-      "win_rate": 100.0,
-      "max_dd_pct": 1.7627926280329456,
-      "trades": 1,
-      "in_sample_trades": 5,
-      "in_sample_sharpe": 1.4228523491660694
+      "net_pnl": 1225.342179686777,
+      "net_pnl_pct": 12.25342179686777,
+      "bh_return_pct": -33.75671711666573,
+      "alpha_vs_bh_pct": 46.0101389135335,
+      "sharpe": 1.4563374720566844,
+      "profit_factor": 1967.7089975165538,
+      "win_rate": 80.0,
+      "max_dd_pct": 3.276551416298401,
+      "trades": 5,
+      "in_sample_trades": 18,
+      "in_sample_sharpe": 0.7528702371971171
     }
   },
   "ETH/USDT_1d_HYB": {
@@ -30,179 +30,204 @@
     "strategy": "HYB",
     "is_calibrated": true,
     "best_params": {
-      "atr_sl_trend": 1.5,
+      "atr_sl_trend": 2.5,
       "atr_tp_trend": 4.5,
       "be_threshold_atr": 1.25,
       "enable_scale_out": false
     },
     "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 32.417613834903634,
-      "alpha_vs_bh_pct": -32.417613834903634,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 5,
-      "in_sample_sharpe": 1.3139993813014748
-    }
-  },
-  "HYPE/USDT_1d_HYB": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "1d",
-    "strategy": "HYB",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": -3.9640109531881498,
-      "alpha_vs_bh_pct": 3.958899169758657,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "BTC/USDT_1d_TD9": {
-    "symbol": "BTC/USDT",
-    "timeframe": "1d",
-    "strategy": "TD9",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 450.79079706100856,
-      "net_pnl_pct": 4.507907970610086,
-      "bh_return_pct": 23.245364740375496,
-      "alpha_vs_bh_pct": -18.73745676976541,
-      "sharpe": 2.1477981291856385,
+      "net_pnl": 888.2123681452267,
+      "net_pnl_pct": 8.882123681452267,
+      "bh_return_pct": -53.66254286543965,
+      "alpha_vs_bh_pct": 62.54466654689192,
+      "sharpe": 1.10272105999252,
       "profit_factor": 99.9,
       "win_rate": 100.0,
-      "max_dd_pct": 1.7627926280329456,
-      "trades": 1,
-      "in_sample_trades": 4,
-      "in_sample_sharpe": 2.258897384248296
+      "max_dd_pct": 3.605376263009743,
+      "trades": 4,
+      "in_sample_trades": 11,
+      "in_sample_sharpe": 1.1206242153250605
     }
   },
-  "BTC/USDT_1d_WYK": {
+  "BTC/USDT_1d_MR": {
     "symbol": "BTC/USDT",
     "timeframe": "1d",
-    "strategy": "WYK",
-    "is_calibrated": false,
+    "strategy": "MR",
+    "is_calibrated": true,
     "best_params": {
       "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 23.245364740375496,
-      "alpha_vs_bh_pct": -23.245364740375496,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 2,
-      "in_sample_sharpe": 0.4658093396024645
+      "net_pnl": 868.8706707752553,
+      "net_pnl_pct": 8.688706707752553,
+      "bh_return_pct": -33.75671711666573,
+      "alpha_vs_bh_pct": 42.445423824418285,
+      "sharpe": 1.8473713981971795,
+      "profit_factor": 99.9,
+      "win_rate": 100.0,
+      "max_dd_pct": 2.682399022669343,
+      "trades": 3,
+      "in_sample_trades": 9,
+      "in_sample_sharpe": 0.7569594788759476
     }
   },
-  "BTC/USDT_1w_TD9": {
+  "BTC/USDT_1d_DUAL": {
     "symbol": "BTC/USDT",
-    "timeframe": "1w",
-    "strategy": "TD9",
-    "is_calibrated": false,
+    "timeframe": "1d",
+    "strategy": "DUAL",
+    "is_calibrated": true,
     "best_params": {
       "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 11.710424319124128,
-      "alpha_vs_bh_pct": -11.710424319124128,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 2,
-      "in_sample_sharpe": -1.1865533766800027
+      "net_pnl": 781.9223173855116,
+      "net_pnl_pct": 7.819223173855116,
+      "bh_return_pct": -33.75671711666573,
+      "alpha_vs_bh_pct": 41.57594029052085,
+      "sharpe": 1.1067095132947957,
+      "profit_factor": 3.8236533015183976,
+      "win_rate": 75.0,
+      "max_dd_pct": 3.2868028366884072,
+      "trades": 8,
+      "in_sample_trades": 21,
+      "in_sample_sharpe": 0.6341284998466034
     }
   },
-  "BTC/USDT_1w_WYK": {
-    "symbol": "BTC/USDT",
-    "timeframe": "1w",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 11.710424319124128,
-      "alpha_vs_bh_pct": -11.710424319124128,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "BTC/USDT_1w_HYB": {
-    "symbol": "BTC/USDT",
-    "timeframe": "1w",
-    "strategy": "HYB",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 11.710424319124128,
-      "alpha_vs_bh_pct": -11.710424319124128,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 2,
-      "in_sample_sharpe": -1.1865533766800027
-    }
-  },
-  "ETH/USDT_1d_TD9": {
+  "ETH/USDT_1d_MR": {
     "symbol": "ETH/USDT",
     "timeframe": "1d",
-    "strategy": "TD9",
+    "strategy": "MR",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": 952.9810090203591,
+      "net_pnl_pct": 9.529810090203592,
+      "bh_return_pct": -53.66254286543965,
+      "alpha_vs_bh_pct": 63.19235295564324,
+      "sharpe": 1.6887800848416572,
+      "profit_factor": 99.9,
+      "win_rate": 100.0,
+      "max_dd_pct": 2.272729921358256,
+      "trades": 3,
+      "in_sample_trades": 10,
+      "in_sample_sharpe": 0.8630200011830704
+    }
+  },
+  "ETH/USDT_1d_DUAL": {
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "strategy": "DUAL",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": 609.2516183166299,
+      "net_pnl_pct": 6.092516183166299,
+      "bh_return_pct": -53.66254286543965,
+      "alpha_vs_bh_pct": 59.75505904860594,
+      "sharpe": 0.767169077405828,
+      "profit_factor": 2.044519393663219,
+      "win_rate": 55.55555555555556,
+      "max_dd_pct": 6.7525059556979725,
+      "trades": 9,
+      "in_sample_trades": 25,
+      "in_sample_sharpe": 0.19119391121599916
+    }
+  },
+  "SOL/USDT_1d_HYB": {
+    "symbol": "SOL/USDT",
+    "timeframe": "1d",
+    "strategy": "HYB",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 3.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": 769.366468947379,
+      "net_pnl_pct": 7.693664689473789,
+      "bh_return_pct": -60.19680082078068,
+      "alpha_vs_bh_pct": 67.89046551025447,
+      "sharpe": 1.3915120724041932,
+      "profit_factor": 4.271807625930689,
+      "win_rate": 75.0,
+      "max_dd_pct": 3.352581253135479,
+      "trades": 4,
+      "in_sample_trades": 26,
+      "in_sample_sharpe": 0.42008623202437023
+    }
+  },
+  "SOL/USDT_1d_MR": {
+    "symbol": "SOL/USDT",
+    "timeframe": "1d",
+    "strategy": "MR",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": 150.31500008629155,
+      "net_pnl_pct": 1.5031500008629155,
+      "bh_return_pct": -60.19680082078068,
+      "alpha_vs_bh_pct": 61.6999508216436,
+      "sharpe": 0.31731547595061804,
+      "profit_factor": 1.819522655057744,
+      "win_rate": 50.0,
+      "max_dd_pct": 4.10173294427618,
+      "trades": 2,
+      "in_sample_trades": 13,
+      "in_sample_sharpe": 0.2852639072416308
+    }
+  },
+  "SOL/USDT_1d_DUAL": {
+    "symbol": "SOL/USDT",
+    "timeframe": "1d",
+    "strategy": "DUAL",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": 190.83055878377672,
+      "net_pnl_pct": 1.908305587837767,
+      "bh_return_pct": -60.19680082078068,
+      "alpha_vs_bh_pct": 62.10510640861845,
+      "sharpe": 0.5064037601016352,
+      "profit_factor": 1.5057413941593807,
+      "win_rate": 62.5,
+      "max_dd_pct": 5.961473837535594,
+      "trades": 8,
+      "in_sample_trades": 24,
+      "in_sample_sharpe": 0.7839783194762512
+    }
+  },
+  "BNB/USDT_1d_HYB": {
+    "symbol": "BNB/USDT",
+    "timeframe": "1d",
+    "strategy": "HYB",
     "is_calibrated": true,
     "best_params": {
       "atr_sl_trend": 1.5,
@@ -211,467 +236,217 @@
       "enable_scale_out": false
     },
     "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 32.417613834903634,
-      "alpha_vs_bh_pct": -32.417613834903634,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 5,
-      "in_sample_sharpe": 1.3139993813014748
+      "net_pnl": -136.97088168906157,
+      "net_pnl_pct": -1.3697088168906157,
+      "bh_return_pct": -21.197064581496786,
+      "alpha_vs_bh_pct": 19.82735576460617,
+      "sharpe": -0.17404454245193096,
+      "profit_factor": 0.7928435394754484,
+      "win_rate": 37.5,
+      "max_dd_pct": 6.250032121924173,
+      "trades": 8,
+      "in_sample_trades": 16,
+      "in_sample_sharpe": 0.5385902620058337
     }
   },
-  "ETH/USDT_1d_WYK": {
-    "symbol": "ETH/USDT",
+  "BNB/USDT_1d_MR": {
+    "symbol": "BNB/USDT",
     "timeframe": "1d",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 32.417613834903634,
-      "alpha_vs_bh_pct": -32.417613834903634,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "ETH/USDT_1w_TD9": {
-    "symbol": "ETH/USDT",
-    "timeframe": "1w",
-    "strategy": "TD9",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 107.57647034340698,
-      "net_pnl_pct": 1.0757647034340698,
-      "bh_return_pct": 3.90952515317639,
-      "alpha_vs_bh_pct": -2.8337604497423206,
-      "sharpe": 0.9187908266603336,
-      "profit_factor": 1.2519702423602694,
-      "win_rate": 50.0,
-      "max_dd_pct": 3.5951124756157333,
-      "trades": 2,
-      "in_sample_trades": 2,
-      "in_sample_sharpe": -0.8790508047706452
-    }
-  },
-  "ETH/USDT_1w_WYK": {
-    "symbol": "ETH/USDT",
-    "timeframe": "1w",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 3.90952515317639,
-      "alpha_vs_bh_pct": -3.90952515317639,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 1,
-      "in_sample_sharpe": -0.9577372943547946
-    }
-  },
-  "ETH/USDT_1w_HYB": {
-    "symbol": "ETH/USDT",
-    "timeframe": "1w",
-    "strategy": "HYB",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 107.57647034340698,
-      "net_pnl_pct": 1.0757647034340698,
-      "bh_return_pct": 3.90952515317639,
-      "alpha_vs_bh_pct": -2.8337604497423206,
-      "sharpe": 0.9187908266603336,
-      "profit_factor": 1.2519702423602694,
-      "win_rate": 50.0,
-      "max_dd_pct": 3.5951124756157333,
-      "trades": 2,
-      "in_sample_trades": 2,
-      "in_sample_sharpe": -0.8790508047706452
-    }
-  },
-  "HYPE/USDT_1d_TD9": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "1d",
-    "strategy": "TD9",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": -3.8205763463293687,
-      "alpha_vs_bh_pct": 3.815464562899876,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "HYPE/USDT_1d_WYK": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "1d",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": -3.9509714434737266,
-      "alpha_vs_bh_pct": 3.9509714434737266,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "HYPE/USDT_1w_TD9": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "1w",
-    "strategy": "TD9",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 0.0,
-      "alpha_vs_bh_pct": 0.0,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "HYPE/USDT_1w_WYK": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "1w",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 0.0,
-      "alpha_vs_bh_pct": 0.0,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "HYPE/USDT_1w_HYB": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "1w",
-    "strategy": "HYB",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 0.0,
-      "alpha_vs_bh_pct": 0.0,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "BTC/USDT_4h_TD9": {
-    "symbol": "BTC/USDT",
-    "timeframe": "4h",
-    "strategy": "TD9",
+    "strategy": "MR",
     "is_calibrated": true,
     "best_params": {
-      "atr_sl_trend": 2.0,
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": -270.5641085192565,
+      "net_pnl_pct": -2.705641085192565,
+      "bh_return_pct": -21.197064581496786,
+      "alpha_vs_bh_pct": 18.491423496304222,
+      "sharpe": -0.417484559640489,
+      "profit_factor": 0.6677345555532366,
+      "win_rate": 33.33333333333333,
+      "max_dd_pct": 4.6168924413204575,
+      "trades": 6,
+      "in_sample_trades": 11,
+      "in_sample_sharpe": 0.18425190492150736
+    }
+  },
+  "BNB/USDT_1d_DUAL": {
+    "symbol": "BNB/USDT",
+    "timeframe": "1d",
+    "strategy": "DUAL",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": -103.6633107212765,
+      "net_pnl_pct": -1.036633107212765,
+      "bh_return_pct": -21.197064581496786,
+      "alpha_vs_bh_pct": 20.16043147428402,
+      "sharpe": -0.0771160633685154,
+      "profit_factor": 0.8997943081361848,
+      "win_rate": 54.54545454545454,
+      "max_dd_pct": 6.188552331851388,
+      "trades": 11,
+      "in_sample_trades": 20,
+      "in_sample_sharpe": 0.11644307254102801
+    }
+  },
+  "XRP/USDT_1d_HYB": {
+    "symbol": "XRP/USDT",
+    "timeframe": "1d",
+    "strategy": "HYB",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 2.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": -247.71054823843951,
+      "net_pnl_pct": -2.4771054823843954,
+      "bh_return_pct": -64.04180010112927,
+      "alpha_vs_bh_pct": 61.56469461874487,
+      "sharpe": -0.47824618962907756,
+      "profit_factor": 0.5949945992798779,
+      "win_rate": 37.5,
+      "max_dd_pct": 5.9389991740162165,
+      "trades": 8,
+      "in_sample_trades": 7,
+      "in_sample_sharpe": -0.3380479279304724
+    }
+  },
+  "XRP/USDT_1d_MR": {
+    "symbol": "XRP/USDT",
+    "timeframe": "1d",
+    "strategy": "MR",
+    "is_calibrated": false,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 3.5,
+      "be_threshold_atr": 1.5,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": -94.98759289718691,
+      "net_pnl_pct": -0.9498759289718691,
+      "bh_return_pct": -64.04180010112927,
+      "alpha_vs_bh_pct": 63.0919241721574,
+      "sharpe": -0.1823570670373605,
+      "profit_factor": 0.7767361780795333,
+      "win_rate": 33.33333333333333,
+      "max_dd_pct": 3.847806157802319,
+      "trades": 3,
+      "in_sample_trades": 4,
+      "in_sample_sharpe": 0.6816758673087285
+    }
+  },
+  "XRP/USDT_1d_DUAL": {
+    "symbol": "XRP/USDT",
+    "timeframe": "1d",
+    "strategy": "DUAL",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
+    },
+    "metrics": {
+      "net_pnl": -566.607967014008,
+      "net_pnl_pct": -5.66607967014008,
+      "bh_return_pct": -64.04180010112927,
+      "alpha_vs_bh_pct": 58.37572043098919,
+      "sharpe": -0.7317328686398318,
+      "profit_factor": 0.4520875675252062,
+      "win_rate": 25.0,
+      "max_dd_pct": 7.337901256183235,
+      "trades": 8,
+      "in_sample_trades": 12,
+      "in_sample_sharpe": 0.9859094672093486
+    }
+  },
+  "LINK/USDT_1d_HYB": {
+    "symbol": "LINK/USDT",
+    "timeframe": "1d",
+    "strategy": "HYB",
+    "is_calibrated": true,
+    "best_params": {
+      "atr_sl_trend": 2.5,
       "atr_tp_trend": 2.5,
       "be_threshold_atr": 1.5,
       "enable_scale_out": false
     },
     "metrics": {
-      "net_pnl": 28.190162392680577,
-      "net_pnl_pct": 0.2819016239268058,
-      "bh_return_pct": 11.223639004791355,
-      "alpha_vs_bh_pct": -10.941737380864549,
-      "sharpe": 0.14951949523715163,
-      "profit_factor": 1.076434475263028,
-      "win_rate": 33.33333333333333,
-      "max_dd_pct": 3.38334996477552,
-      "trades": 6,
-      "in_sample_trades": 14,
-      "in_sample_sharpe": -0.2477562101937466
+      "net_pnl": 328.1681298472249,
+      "net_pnl_pct": 3.281681298472249,
+      "bh_return_pct": -58.276409849086576,
+      "alpha_vs_bh_pct": 61.55809114755883,
+      "sharpe": 0.6958409221266992,
+      "profit_factor": 2.6886744461520027,
+      "win_rate": 60.0,
+      "max_dd_pct": 2.3239241396762873,
+      "trades": 5,
+      "in_sample_trades": 18,
+      "in_sample_sharpe": 0.9241595235435782
     }
   },
-  "BTC/USDT_4h_WYK": {
-    "symbol": "BTC/USDT",
-    "timeframe": "4h",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 11.223639004791355,
-      "alpha_vs_bh_pct": -11.223639004791355,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "BTC/USDT_4h_HYB": {
-    "symbol": "BTC/USDT",
-    "timeframe": "4h",
-    "strategy": "HYB",
+  "LINK/USDT_1d_MR": {
+    "symbol": "LINK/USDT",
+    "timeframe": "1d",
+    "strategy": "MR",
     "is_calibrated": true,
     "best_params": {
-      "atr_sl_trend": 2.0,
+      "atr_sl_trend": 1.5,
       "atr_tp_trend": 2.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": false
+      "be_threshold_atr": 1.0,
+      "enable_scale_out": true
     },
     "metrics": {
-      "net_pnl": 28.190162392680577,
-      "net_pnl_pct": 0.2819016239268058,
-      "bh_return_pct": 11.223639004791355,
-      "alpha_vs_bh_pct": -10.941737380864549,
-      "sharpe": 0.14951949523715163,
-      "profit_factor": 1.076434475263028,
-      "win_rate": 33.33333333333333,
-      "max_dd_pct": 3.38334996477552,
-      "trades": 6,
-      "in_sample_trades": 14,
-      "in_sample_sharpe": -0.2477562101937466
+      "net_pnl": -772.6862750538457,
+      "net_pnl_pct": -7.726862750538458,
+      "bh_return_pct": -58.276409849086576,
+      "alpha_vs_bh_pct": 50.54954709854812,
+      "sharpe": -1.3350122404039002,
+      "profit_factor": 0.0,
+      "win_rate": 0.0,
+      "max_dd_pct": 9.425202830057023,
+      "trades": 4,
+      "in_sample_trades": 10,
+      "in_sample_sharpe": 1.750512257323626
     }
   },
-  "ETH/USDT_4h_TD9": {
-    "symbol": "ETH/USDT",
-    "timeframe": "4h",
-    "strategy": "TD9",
+  "LINK/USDT_1d_DUAL": {
+    "symbol": "LINK/USDT",
+    "timeframe": "1d",
+    "strategy": "DUAL",
     "is_calibrated": true,
     "best_params": {
-      "atr_sl_trend": 2.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": -324.7374718635492,
-      "net_pnl_pct": -3.247374718635492,
-      "bh_return_pct": 7.963543535112476,
-      "alpha_vs_bh_pct": -11.210918253747968,
-      "sharpe": -1.8184099864774939,
-      "profit_factor": 0.29713458659593395,
-      "win_rate": 25.0,
-      "max_dd_pct": 3.2723756139919353,
-      "trades": 4,
-      "in_sample_trades": 11,
-      "in_sample_sharpe": 2.3382904062382384
-    }
-  },
-  "ETH/USDT_4h_WYK": {
-    "symbol": "ETH/USDT",
-    "timeframe": "4h",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
       "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
+      "atr_tp_trend": 2.5,
+      "be_threshold_atr": 1.0,
       "enable_scale_out": true
     },
     "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": 7.963543535112476,
-      "alpha_vs_bh_pct": -7.963543535112476,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 0,
-      "in_sample_sharpe": 0.0
-    }
-  },
-  "ETH/USDT_4h_HYB": {
-    "symbol": "ETH/USDT",
-    "timeframe": "4h",
-    "strategy": "HYB",
-    "is_calibrated": true,
-    "best_params": {
-      "atr_sl_trend": 2.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": -324.7374718635492,
-      "net_pnl_pct": -3.247374718635492,
-      "bh_return_pct": 7.963543535112476,
-      "alpha_vs_bh_pct": -11.210918253747968,
-      "sharpe": -1.8184099864774939,
-      "profit_factor": 0.29713458659593395,
-      "win_rate": 25.0,
-      "max_dd_pct": 3.2723756139919353,
-      "trades": 4,
-      "in_sample_trades": 11,
-      "in_sample_sharpe": 2.3382904062382384
-    }
-  },
-  "HYPE/USDT_4h_TD9": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "4h",
-    "strategy": "TD9",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": -17.966215460342323,
-      "alpha_vs_bh_pct": 17.966215460342323,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 1,
-      "in_sample_sharpe": 4.312474606340697
-    }
-  },
-  "HYPE/USDT_4h_WYK": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "4h",
-    "strategy": "WYK",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": -17.932654659357873,
-      "alpha_vs_bh_pct": 17.932654659357873,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 1,
-      "in_sample_sharpe": 4.518573221169469
-    }
-  },
-  "HYPE/USDT_4h_HYB": {
-    "symbol": "HYPE/USDT",
-    "timeframe": "4h",
-    "strategy": "HYB",
-    "is_calibrated": false,
-    "best_params": {
-      "atr_sl_trend": 1.5,
-      "atr_tp_trend": 3.5,
-      "be_threshold_atr": 1.5,
-      "enable_scale_out": true
-    },
-    "metrics": {
-      "net_pnl": 0.0,
-      "net_pnl_pct": 0.0,
-      "bh_return_pct": -17.92146772569638,
-      "alpha_vs_bh_pct": 17.92146772569638,
-      "sharpe": 0.0,
-      "profit_factor": 0.0,
-      "win_rate": 0.0,
-      "max_dd_pct": 0.0,
-      "trades": 0,
-      "in_sample_trades": 1,
-      "in_sample_sharpe": 4.312474606340697
+      "net_pnl": -824.5129808133061,
+      "net_pnl_pct": -8.24512980813306,
+      "bh_return_pct": -58.276409849086576,
+      "alpha_vs_bh_pct": 50.03128004095352,
+      "sharpe": -1.0925963968900312,
+      "profit_factor": 0.23547681761082656,
+      "win_rate": 12.5,
+      "max_dd_pct": 10.068406543792031,
+      "trades": 8,
+      "in_sample_trades": 26,
+      "in_sample_sharpe": 0.5876010673835576
     }
   }
 }

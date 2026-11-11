@@ -334,6 +334,7 @@ def calculate_td_sequential(df: pd.DataFrame) -> pd.DataFrame:
 def prepare_market_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Prepara todos los indicadores requeridos por la flota GaTDSEQ."""
     df = df.copy()
+    df['ema_50'] = df['close'].ewm(span=50, adjust=False).mean()
     df['ema_200'] = df['close'].ewm(span=200, adjust=False).mean()
     df['rsi'] = calculate_rsi(df['close'], period=14)
     df['atr'] = calculate_atr(df, period=14)
@@ -343,5 +344,12 @@ def prepare_market_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['std_20'] = df['close'].rolling(window=20).std()
     df['bb_upper'] = df['sma_20'] + (df['std_20'] * 2)
     df['bb_lower'] = df['sma_20'] - (df['std_20'] * 2)
+    # Canales Donchian (sin look-ahead: shift(1) para comparar ruptura de la vela cerrada vs N previas)
+    df['dc_high_20'] = df['high'].rolling(window=20).max().shift(1)
+    df['dc_low_20'] = df['low'].rolling(window=20).min().shift(1)
+    df['dc_high_10'] = df['high'].rolling(window=10).max().shift(1)
+    df['dc_low_10'] = df['low'].rolling(window=10).min().shift(1)
+    df['dc_high_55'] = df['high'].rolling(window=55).max().shift(1)
+    df['dc_low_55'] = df['low'].rolling(window=55).min().shift(1)
     df = calculate_td_sequential(df)
     return df

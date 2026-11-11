@@ -1034,3 +1034,19 @@ El Grid Search de 90 días no encontró ninguna señal en timeframes altos para 
 5. **Telemetría, JSON Estricto y Higiene del Repo:**
    - Sustituido `float('inf')` por `None` (`null`) en Runner TP (`allow_nan=False` en `save_state`/`save_trades`), limpieza de campos de trade al volver a `IDLE` preservando `last_sl_time`, y exclusión de la vela viva en `calculate_volume_profile` de `bot.py`.
    - Corregido conteo de `trades_count` / `wins_count` en `server.py` + `templates/lite.html` (ignorando aperturas y agrupando parciales), ruta de log portable (`GATDSEQ_LOG_FILE`), CORS configurable, creación de `requirements.txt`, untracked `portfolio.json` del índice Git y nueva batería de tests en `tests/test_backtest_and_risk.py`.
+
+### Laboratorio de Investigación Cuantitativa y Ablación (4 Años Real OHLCV + Funding Rate)
+- Añadido soporte de histórico real de Funding Rate de Binance Futures (`fetch_historical_funding` / `load_funding_dataset` en `data_manager.py`) y canales Donchian / EMA50 en `core/indicators.py`.
+- Implementado motor ortogonal de investigación en `backtesting/engine.py`, `backtesting/research_lab.py` y `run_research.py` (Ablation Capa 0/1/2, Rolling Walk-Forward, Fragilidad Top-5%, Estrés Slippage 2x y Go/No-Go Gates).
+- **Resultados 4 años (`1460` días, 5 majors: `BTC`, `ETH`, `SOL`, `BNB`, `XRP`):**
+  - **`4h`:** `Z_CURRENT_HYB` (`-$6,443.53`, PF `0.87`, Sharpe `-0.35`) y `A0_TD9_NAKED` (`-$12,835.38`, PF `0.82`) muestran esperanza negativa neta de costes y funding. El mejor candidato en `4h` fue `B1_DONCHIAN_20_REGIME` (`+$12,594.20`, PF `1.24`, `Z = +2.41`), pero cayó en Rolling WF (`PF 1.03`) y falló fragilidad Top-5%.
+  - **`1d`:** `A1_TD9_RANGING (ADX<=24)` logró PF `1.67` (`+$3,419.06`, MDD `-8.4%`), Rolling WF OOS PF `1.56` (`+$2,160.29`), y superó fragilidad Top-5% (`PF 1.39`) y slippage 2x (`PF 1.66`), aunque sin muestra suficiente (`53` trades / `39` OOS < `100`) ni Sharpe individual `>= 1.20`. `Z_CURRENT_HYB` en `1d` sumó `+$5,259.42` (PF `1.61`, `Z = +2.03`) y `B2_DONCHIAN_55_MACRO` sumó `+$3,302.86` (PF `1.40`).
+  - **Veredicto:** Ninguna estrategia individual cumple aún los 7 Go/No-Go Gates para capital real; siguiente paso es expandir la cesta `1d` a 12–15 activos líquidos y evaluar la cartera combinada por régimen (`A1_TD9_RANGING` + `B2_DONCHIAN_55_MACRO`).
+
+### Despliegue de Flota Validada 1D y Nuevo Kiosk Bloomberg (18 Bots)
+- **Migración Estratégica basada en evidencia de 4 años (`1460` días):**
+  - Eliminado `4h` (esperanza negativa `-$6,443` en `HYB` / `-$12,835` en `TD9`), `WYK` (`0` trades OOS) y `HYPE` (`49` velas diarias insuficientes).
+  - Nueva matriz de **18 bots** en **`1d`** (`BTC`, `ETH`, `SOL`, `BNB`, `XRP`, `LINK` × `HYB`, `MR`, `DUAL`) con escudo semanal `1W` (`limit=250`) y descarga optimizada (`limit=350` en `bot.py`).
+  - Integración SSOT de `evaluate_orthogonal_signal()` en `core/strategy.py`, `bot.py` y `backtesting/engine.py`.
+- **Actualización de Kiosk (`server.py` + `templates/lite.html`):**
+  - Grid de 6 majors líquidos (`3×2`) con decimales adaptativos para `XRP`/`LINK`, badge de régimen `ADX (RANGE/TREND)` + contexto macro `1W`, y Leaderboard para `HYBRID VANGUARD`, `TD9 RANGING` y `REGIME DUAL`.

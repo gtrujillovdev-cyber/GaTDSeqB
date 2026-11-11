@@ -104,16 +104,16 @@ GaTDSEQ is a **3-tier distributed trading system** split across two physical mac
 Bot IDs follow the pattern `{ASSET}_{STRATEGY}_{TF}` — e.g., `BTC_HYB_4h`, `ETH_TD9_1d`, `HYPE_WYK_1w`.
 State files are named `state_{BOT_ID}.json`; trade ledgers are `trades_{BOT_ID}.json`.
 
-### Bot Matrix (27 bots)
-3 assets × 3 timeframes × 3 strategies = 27 concurrent virtual bots, each with isolated `$10,000` virtual equity.
+### Bot Matrix (18 validated 1D bots)
+6 liquid majors × 1 validated timeframe (`1d`) × 3 orthogonal strategies = 18 concurrent virtual bots, each with isolated `$10,000` virtual equity (`1w` runs as Top-Down Macro Shield).
 
 | Strategy | Logic |
 |---|---|
-| **TD9** | Pure DeMark Sequential (Setup 9 + Countdown 13) |
-| **WYK** | Wyckoff Volume Spread Analysis |
-| **HYB** | TD9 trigger AND Wyckoff phase confirmation (logical AND) |
+| **HYB** | Hybrid DeMark + Wyckoff + 8-axis Confidence Gate (`PF 1.44` OOS in 4Y `1d`) |
+| **MR** | Mean-Reversion TD9 strictly gated to ranging regimes (`ADX <= 24.0`, `SL 2.0 / TP 3.0 ATR`) |
+| **DUAL** | Regime-switched dual: `ADX <= 24` → TD9 MR; `ADX > 24` → Donchian-55 + EMA200 Trend Following |
 
-Assets: `BTC`, `ETH`, `HYPE` — Timeframes: `4h`, `1d`, `1w`
+Assets: `BTC`, `ETH`, `SOL`, `BNB`, `XRP`, `LINK` — Timeframe: `1d` (with `1w` Macro Shield)
 
 ### Key Config Files
 | File | Purpose |

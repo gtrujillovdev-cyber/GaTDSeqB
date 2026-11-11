@@ -1,9 +1,11 @@
 import os
 from data_manager import (
     ensure_data_dir,
+    fetch_historical_funding,
     fetch_historical_ohlcv,
     get_cache_path as _root_get_cache_path,
     load_dataset as _root_load_dataset,
+    load_funding_dataset as _root_load_funding_dataset,
 )
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -28,4 +30,25 @@ def load_dataset(
     )
 
 
-__all__ = ["DATA_DIR", "ensure_data_dir", "get_cache_path", "fetch_historical_ohlcv", "load_dataset"]
+def load_funding_dataset(
+    symbol: str = "BTC/USDT",
+    days: int = 1460,
+    force_refresh: bool = False,
+):
+    return _root_load_funding_dataset(
+        symbol=symbol,
+        days=days,
+        force_refresh=force_refresh,
+        data_dir=DATA_DIR,
+    )
+
+
+__all__ = [
+    "DATA_DIR",
+    "ensure_data_dir",
+    "get_cache_path",
+    "fetch_historical_ohlcv",
+    "fetch_historical_funding",
+    "load_dataset",
+    "load_funding_dataset",
+]
