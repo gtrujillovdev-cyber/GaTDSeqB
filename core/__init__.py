@@ -1,0 +1,66 @@
+"""
+GaTDSEQ Core Quantitative Package (Single Source of Truth)
+Shared identically by live engine (bot.py) and backtesting suite (backtesting/).
+"""
+
+from .indicators import (
+    calculate_rsi,
+    calculate_atr,
+    calculate_adx,
+    calculate_volume_profile,
+    sightline_check,
+    find_swing_pivots,
+    detect_divergences,
+    calculate_td_sequential,
+    prepare_market_indicators,
+)
+from .strategy import (
+    MIN_CONFIDENCE,
+    DEFAULT_BOT_PARAMS,
+    FLEET_ASSETS,
+    FLEET_TIMEFRAMES,
+    FLEET_STRATEGIES,
+    normalize_symbol,
+    get_atr_multiplier,
+    get_min_atr_pct,
+    get_scaled_atr,
+    get_base_risk,
+    load_fleet_params,
+    compute_weekly_context,
+    calculate_confidence_score,
+    check_td_signal,
+    check_wyckoff_signal,
+    compute_entry_levels,
+    compute_conviction_multiplier,
+    compute_conviction_boost,
+)
+
+__all__ = [
+    "calculate_rsi",
+    "calculate_atr",
+    "calculate_adx",
+    "calculate_volume_profile",
+    "sightline_check",
+    "find_swing_pivots",
+    "detect_divergences",
+    "calculate_td_sequential",
+    "prepare_market_indicators",
+    "MIN_CONFIDENCE",
+    "DEFAULT_BOT_PARAMS",
+    "FLEET_ASSETS",
+    "FLEET_TIMEFRAMES",
+    "FLEET_STRATEGIES",
+    "normalize_symbol",
+    "get_atr_multiplier",
+    "get_min_atr_pct",
+    "get_scaled_atr",
+    "get_base_risk",
+    "load_fleet_params",
+    "compute_weekly_context",
+    "calculate_confidence_score",
+    "check_td_signal",
+    "check_wyckoff_signal",
+    "compute_entry_levels",
+    "compute_conviction_multiplier",
+    "compute_conviction_boost",
+]

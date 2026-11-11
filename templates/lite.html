@@ -758,10 +758,16 @@
                                 if (state.trades_count) {
                                     strategyStats[v].trades += state.trades_count;
                                 }
+                                if (typeof state.wins_count === 'number') {
+                                    strategyStats[v].wins += state.wins_count;
+                                } else if (state.recent_trades) {
+                                    state.recent_trades.forEach(t => {
+                                        if (t.pnl && t.pnl > 0) strategyStats[v].wins += 1;
+                                    });
+                                }
                                 if (state.recent_trades) {
                                     state.recent_trades.forEach(t => {
                                         allTrades.push({ asset: botKey, tf, ...t });
-                                        if (t.pnl && t.pnl > 0) strategyStats[v].wins += 1;
                                     });
                                 }
 
@@ -813,6 +819,8 @@
                             let sumLeverage = 0;
                             let isScaledAny = false;
                             let isBreakevenAll = true;
+                            let isRunnerAny = false;
+                            let hasFiniteTp = false;
                             let primaryPos = tfActiveTrades[0].state.position || 'BUY';
                             let isBuy = primaryPos === 'BUY';
 
@@ -822,7 +830,8 @@
                                 let sSizeCoin = parseFloat(st.size_btc) || 0;
                                 let sEntry = parseFloat(st.entry_price) || 0;
                                 let sSl = parseFloat(st.stop_loss) || 0;
-                                let sTp = parseFloat(st.take_profit) || 0;
+                                let sTpRaw = st.take_profit;
+                                let sTp = (sTpRaw !== null && sTpRaw !== undefined && isFinite(parseFloat(sTpRaw))) ? parseFloat(sTpRaw) : 0;
                                 let sLev = parseFloat(st.leverage) || 1;
                                 let sBuy = (st.position || 'BUY') === 'BUY';
 
@@ -835,10 +844,14 @@
                                 totalUnPnl += sUnPnl;
                                 weightedEntry += sEntry * sSizeCoin;
                                 weightedSl += sSl * sSizeCoin;
-                                weightedTp += sTp * sSizeCoin;
+                                if (sTp > 0) {
+                                    weightedTp += sTp * sSizeCoin;
+                                    hasFiniteTp = true;
+                                }
                                 sumLeverage += sLev;
 
                                 if (st.scaled_out === true) isScaledAny = true;
+                                if (st.runner_active === true) isRunnerAny = true;
                                 if (Math.abs(sSl - sEntry) >= 0.05) isBreakevenAll = false;
                             });
 
@@ -846,7 +859,7 @@
 
                             let avgEntry = totalSizeCoin > 0 ? (weightedEntry / totalSizeCoin) : (parseFloat(tfActiveTrades[0].state.entry_price) || 0);
                             let avgSl = totalSizeCoin > 0 ? (weightedSl / totalSizeCoin) : (parseFloat(tfActiveTrades[0].state.stop_loss) || 0);
-                            let avgTp = totalSizeCoin > 0 ? (weightedTp / totalSizeCoin) : (parseFloat(tfActiveTrades[0].state.take_profit) || 0);
+                            let avgTp = (hasFiniteTp && totalSizeCoin > 0) ? (weightedTp / totalSizeCoin) : 0;
                             let effLeverage = tfActiveTrades.length > 0 ? (sumLeverage / tfActiveTrades.length) : 1;
 
                             let currPrice = livePrice > 0 ? livePrice : avgEntry;
@@ -855,9 +868,10 @@
                             let unPnlColor = totalUnPnl >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
 
                             // Range calculation
-                            let totalRange = Math.abs(avgTp - avgSl);
+                            let totalRange = avgTp > 0 ? Math.abs(avgTp - avgSl) : 0;
                             let currentProg = isBuy ? (currPrice - avgSl) : (avgSl - currPrice);
-                            let pct = totalRange > 0 ? Math.max(0, Math.min(100, (currentProg / totalRange) * 100)) : 50;
+                            let pct = totalRange > 0 ? Math.max(0, Math.min(100, (currentProg / totalRange) * 100)) : (isRunnerAny ? 90 : 50);
+                            let tpDisplay = (isRunnerAny && avgTp <= 0) ? 'OPEN RUNNER' : fmtPrice(avgTp, 2);
 
                             gridHtml += `
                                 <div class="active-trade-card">
@@ -875,7 +889,7 @@
                                         <div class="row"><span class="label">Entry</span><span class="value">${fmtPrice(avgEntry, 2)}</span></div>
                                         <div class="row"><span class="label">Now</span><span class="value">${fmtPrice(currPrice, 2)}</span></div>
                                         <div class="row"><span class="label">SL</span><span class="value" style="color:var(--accent-red);">${fmtPrice(avgSl, 2)}</span></div>
-                                        <div class="row"><span class="label">TP</span><span class="value" style="color:var(--accent-green);">${fmtPrice(avgTp, 2)}</span></div>
+                                        <div class="row"><span class="label">TP</span><span class="value" style="color:var(--accent-green);">${tpDisplay}</span></div>
                                     </div>
                                     <div class="row" style="margin-top:4px; padding-top:2px;">
                                         <span class="label">U/PNL</span>

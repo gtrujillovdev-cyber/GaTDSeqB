@@ -1014,3 +1014,23 @@ El Grid Search de 90 días no encontró ninguna señal en timeframes altos para 
 
 
 
+
+---
+
+## 📅 Auditoría Crítica, Refactoring SSOT y Blindaje Cuantitativo (11 de Noviembre de 2026)
+
+### Bugs Críticos y Fallos Estructurales Corregidos
+1. **SL Invertido en `SELL` dentro de `backtesting/engine.py`:** `TD9 Sell (Trend)` y `Wyckoff Upthrust` restaban el ATR al precio de entrada en vez de sumarlo, provocando cierres instantáneos con falsas ganancias y Sharpe/PF inflados en `fleet_optimized.json`. Corregido con invariante direccional estricta en `core/strategy.py::compute_entry_levels()`.
+2. **Paridad 1:1 Backtest ↔ Producción (`core/` Single Source of Truth):**
+   - Creado paquete compartido `core/` (`core/indicators.py`, `core/strategy.py`, `core/telemetry.py`) consumido por `bot.py`, `backtesting/` y `server.py`.
+   - Eliminada la divergencia en `conviction_boost` (`"BTC/USDT"` normalizado a `"BTC"` en `BacktestEngine`), unificada la regla `TD9` y el uso de `atr_at_entry`, y añadido soporte explícito para `1w` y contexto semanal `1W` en backtesting.
+   - Aislamiento de efectos secundarios al importar `bot.py` (sin `builtins.print` monkey-patch ni cliente CCXT al importar).
+3. **Gestión de Riesgo y DCA TD-13:**
+   - Guardado `full_target_risk_usd` en `execute_trade()` y acotado el refuerzo TD-13 a un máximo de `+50%` del riesgo original (máx. 3% del bank), eliminando el error de `2.857x` riesgo acumulado.
+   - Añadido Circuit Breaker global de cartera (`MAX_FLEET_DRAWDOWN_PCT = 15.0%`), y en `BacktestEngine` integrados slippage (`5 bps`), funding rate (`0.01%/8h`), chequeo de liquidación por margen aislado y cooldown post-SL.
+4. **Rigor Estadístico y Walk-Forward (`backtesting/optimizer.py`, `backtesting/analytics.py`):**
+   - Implementada validación Walk-Forward (70% In-Sample / 30% Out-of-Sample), grid `be_threshold_atr >= 1.0`, benchmark Buy & Hold, Calmar Ratio, y agrupación de parciales por `parent_id` con mínimo de 15 trades round-trip para Monte Carlo.
+   - Precomputación de Volume Profile y divergencias en Grid Search (~40x más rápido).
+5. **Telemetría, JSON Estricto y Higiene del Repo:**
+   - Sustituido `float('inf')` por `None` (`null`) en Runner TP (`allow_nan=False` en `save_state`/`save_trades`), limpieza de campos de trade al volver a `IDLE` preservando `last_sl_time`, y exclusión de la vela viva en `calculate_volume_profile` de `bot.py`.
+   - Corregido conteo de `trades_count` / `wins_count` en `server.py` + `templates/lite.html` (ignorando aperturas y agrupando parciales), ruta de log portable (`GATDSEQ_LOG_FILE`), CORS configurable, creación de `requirements.txt`, untracked `portfolio.json` del índice Git y nueva batería de tests en `tests/test_backtest_and_risk.py`.
