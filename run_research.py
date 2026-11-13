@@ -10,7 +10,7 @@ sobre 3-4 anos de datos reales OHLCV + Funding Rate historico.
 import argparse
 from typing import Any, Dict, List
 from backtesting.data_manager import load_dataset, load_funding_dataset
-from backtesting.indicators import prepare_market_indicators
+from backtesting.indicators import inject_htf_confluence, prepare_market_indicators
 from backtesting.research_lab import (
     check_go_nogo_gates,
     evaluate_basket,
@@ -169,6 +169,37 @@ def build_experiments() -> List[Dict[str, Any]]:
                 "enable_runner": False,
             },
         },
+        # --- FAMILIA F: CONFLUENCIA MULTI-TIMEFRAME (1D + 4H GATE) ---
+        {
+            "name": "F1_TD9_MR_4H_GATE (1D MR + confirm 4H)",
+            "strategy": "TD9_MR_4H_GATE",
+            "params": {
+                "adx_max": 24.0,
+                "atr_sl_trend": 2.0,
+                "atr_tp_trend": 3.0,
+                "enable_breakeven": False,
+                "enable_scale_out": False,
+                "enable_trailing": False,
+                "enable_dca_13": False,
+                "enable_runner": False,
+            },
+        },
+        {
+            "name": "F2_TD9_MR_4H_GATE+FUND (1D MR + 4H + Funding)",
+            "strategy": "TD9_MR_4H_GATE",
+            "params": {
+                "adx_max": 24.0,
+                "require_funding_filter": True,
+                "atr_sl_trend": 2.0,
+                "atr_tp_trend": 3.0,
+                "enable_breakeven": True,
+                "be_threshold_atr": 1.25,
+                "enable_scale_out": False,
+                "enable_trailing": False,
+                "enable_dca_13": False,
+                "enable_runner": False,
+            },
+        },
         # --- BENCHMARK ACTUAL GATDSEQ & REGIME DUAL ---
         {
             "name": "E1_REGIME_DUAL (MR ADX<=24 + DC55 Trend)",
@@ -206,10 +237,22 @@ def main():
     print(f"  🔬 GATDSEQ QUANT RESEARCH LAB | TF={args.tf} | HORIZONTE={args.days}d | CESTA={','.join(args.symbols)}")
     print("=" * 105)
 
+    # Cargar datasets primarios y 4H para confluencia multi-timeframe
+    datasets_4h: dict = {}
+    if args.tf == "1d":
+        for sym in args.symbols:
+            try:
+                raw_4h = load_dataset(symbol=sym, timeframe="4h", days=args.days)
+                datasets_4h[sym] = prepare_market_indicators(raw_4h)
+            except Exception as e:
+                print(f"  [!] No se pudo cargar 4H para {sym}: {e}")
+
     datasets = {}
     for sym in args.symbols:
         raw_df = load_dataset(symbol=sym, timeframe=args.tf, days=args.days)
         df = prepare_market_indicators(raw_df)
+        if sym in datasets_4h:
+            df = inject_htf_confluence(df, datasets_4h[sym], lookback_days=3)
         f_df = load_funding_dataset(symbol=sym, days=args.days)
         datasets[sym] = (df, f_df)
 

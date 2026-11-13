@@ -183,12 +183,13 @@ class BacktestEngine:
         self._next_trade_seq = 1
 
         if funding_df is not None and not funding_df.empty and "datetime" in df.columns and "datetime" in funding_df.columns:
-            work_df = pd.merge_asof(
-                df.sort_values("datetime"),
-                funding_df[["datetime", "fundingRate"]].sort_values("datetime"),
-                on="datetime",
-                direction="backward",
-            )
+            # Normalizar precision de datetime a ns para evitar incompatibilidades
+            # entre parquet (ms, pandas 2.x) y datos de API (ns)
+            left = df.sort_values("datetime").copy()
+            left["datetime"] = pd.to_datetime(left["datetime"]).astype("datetime64[ns]")
+            right = funding_df[["datetime", "fundingRate"]].sort_values("datetime").copy()
+            right["datetime"] = pd.to_datetime(right["datetime"]).astype("datetime64[ns]")
+            work_df = pd.merge_asof(left, right, on="datetime", direction="backward")
             work_df["funding_rate"] = work_df["fundingRate"].fillna(self.funding_rate_8h)
         else:
             work_df = df
@@ -278,7 +279,7 @@ class BacktestEngine:
         funding_val = float(closed_candle.get("funding_rate", self.funding_rate_8h))
 
         # --- MODOS ORTOGONALES DE INVESTIGACION (CAPA 0 / CAPA 1 / CAPA 2) ---
-        if self.strategy in ("TD9_L0", "TD9_MR", "MR", "TREND_DC", "TREND_EMA", "FUND_SQUEEZE", "REGIME_DUAL", "DUAL"):
+        if self.strategy in ("TD9_L0", "TD9_MR", "TD9_MR_4H_GATE", "MR", "TREND_DC", "TREND_EMA", "FUND_SQUEEZE", "REGIME_DUAL", "DUAL"):
             self._check_research_entry(closed_candle, live_candle, df, i, atr, adx_val, funding_val)
             return
 
@@ -380,9 +381,9 @@ class BacktestEngine:
         action = None
         reason = self.strategy
 
-        if self.strategy in ("TD9_L0", "TD9_MR"):
+        if self.strategy in ("TD9_L0", "TD9_MR", "TD9_MR_4H_GATE"):
             td_buy, td_sell = check_td_signal(closed_candle, df.iloc[i - 3])
-            if self.strategy == "TD9_MR":
+            if self.strategy in ("TD9_MR", "TD9_MR_4H_GATE"):
                 adx_max = float(self.params.get("adx_max", 24.0))
                 if adx_val > adx_max:
                     return
@@ -391,6 +392,12 @@ class BacktestEngine:
                         td_buy = False
                     if td_sell and funding_val < -0.0002:
                         td_sell = False
+            if self.strategy == "TD9_MR_4H_GATE":
+                # Gate adicional: requiere confluencia TD9 en 4H en las últimas 3 jornadas
+                if td_buy and not bool(closed_candle.get("td9_4h_buy_recent", False)):
+                    td_buy = False
+                if td_sell and not bool(closed_candle.get("td9_4h_sell_recent", False)):
+                    td_sell = False
             if td_buy:
                 action = "BUY"
             elif td_sell:
