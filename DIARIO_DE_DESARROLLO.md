@@ -1050,3 +1050,22 @@ El Grid Search de 90 días no encontró ninguna señal en timeframes altos para 
   - Integración SSOT de `evaluate_orthogonal_signal()` en `core/strategy.py`, `bot.py` y `backtesting/engine.py`.
 - **Actualización de Kiosk (`server.py` + `templates/lite.html`):**
   - Grid de 6 majors líquidos (`3×2`) con decimales adaptativos para `XRP`/`LINK`, badge de régimen `ADX (RANGE/TREND)` + contexto macro `1W`, y Leaderboard para `HYBRID VANGUARD`, `TD9 RANGING` y `REGIME DUAL`.
+
+---
+
+## 📅 Consolidación de Take Profit en BTC Macro y Reducción Táctica a 9 Bots (13 de Noviembre de 2026)
+
+### 1. Liquidación Exitosa de Short Macro en Bitcoin
+- **Cierre por Take Profit:** El Short semanal abierto en \$82,116.00 alcanzó formalmente su objetivo tras la caída de Bitcoin por debajo de \$69,816.78 (alcanzando \$69,194.00).
+- **Rendimiento Contable:** Registrado en el ledger `trades_BTC_DUAL_1d.json` con **+15.74% de beneficio (+437.77 USD)**, elevando el bank contable del bot a **$10,437.77 USD**.
+
+### 2. Reducción y Focalización del Universo Operable (Core Triad: BTC, ETH, HYPE)
+- **Ajuste SSOT (`core/strategy.py`, `fleet_optimized.json`):**
+  - Configurado `FLEET_ASSETS = ["BTC", "ETH", "HYPE"]` en timeframes `1d` bajo las 3 estrategias cuantitativas (`HYB`, `MR`, `DUAL`), reduciendo la flota de 18 a **9 bots**.
+  - Archivados todos los estados y trades de activos secundarios y no deseados (`LINK`, `BNB`, `SOL`, `XRP`) al directorio seguro `legacy/archived_fleet_20261113/`.
+- **Restauración y Sincronización de HYPE:**
+  - Migrada la posición larga activa de `HYPE` (apertura \$72.31) al entorno 1D en `state_HYPE_HYB_1d.json` con SL en \$64.95 y TP en \$84.58.
+
+### 3. Kiosk Bloomberg y Despliegue en Raspberry Pi
+- **Front-End (`templates/lite.html`):** Adaptado el motor de precios globales para la terna `BTC`, `ETH` y `HYPE`.
+- **Producción:** Servicios `bot.py` y `server.py` reiniciados limpiamente en la Raspberry Pi. Verificada la telemetría en tiempo real: 9 bots sincronizados y reportando por API en puerto 5001.

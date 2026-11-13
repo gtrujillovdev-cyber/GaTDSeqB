@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Tuple
 
 MIN_CONFIDENCE = 0.55
 
-FLEET_ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "LINK"]
+FLEET_ASSETS = ["BTC", "ETH", "HYPE"]
 FLEET_TIMEFRAMES = ["1d"]
 FLEET_STRATEGIES = ["HYB", "MR", "DUAL"]
 
