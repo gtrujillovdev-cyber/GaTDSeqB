@@ -20,10 +20,7 @@ DEFAULT_LOG_FILE = os.getenv("GATDSEQ_LOG_FILE", os.path.join(BASE_DIR, "bot_uni
 TICKER_CACHE = {
     "BTC": [0, 0],
     "ETH": [0, 0],
-    "SOL": [0, 0],
-    "BNB": [0, 0],
-    "XRP": [0, 0],
-    "LINK": [0, 0],
+    "HYPE": [0, 0],
     "SP500": [0, 0],
     "NASDAQ": [0, 0],
     "DXY": [0, 0],
@@ -59,7 +56,7 @@ def ticker_fetch_loop():
     while True:
         try:
             r = session.get(
-                "https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22SOLUSDT%22,%22BNBUSDT%22,%22XRPUSDT%22,%22LINKUSDT%22%5D",
+                "https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22HYPEUSDT%22%5D",
                 timeout=6,
             )
             if r.status_code == 200:
