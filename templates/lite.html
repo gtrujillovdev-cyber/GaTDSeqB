@@ -441,7 +441,7 @@
     <div id="quant-risk-strip">
         <div class="risk-strip-item">
             <span class="risk-strip-label">REGIME ENGINE:</span>
-            <span class="risk-strip-val" style="color:var(--accent-green);">KER+VR CONTINUOUS</span>
+            <span class="risk-strip-val" style="color:var(--accent-green);">ADX+KER+VR CONJUNCTION</span>
         </div>
         <div class="risk-strip-item">
             <span class="risk-strip-label">META-LABEL GATE:</span>
@@ -762,11 +762,13 @@
                     let regimeStr = '1D VALIDATED';
                     if (hyb1d && hyb1d.p_trend !== undefined) {
                         let pt = Number(hyb1d.p_trend);
-                        let lbl = hyb1d.regime_label || (pt < 0.45 ? 'RANGE' : (pt > 0.55 ? 'TREND' : 'NEUTRAL'));
+                        let adxN = hyb1d.adx !== undefined ? Number(hyb1d.adx) : null;
+                        let lbl = hyb1d.regime_label || ((adxN !== null && adxN > 24) ? 'TREND' : (pt <= 0.45 ? 'RANGE' : 'NEUTRAL'));
                         let regCol = lbl === 'RANGE' ? 'var(--accent-green)' : (lbl === 'TREND' ? 'var(--text-primary)' : 'var(--text-muted)');
+                        let adxTxt = adxN !== null ? ` ADX:${adxN.toFixed(1)}` : '';
                         let kerTxt = hyb1d.ker !== undefined ? ` KER:${Number(hyb1d.ker).toFixed(2)}` : '';
                         let volTxt = hyb1d.vol_30d !== undefined ? ` V30:${Number(hyb1d.vol_30d).toFixed(1)}%` : '';
-                        regimeStr = `<span style="color:${regCol};">${lbl} ${(pt * 100).toFixed(0)}%</span>${kerTxt}${volTxt}`;
+                        regimeStr = `<span style="color:${regCol};">${lbl}</span>${adxTxt} PT:${(pt * 100).toFixed(0)}%${kerTxt}${volTxt}`;
                     } else if (hyb1d && hyb1d.adx !== undefined) {
                         regimeStr = `ADX ${Number(hyb1d.adx).toFixed(1)} (${Number(hyb1d.adx) <= 24 ? 'RANGE' : 'TREND'})`;
                     }

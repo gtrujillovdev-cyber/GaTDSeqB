@@ -937,7 +937,13 @@ def analyze_market(
     p_trend_val = round(float(closed_candle.get("p_trend", 0.5)), 3)
     ker_val = round(float(closed_candle.get("ker", 0.5)), 3)
     vr_val = round(float(closed_candle.get("vr", 1.0)), 3)
-    regime_label = "RANGE" if p_trend_val < 0.45 else ("TREND" if p_trend_val > 0.55 else "NEUTRAL")
+    adx_rounded = round(float(closed_candle.get("adx", 0.0)), 1)
+    if adx_rounded > 24.0:
+        regime_label = "TREND"
+    elif p_trend_val <= 0.45:
+        regime_label = "RANGE"
+    else:
+        regime_label = "NEUTRAL"
     vols_map = (portfolio_context or {}).get("vols", {})
     vol_30d = vols_map.get(normalize_symbol(sym))
     meta_weights = load_meta_weights(strategy_type, weights_file=META_WEIGHTS_FILE)
@@ -951,7 +957,7 @@ def analyze_market(
         "td_perfected": td_perf,
         "tdst_res": tdst_res_val,
         "tdst_sup": tdst_sup_val,
-        "adx": round(float(closed_candle.get("adx", 0.0)), 1),
+        "adx": adx_rounded,
         "p_trend": p_trend_val,
         "ker": ker_val,
         "vr": vr_val,

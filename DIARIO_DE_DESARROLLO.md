@@ -1060,6 +1060,7 @@ El Grid Search de 90 días no encontró ninguna señal en timeframes altos para 
 - **Corrección del Sesgo de Volumen en TD9:** El análisis factorial probó que en reversiones TD9 (`MR`/`HYB`) un volumen $\ge 1.3\times\text{SMA}_{20}$ representa ruptura adversa (`PF 0.64–0.83`). Se reajustó `calculate_confidence_score()` para premiar volumen controlado (`0.8–1.3x`) en contratendencia y reservar el máximo bono de volumen a rupturas tendenciales.
 - **Calibración MFE/MAE de `MR`:** Reducido `mr_tp_atr` de `3.0` a **`2.4 ATR`** para capturar la mediana de excursión favorable antes del retroceso.
 - **Activación del Meta-Gate L2 en `HYB` (`meta_model_weights.json`):** Entrenado mediante `scripts/train_meta_model.py` (Split 70% IS con embargo estricto en NumPy puro) y validado en OOS (`2025-09 -> 2026-11`: `PF 1.85`, `WR 50.0%`, `+$1,596.31` con `p >= 0.55`). Integrado vía SSOT [`evaluate_hyb_meta_gate`](core/strategy.py) en `bot.py` y `backtesting/engine.py`.
+- **Sincronización del Kiosko (`templates/lite.html` + `bot.py`):** Actualizada la etiqueta `regime_label` y el sub-header por activo para reflejar la conjunción `ADX + KER + VR` (`TREND` si `ADX > 24`, `RANGE` si `ADX <= 24` y `p_trend <= 0.45`, `NEUTRAL` en transición) junto a `ADX`, `PT%`, `KER` y `V30`.
 
 ---
 
