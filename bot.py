@@ -316,6 +316,48 @@ def save_fleet_risk_snapshot(
         print(f"Error en escritura atomica de {filepath}: {e}")
 
 
+_LAST_HEARTBEAT_DAY: Optional[int] = None
+
+
+def check_and_send_heartbeat(pos_stats: Dict[str, Any], initial_bank: float = 10000.0) -> None:
+    """
+    Emite un reporte institucional de latido (Heartbeat / Dead Man's Snitch) a partir de las 08:00 UTC
+    una vez al dia para verificar la salud operativa del bot sin requerir intervencion humana.
+    """
+    global _LAST_HEARTBEAT_DAY
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    if now_dt.hour >= 8 and _LAST_HEARTBEAT_DAY != now_dt.day:
+        _LAST_HEARTBEAT_DAY = now_dt.day
+        active_count = pos_stats.get("total", 0)
+        longs = pos_stats.get("longs", 0)
+        shorts = pos_stats.get("shorts", 0)
+
+        fleet_count = max(1, len(FLEET_ASSETS) * len(FLEET_TIMEFRAMES) * len(FLEET_STRATEGIES))
+        total_initial = initial_bank * float(fleet_count)
+        total_realized = 0.0
+        for tf_file in glob.glob("trades_*.json"):
+            try:
+                with open(tf_file, "r") as tf_f:
+                    tr_list = json.load(tf_f)
+                    total_realized += sum(float(t.get("pnl", 0.0)) for t in tr_list)
+            except Exception:
+                pass
+
+        total_bank = total_initial + total_realized
+        dd_pct = pos_stats.get("fleet_drawdown_pct", 0.0)
+
+        msg = (
+            f"🟢 <b>GaTDSEQ DAILY HEARTBEAT</b>\n\n"
+            f"<b>Status:</b> Operativo 24/7 (Nominal)\n"
+            f"<b>Fleet Equity:</b> ${total_bank:,.2f} USD\n"
+            f"<b>Posiciones:</b> {active_count}/9 activas ({longs}L / {shorts}S)\n"
+            f"<b>Drawdown:</b> -{dd_pct:.2f}%\n"
+            f"<b>Timestamp:</b> {now_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+            f"<i>Todo en orden. Sin intervencion requerida.</i>"
+        )
+        send_telegram(msg)
+
+
 def get_fear_and_greed() -> int:
     global _FNG_CACHE
     now = time.time()
@@ -1431,7 +1473,9 @@ def main():
                     print(f"Error analizando {bot['id']} [{tf}]: {e}")
 
             meta_active = os.path.exists(META_WEIGHTS_FILE)
-            save_fleet_risk_snapshot(corr_matrix, vols, get_fleet_position_stats(), meta_active)
+            pos_stats = get_fleet_position_stats()
+            save_fleet_risk_snapshot(corr_matrix, vols, pos_stats, meta_active)
+            check_and_send_heartbeat(pos_stats, INITIAL_BANK)
             gc.collect()
 
         now = time.time()

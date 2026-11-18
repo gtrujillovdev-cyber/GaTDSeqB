@@ -1197,3 +1197,35 @@ BTC y ETH en cuenta descendente TD (-13) con RSI profundamente sobrevendido (24-
 ### 3. Kiosk Bloomberg y Despliegue en Raspberry Pi
 - **Front-End (`templates/lite.html`):** Adaptado el motor de precios globales para la terna `BTC`, `ETH` y `HYPE`.
 - **Producción:** Servicios `bot.py` y `server.py` reiniciados limpiamente en la Raspberry Pi. Verificada la telemetría en tiempo real: 9 bots sincronizados y reportando por API en puerto 5001.
+
+---
+
+## 📅 Overhaul Cuantitativo v3.1 y Blindaje DevOps 24/7 (18 de Noviembre de 2026)
+
+### 1. Modelado de Regímenes Continuos (Sustitución de ADX Estático)
+- **Implementación Matemática (`core/indicators.py`):**
+  - Desarrollado el estimador continuo causal de régimen combinando **Kaufman Efficiency Ratio (KER)** y el **Ratio de Varianza de Rendimientos (VR)** a 5 y 20 periodos.
+  - Formulación de probabilidad logística suave $P_{\text{trend}} \in (0, 1)$ evaluable en NumPy puro con latencia < 2 ms.
+- **Lógica de Conjunción (`core/strategy.py` & `backtesting/engine.py`):**
+  - Para `MR` (Reversión a la media): Condición estricta de conjunción $ADX \le 24 \land P_{\text{trend}} \le 0.45$.
+  - Para `DUAL`: Si $ADX > 24 \lor P_{\text{trend}} \ge 0.55 \implies$ Modo Tendencial (Donchian 55 + EMA200).
+  - Simetría de salida TP en `MR` calibrada a $2.4 \times ATR$ evitando cierre prematuro asimétrico.
+
+### 2. Meta-Labeling e Inferencia Ultraligera L2 (Paradigma López de Prado)
+- **Generador Primario y Filtro Secundario:** Mantenido el Setup DeMark TD9/13 como señal primaria ($y \in \{-1, 0, 1\}$) con filtro secundario L2 binario ($z \in \{0, 1\}$).
+- **Features Vectorizadas (5 predictores):** TD Momentum, RSI Slope (5d), Log-Volume Ratio (20d), Volatilidad Realizada Normalizada ($ATR / Close$) y KER.
+- **Inferencia Edge en Pi 3B:** Exportación de coeficientes entrenados en In-Sample (70%) con embargo temporal hacia `meta_model_weights.json`. La inferencia en producción se evalúa mediante un producto escalar ultraligero `np.dot(weights, x) + bias` con umbral adaptativo $p \ge 0.52$.
+
+### 3. Optimización de Cartera y Paridad de Volatilidad
+- **Matriz de Correlación Rodante (30d):** Estimador causal de correlación de Pearson con regularización Ledoit-Wolf Shrinkage hacia la identidad.
+- **Volatility Parity & Portfolio Dampening:** Ponderación inversa a la volatilidad histórica de 30 días escalada contra la volatilidad media de la flota ($V_{30}$), amortiguando el apalancamiento global ante picos de covarianza extrema.
+
+### 4. Telemetría Institucional Bloomberg Kiosk
+- **Endpoint Cuantitativo y WebSockets (`server.py`):** Creada la ruta `/api/risk` y el evento `risk_update` transmitiendo matrices de correlación, volatilidad individual y estado de los gates.
+- **Dashboard Kiosk (`templates/lite.html`):** Inyectada la franja institucional `#quant-risk-strip` reflejando en tiempo real el estado del Meta-Gate L2, presupuesto de riesgo de flota (actualmente 2.09% / 4.50%) y subcabeceras con $P_{\text{trend}}$, KER y $V_{30}$.
+
+### 5. Blindaje DevOps y Auto-Curación 24/7 (SRE Edge)
+- **Eliminación de Conflictos de Procesos:** Purga de scripts manuales y comandos `nohup` en el `crontab` de la Raspberry Pi. Delegación unificada del ciclo de vida a `systemd` (`gatdseq-bot.service` y `gatdseq-server.service`) con reinicio preventivo diario a las 04:00 AM vía `systemctl`.
+- **Rotación Preventiva de Logs (`scripts/rotate_logs.sh`):** Rutina programada para comprimir automáticamente (`gzip`) los registros de telemetría cuando superen los 25 MB, reteniendo únicamente las últimas 3 rotaciones para proteger la memoria flash de la tarjeta MicroSD.
+- **Heartbeat Diario Automatizado (Dead Man's Snitch):** Enrutador en `bot.py` que emite un reporte matutino por Telegram a las 08:00 UTC con el estado de salud, equity consolidado y recuento de posiciones activas.
+
