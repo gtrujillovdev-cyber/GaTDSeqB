@@ -187,6 +187,30 @@ def get_data(symbol: str = "BTC/USDT", timeframe: str = "4h", limit: int = 350) 
         return None
 
 
+def _check_4h_td9_confluence(symbol: str, action: str) -> bool:
+    """
+    Comprueba si hay un TD9 reciente en 4H alineado con `action` (BUY/SELL).
+    Cubre una ventana de 3 dias (18 velas de 4H). Solo se llama desde bots 1D.
+    Falla de forma silenciosa y devuelve False ante cualquier error de red.
+    """
+    try:
+        df4 = get_data(symbol, "4h", limit=25)
+        if df4 is None or len(df4) < 5:
+            return False
+        window = df4.iloc[-19:-1]  # ultimas 18 velas cerradas (3 dias)
+        for idx in range(2, len(window)):
+            candle = window.iloc[idx]
+            candle_2ago = window.iloc[idx - 2]
+            td_buy, td_sell = check_td_signal(candle, candle_2ago)
+            if action == "BUY" and td_buy:
+                return True
+            if action == "SELL" and td_sell:
+                return True
+    except Exception as e:
+        print(f"[4H-Gate] Error comprobando confluencia 4H para {symbol}: {e}")
+    return False
+
+
 def get_fleet_position_stats(base_dir: str = ".") -> Dict[str, Any]:
     """
     Escanea state_*.json y trades_*.json para consolidar exposicion global y drawdown de flota.
@@ -1054,7 +1078,8 @@ def _enter_orthogonal(
         tp = price + (atr * tp_mult)
     else:
         sl = price + (atr * sl_mult)
-        tp = price - (atr * tp_mult)
+        # Bounded TP: ensure TP never drops to <= 0 on extreme volatility
+        tp = max(price * 0.05, price - (atr * tp_mult))
 
     base_risk = get_base_risk(symbol, timeframe)
     portfolio_dampening = 0.75 if fleet_stats[dir_key] >= 2 else 1.0
@@ -1148,7 +1173,16 @@ def _evaluate_and_enter(
     portfolio_dampening = 0.75 if fleet_stats[dir_key] >= 2 else 1.0
     conviction_boost = compute_conviction_boost(symbol, conf_score)
 
-    final_risk = base_risk * conviction_mult * portfolio_dampening * conviction_boost
+    # Gate de confluencia multi-timeframe: si el 4H también tiene un TD9 reciente
+    # en la misma dirección, se escala el riesgo base un +30%.
+    # Solo aplica en bots 1D (evita recursión en bots 4H y no existe en 1W).
+    htf_boost = 1.0
+    if timeframe == "1d" and _check_4h_td9_confluence(symbol, action):
+        htf_boost = 1.3
+        reason += " [+4H✓]"
+        print(f"📡 HTF CONFLUENCE [{bot_id}]: TD9 4H alineado → boost +30% (riesgo x{htf_boost})")
+
+    final_risk = base_risk * conviction_mult * portfolio_dampening * conviction_boost * htf_boost
     execute_trade(
         action=action,
         price=price,
