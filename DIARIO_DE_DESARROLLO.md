@@ -80,7 +80,7 @@ Este documento registra la evolución del sistema automatizado de trading cuanti
 ### Refactor \& Limpieza
 - **Limpieza del Workspace:** Eliminación masiva de archivos temporales de diseño (`.png`), borradores markdown inútiles y scripts de parcheo provisionales (`patch_topbar.py`) para mantener la limpieza del proyecto.
 - **Control de Versiones:** Actualización estricta del `.gitignore` para garantizar que los nuevos archivos de estado dinámicos (`portfolio.json`) y el registro centralizado (`bot_unified.log`) no contaminen el repositorio remoto, asegurando que estos archivos vivan exclusivamente en producción (Raspberry Pi).
-- **Documentación Externa:** Generación de resúmenes de arquitectura y exportación de esquemas (TikZ/LaTeX) en el directorio `/linkedin post` para divulgar los retos de infraestructura abordados (memoria en ARM, WebSockets, etc.).
+- **Documentación Externa:** Generación de resúmenes de arquitectura y exportación de esquemas (TikZ/LaTeX) en el directorio `/docs/linkedin_posts` para divulgar los retos de infraestructura abordados (memoria en ARM, WebSockets, etc.).
 
 ## [2026-10-08] - Implementación de Refuerzos DCA y Fix Anti-Bucle
 - **Fix (Gatling Bug):** Se corrigió la lógica de prevención de múltiples entradas en la misma vela. El bot estaba leyendo el índice `998` del DataFrame en lugar del Timestamp UNIX real, lo que causaba que tras un trade, el bot quedara bloqueado permanentemente para ese activo. Ahora evalúa el timestamp de la vela cerrada.
@@ -1050,6 +1050,62 @@ El Grid Search de 90 días no encontró ninguna señal en timeframes altos para 
   - Integración SSOT de `evaluate_orthogonal_signal()` en `core/strategy.py`, `bot.py` y `backtesting/engine.py`.
 - **Actualización de Kiosk (`server.py` + `templates/lite.html`):**
   - Grid de 6 majors líquidos (`3×2`) con decimales adaptativos para `XRP`/`LINK`, badge de régimen `ADX (RANGE/TREND)` + contexto macro `1W`, y Leaderboard para `HYBRID VANGUARD`, `TD9 RANGING` y `REGIME DUAL`.
+
+---
+
+## 📅 Gate de Confluencia Multi-Timeframe 1D+4H: Research, Validación e Implementación (18 de Noviembre de 2026)
+
+### 1. Hipótesis: ¿Deberíamos volver al 4H?
+
+Una publicación en X ([@BtcAndres](https://x.com/BtcAndres)) mostraba el 13 de Noviembre una confluencia entre TD9 en 4H y TD9 en curso en 1D sobre BTC a ~$68.235. La pregunta era si eso justificaba recuperar el timeframe 4H que descartamos en el laboratorio anterior.
+
+**Distinción clave:** el laboratorio descartó el 4H como *estrategia standalone* (esperanza negativa -$6.443 en HYB sobre 4 años). Lo que el tweet mostraba era distinto: *confluencia top-down* — el 4H completando TD9 mientras el 1D también lo hace. Esas son dos cosas diferentes.
+
+### 2. Diseño del Experimento (Familia F en Research Lab)
+
+Se añadieron dos experimentos al `run_research.py` bajo la familia `F`:
+
+- **`F1_TD9_MR_4H_GATE`:** Idéntico a `A1_TD9_RANGING` (ADX ≤ 24, SL 2.0 / TP 3.0 ATR) pero la entrada solo se dispara si en las últimas 3 jornadas el 4H también completó un TD9 en la misma dirección.
+- **`F2_TD9_MR_4H_GATE+FUND`:** F1 + filtro de funding rate.
+
+**Implementación técnica:**
+- `backtesting/indicators.py`: nueva función `inject_htf_confluence(df_1d, df_4h, lookback_days=3)` que inyecta columnas `td9_4h_buy_recent` / `td9_4h_sell_recent` en el DataFrame 1D usando `rolling(3D).max()` sobre el 4H y `merge_asof` como join.
+- `backtesting/engine.py`: nueva estrategia `TD9_MR_4H_GATE` en `_check_research_entry`, gate: si `td9_4h_buy_recent=False`, descarta la entrada.
+- Fix colateral: `merge_asof` de funding fallaba con dtype mismatch (`datetime[ms]` parquet vs `datetime[ns]` API Binance en pandas 2.x) — corregido normalizando a `datetime64[ns]` antes del merge.
+
+### 3. Resultados del Laboratorio (12 activos, 1.460 días)
+
+| Estrategia | Trades | WR% | PF | Net PnL | Sharpe | Calmar | MDD | Z |
+|---|---|---|---|---|---|---|---|---|
+| A1_TD9_RANGING (1D solo) | 145 | 49.7% | 1.45 | +$6.887 | 0.91 | 0.80 | -1.7% | +2.32 |
+| **F1_4H_GATE** | **35** | **62.9%** | **2.47** | **+$3.980** | **+1.28** | **+1.57** | **-0.5%** | **+2.50** |
+| Z_CURRENT_HYB (benchmark) | 244 | 46.3% | 1.59 | +$13.181 | 1.15 | 1.16 | -2.3% | +2.94 |
+
+F1 pasa 3 de 4 gates cualitativos (Sharpe ✅, Calmar ✅, Z=+2.50 ✅). Falla solo el gate de muestra (35 trades < 100). La selectividad del gate (~1 señal por activo cada 7 meses) impide usarlo como estrategia independiente, pero la calidad de esas señales es excepcional: WR +13 puntos y PF casi el doble respecto al 1D puro.
+
+### 4. Decisión de Implementación: Conviction Booster x1.3
+
+En lugar de añadir una estrategia nueva, se implementó como **multiplicador de tamaño de posición** en los bots 1D existentes.
+
+```
+final_risk = base_risk × conviction_mult × portfolio_dampening × conviction_boost × htf_boost
+                                                                                      ↑
+                                                                               1.0 normal / 1.3 con 4H
+```
+
+**`_check_4h_td9_confluence(symbol, action)`** en `bot.py`: descarga las últimas 25 velas 4H, escanea las 18 más recientes (3 días) buscando un TD9 en la misma dirección. Fail-safe total: cualquier error de red devuelve `False` sin interrumpir la ejecución. Solo activo en `timeframe == "1d"`.
+
+Cuando se activa, el trade aparece en logs y ledger con sufijo `[+4H✓]` para auditoría.
+
+### 5. Estado de Flota en el Momento del Despliegue (13:55 CET)
+
+| Bot | Precio | TD | RSI | ADX | Estado |
+|---|---|---|---|---|---|
+| BTC 1d | $64.947 | -13 | 24.0 | 36.7 | ADX Safety Switch activo (>32) |
+| ETH 1d | $1.824 | -13 | 26.0 | 36.4 | Monitorizando |
+| HYPE 1d | $70.02 | -16 | 38.5 | 30.7 | Monitorizando |
+
+BTC y ETH en cuenta descendente TD (-13) con RSI profundamente sobrevendido (24-26), pero ADX > 32 bloquea entradas contratendencia — comportamiento correcto. Cuando ADX baje de 32 y el TD complete el agotamiento, si el 4H también confirma, la entrada operará con el 30% extra de sizing. **Commits:** `7addb35` (research lab) · `8601522` (bot.py booster). Desplegado a Pi vía rsync + `systemctl restart`.
 
 ---
 

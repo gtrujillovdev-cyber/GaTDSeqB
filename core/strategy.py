@@ -500,20 +500,22 @@ def evaluate_orthogonal_signal(
             return None
         dc_hi_f = float(dc_hi)
         dc_lo_f = float(dc_lo)
+        sl_mult = float(params.get("atr_sl_trend", params.get("trend_sl_atr", 1.5)))
+        tp_mult = float(params.get("atr_tp_trend", params.get("trend_tp_atr", 2.5)))
         if signal_price > dc_hi_f and signal_price > ema200:
             return {
                 "action": "BUY",
                 "reason": f"DUAL Trend DC{dc_period} Buy",
-                "sl_mult": float(params.get("trend_sl_atr", 3.0)),
-                "tp_mult": float(params.get("trend_tp_atr", 30.0)),
+                "sl_mult": sl_mult,
+                "tp_mult": tp_mult,
                 "mode": "REGIME_TREND",
             }
         if signal_price < dc_lo_f and signal_price < ema200:
             return {
                 "action": "SELL",
                 "reason": f"DUAL Trend DC{dc_period} Sell",
-                "sl_mult": float(params.get("trend_sl_atr", 3.0)),
-                "tp_mult": float(params.get("trend_tp_atr", 30.0)),
+                "sl_mult": sl_mult,
+                "tp_mult": tp_mult,
                 "mode": "REGIME_TREND",
             }
         return None
