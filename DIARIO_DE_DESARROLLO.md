@@ -1053,6 +1053,67 @@ El Grid Search de 90 días no encontró ninguna señal en timeframes altos para 
 
 ---
 
+## 📅 GaTDSEQ v3.0: Modelado Continuo de Regímenes, Meta-Labeling Edge y Paridad de Riesgo de Cartera (18 de Noviembre de 2026)
+
+### 1. Contexto y Objetivos Cuantitativos
+Tras la validación de 4 años de la confluencia multi-temporal 1D+4H, se procedió a una reestructuración cuantitativa integral orientada a eliminar discontinuidades rígidas de decisión (*parameter cliffs*), dotar al sistema de inferencia secundaria ultraligera adaptada a procesadores ARMv7 (< 80 MB RSS, < 5 ms latencia) y blindar la cartera contra eventos de alta correlación sistémica entre `BTC`, `ETH` y `HYPE`.
+
+### 2. Módulos Técnicos Implementados
+
+#### A. Sustitución de ADX Estático por Estimador Continuo de Régimen (KER + Variance Ratio Causal)
+- **Problemática Resuelta:** El umbral discreto `ADX <= 24` sufría de doble retardo de suavizado RMA (Wilder) e inestabilidad de frontera (un salto $23.9 \to 24.1$ conmutaba bruscamente de reversión a la media `MR` a ruptura tendencial `DUAL`).
+- **Implementación (`core/indicators.py`):**
+  - Función `calculate_regime_indicators(close, ker_period=14, vr_lag=5, vr_window=30, ...)` vectorizada en $O(N)$ con NumPy.
+  - Combina el **Kaufman Efficiency Ratio (KER)** (inverso de la dimensión fractal local) con el **Ratio de Varianza de Lo–MacKinlay causal** sobre log-retornos.
+  - Modela una probabilidad continua $p_{\text{trend}} \in (0, 1)$ proyectada con sigmoide acotada numéricamente.
+- **Lógica de Decisión con Histéresis (`core/strategy.py`):**
+  - $p_{\text{trend}} \le 0.45 \implies$ Régimen de Rango (`REGIME_MR`) con factor de escala suave $1 - p_{\text{trend}}$.
+  - $p_{\text{trend}} \ge 0.55 \implies$ Régimen Tendencial (`REGIME_TREND`, Donchian 55 + EMA200).
+  - Zona neutra $[0.45, 0.55] \implies$ Filtro de histéresis anti-*whipsaw*; solo habilita señales TD9 con *Setup Perfection* al 50% de exposición.
+  - Fallback 100% retrocompatible a `adx_val` si el dataset no contiene `p_trend`.
+
+#### B. Arquitectura de Meta-Labeling e Inferencia Ultraligera para Raspberry Pi 3B
+- **Paradigma (Marcos López de Prado):** Desacoplamiento entre señal direccional primaria binaria ($y_t \in \{-1, 1\}$ por TD9 / Wyckoff / Donchian) y filtro secundario de probabilidad de éxito ($z_t \in \{0, 1\}$).
+- **5 Features Estacionarias y Causales (`extract_meta_features`):**
+  1. `f_regime_chop`: Micro-régimen continuo causal ($p_{\text{trend}}$ o $1 - p_{\text{trend}}$).
+  2. `f_htf_4h_aligned`: Confluencia direccional con TD9 en gráfico de 4 horas.
+  3. `f_signed_funding`: Tasa de financiación firmada normalizada (detección de *crowding* y *carry*).
+  4. `f_ema200_dist_atr`: Distancia estandarizada a la EMA200 en unidades ATR.
+  5. `f_log_rel_volume`: Logaritmo del ratio de volumen relativo vs SMA20 (simetrización de cola).
+- **Inferencia O(1) en Producción (`predict_meta_probability`):**
+  - Exportación de pesos L2 regularizados pre-escalados (`w' = w / \sigma, b' = b - \sum w\mu/\sigma`) en archivo JSON ligero (`meta_model_weights.json`).
+  - Evaluación en ARMv7 mediante producto escalar puro `np.dot(w, x) + b` en $< 0.01\text{ ms}$, sin requerir `scikit-learn` ni `PyTorch` en la Raspberry Pi.
+
+#### C. Matriz de Correlación Móvil 30D, Paridad de Volatilidad y Techo Ex-Ante de Cartera
+- **Problemática Resuelta:** Evitar apilamiento de riesgo no compensado cuando los bots de `BTC`, `ETH` y `HYPE` abren posiciones en la misma dirección durante volcados macro.
+- **Implementación (`compute_rolling_corr_and_vol`, `compute_portfolio_dampening`):**
+  - Estimación de correlaciones de 30 días sobre retornos de velas cerradas con *shrinkage* hacia *prior* cripto ($\bar{\rho} = 0.65$).
+  - Modulación dinámica del riesgo base (`get_base_risk`) según volatilidad realizada a 30 días (`target_daily_vol = 3.0%`).
+  - Factor de amortiguación $\delta_{\text{corr}} = \max(0.25, \, 1/\sqrt{1 + \gamma \cdot C_{\text{overlap}}})$ que penaliza el solapamiento direccional correlacionado sin penalizar coberturas opuestas.
+  - Control de varianza ex-ante agregada de la flota ($\sigma_{\text{fleet}} \le 4.5\%$).
+
+#### D. Validación Institucional con Deflated Sharpe Ratio (DSR)
+- **Implementación (`backtesting/research_lab.py`):**
+  - Implementación analítica de aproximación de Acklam para la inversa normal CDF (`_norm_ppf`) y cálculo del Deflated Sharpe Ratio (Bailey & López de Prado, 2014).
+  - Corrección de asimetría (*skewness*), curtosis y sesgo de selección por ensayos múltiples ($N$ *trials*).
+  - Inclusión del criterio `dsr_>=_0.95` en la suite de *Go/No-Go Gates* del laboratorio.
+
+#### E. Telemetría y Kiosko Bloomberg (Terminal UI)
+- **Backend (`server.py`):**
+  - Nuevo endpoint `/api/risk` y persistencia atómica `fleet_risk.json` (`save_fleet_risk_snapshot`).
+  - Transmisión en tiempo real vía WebSockets mediante evento `risk_update`.
+- **Front-End (`templates/lite.html`):**
+  - Banda cuantitativa superior `#quant-risk-strip` con telemetría en vivo: estado del Meta-Gate, correlaciones cruzadas 30D (`BTC/ETH`, `BTC/HYPE`, `ETH/HYPE`) y consumo del presupuesto de riesgo de flota (`sigma / 4.50%`).
+  - Etiquetas de micro-régimen dinámicas por activo (`RANGE` / `NEUTRAL` / `TREND` con porcentaje, `KER` y volatilidad 30D).
+  - Badges tácticos en posiciones activas: `CORR DAMP`, `REGIME` y `ML PROB`.
+
+### 3. Verificación y Testing
+- Suite completa de pruebas ejecutada con pytest: **31 passed** (26 tests de regresión previa + 5 pruebas nuevas en `tests/test_v3_quant_modules.py`).
+- Verificación de contratos SSOT intactos entre `bot.py` y `backtesting/engine.py`.
+- Consumo de memoria en Edge verificado: < 80 MB RSS y sin fugas.
+
+---
+
 ## 📅 Gate de Confluencia Multi-Timeframe 1D+4H: Research, Validación e Implementación (18 de Noviembre de 2026)
 
 ### 1. Hipótesis: ¿Deberíamos volver al 4H?

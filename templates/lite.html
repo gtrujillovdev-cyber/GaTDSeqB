@@ -156,9 +156,18 @@
         /* MACRO KPI BAR */
         #macro-kpi-bar {
             display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
-            background: var(--bg-panel); border: 1px solid var(--border-dim); padding: 6px 12px; margin-bottom: 8px;
+            background: var(--bg-panel); border: 1px solid var(--border-dim); padding: 6px 12px; margin-bottom: 5px;
             font-size: 11px; font-weight: bold; text-transform: uppercase;
         }
+        #quant-risk-strip {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+            background: var(--bg-card); border: 1px solid var(--border-dim); border-left: 3px solid var(--border-bright);
+            padding: 4px 12px; margin-bottom: 8px;
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+        }
+        .risk-strip-item { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+        .risk-strip-label { color: var(--text-muted); }
+        .risk-strip-val { color: var(--text-white); font-weight: 900; }
         .kpi-box { display: flex; flex-direction: column; gap: 2px; }
         .kpi-title { color: var(--text-muted); font-size: 10px; font-weight: 800; }
         .kpi-val { font-size: 14px; color: var(--text-white); font-weight: 900; }
@@ -324,6 +333,7 @@
             }
             .main-grid { grid-template-columns: 1fr; }
             #macro-kpi-bar { grid-template-columns: 1fr 1fr; }
+            #quant-risk-strip { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 768px) {
             .top-bar {
@@ -424,6 +434,26 @@
         <div class="kpi-box">
             <span class="kpi-title">FEAR & GREED</span>
             <span class="kpi-val" id="fng-index" style="color:var(--text-primary);">--</span>
+        </div>
+    </div>
+
+    <!-- QUANTITATIVE v3.0 RISK & REGIME STRIP -->
+    <div id="quant-risk-strip">
+        <div class="risk-strip-item">
+            <span class="risk-strip-label">REGIME ENGINE:</span>
+            <span class="risk-strip-val" style="color:var(--accent-green);">KER+VR CONTINUOUS</span>
+        </div>
+        <div class="risk-strip-item">
+            <span class="risk-strip-label">META-LABEL GATE:</span>
+            <span class="risk-strip-val" id="risk-meta-status" style="color:var(--text-primary);">STANDBY</span>
+        </div>
+        <div class="risk-strip-item">
+            <span class="risk-strip-label">30D CORR (B/E | B/H | E/H):</span>
+            <span class="risk-strip-val" id="risk-corr-pair">-- / -- / --</span>
+        </div>
+        <div class="risk-strip-item">
+            <span class="risk-strip-label">FLEET RISK BUDGET:</span>
+            <span class="risk-strip-val" id="risk-fleet-sigma">0.00% / 4.50%</span>
         </div>
     </div>
 
@@ -729,20 +759,30 @@
                     let wSup = hyb1d ? (hyb1d.w_tdst_sup || 0) : 0;
 
                     let wBadge = '';
-                    let adxStr = (hyb1d && hyb1d.adx !== undefined) ? `ADX ${Number(hyb1d.adx).toFixed(1)} (${Number(hyb1d.adx) <= 24 ? 'RANGE' : 'TREND'})` : '1D VALIDATED';
-                    let wSubContent = `<span style="color:var(--text-dim);">${adxStr}</span>`;
+                    let regimeStr = '1D VALIDATED';
+                    if (hyb1d && hyb1d.p_trend !== undefined) {
+                        let pt = Number(hyb1d.p_trend);
+                        let lbl = hyb1d.regime_label || (pt < 0.45 ? 'RANGE' : (pt > 0.55 ? 'TREND' : 'NEUTRAL'));
+                        let regCol = lbl === 'RANGE' ? 'var(--accent-green)' : (lbl === 'TREND' ? 'var(--text-primary)' : 'var(--text-muted)');
+                        let kerTxt = hyb1d.ker !== undefined ? ` KER:${Number(hyb1d.ker).toFixed(2)}` : '';
+                        let volTxt = hyb1d.vol_30d !== undefined ? ` V30:${Number(hyb1d.vol_30d).toFixed(1)}%` : '';
+                        regimeStr = `<span style="color:${regCol};">${lbl} ${(pt * 100).toFixed(0)}%</span>${kerTxt}${volTxt}`;
+                    } else if (hyb1d && hyb1d.adx !== undefined) {
+                        regimeStr = `ADX ${Number(hyb1d.adx).toFixed(1)} (${Number(hyb1d.adx) <= 24 ? 'RANGE' : 'TREND'})`;
+                    }
+                    let wSubContent = `<span style="color:var(--text-dim);">${regimeStr}</span>`;
                     if (wTd !== null) {
                         let wPerf = wPerfFlag ? 'PERF' : (Math.abs(wTd) >= 9 ? 'UNPERF' : '');
                         if (wTd >= 8 && wTd <= 12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--accent-red); color:var(--accent-red); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${wTd}</span>`;
                             let wTdst = wRes > 0 ? ` | TDST:$${Math.round(wRes)}` : '';
-                            wSubContent = `<span style="color:var(--accent-red);">${wPerf ? `[${wPerf}]` : ''}${wTdst}</span> | ${adxStr}`;
+                            wSubContent = `<span style="color:var(--accent-red);">${wPerf ? `[${wPerf}]` : ''}${wTdst}</span> | ${regimeStr}`;
                         } else if (wTd > 12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (+${wTd})</span>`;
                         } else if (wTd <= -8 && wTd >= -12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--accent-green); color:var(--accent-green); padding:1px 4px; font-weight:900; margin-left:6px;">1W: TD${Math.abs(wTd)}</span>`;
                             let wTdstSup = wSup > 0 ? ` | TDST:$${Math.round(wSup)}` : '';
-                            wSubContent = `<span style="color:var(--accent-green);">${wPerf ? `[${wPerf}]` : ''}${wTdstSup}</span> | ${adxStr}`;
+                            wSubContent = `<span style="color:var(--accent-green);">${wPerf ? `[${wPerf}]` : ''}${wTdstSup}</span> | ${regimeStr}`;
                         } else if (wTd < -12) {
                             wBadge = `<span style="font-size:9px; border:1px solid var(--text-dim); color:var(--text-dim); padding:1px 4px; font-weight:900; margin-left:6px;">1W: EXT (${wTd})</span>`;
                         }
@@ -837,6 +877,9 @@
                             let isBreakevenAll = true;
                             let isRunnerAny = false;
                             let hasFiniteTp = false;
+                            let minDamp = 1.0;
+                            let minMetaProb = null;
+                            let minRegScale = 1.0;
                             let primaryPos = tfActiveTrades[0].state.position || 'BUY';
                             let isBuy = primaryPos === 'BUY';
 
@@ -869,6 +912,11 @@
                                 if (st.scaled_out === true) isScaledAny = true;
                                 if (st.runner_active === true) isRunnerAny = true;
                                 if (Math.abs(sSl - sEntry) >= 0.05) isBreakevenAll = false;
+                                if (st.portfolio_dampening !== undefined) minDamp = Math.min(minDamp, Number(st.portfolio_dampening));
+                                if (st.meta_prob !== undefined && Number(st.meta_prob) < 1.0) {
+                                    minMetaProb = minMetaProb === null ? Number(st.meta_prob) : Math.min(minMetaProb, Number(st.meta_prob));
+                                }
+                                if (st.regime_scale !== undefined) minRegScale = Math.min(minRegScale, Number(st.regime_scale));
                             });
 
                             totalUnrealizedPnl += totalUnPnl;
@@ -898,6 +946,9 @@
                                     <div class="trade-badges-row">
                                         ${isBreakevenAll ? '<span class="tactical-badge shield">🛡️ BREAKEVEN SHIELD</span>' : ''}
                                         ${isScaledAny ? '<span class="tactical-badge scaled">💰 50% SCALED</span>' : ''}
+                                        ${minDamp < 0.99 ? `<span class="tactical-badge">CORR DAMP ${(minDamp * 100).toFixed(0)}%</span>` : ''}
+                                        ${minRegScale < 0.99 ? `<span class="tactical-badge">REGIME ${(minRegScale * 100).toFixed(0)}%</span>` : ''}
+                                        ${minMetaProb !== null ? `<span class="tactical-badge scaled">ML PROB ${(minMetaProb * 100).toFixed(0)}%</span>` : ''}
                                     </div>
                                     <div class="trade-stats-grid">
                                         <div class="row"><span class="label">Side</span><span class="value ${isBuy ? 'val-green' : 'val-red'}">${primaryPos}</span></div>
@@ -1003,6 +1054,47 @@
             }
         }
 
+        // QUANTITATIVE RISK TELEMETRY (CORR MATRIX & META-GATE)
+        function renderRiskTelemetry(data) {
+            if (!data) return;
+            let metaEl = document.getElementById('risk-meta-status');
+            if (metaEl) {
+                if (data.meta_active) {
+                    metaEl.innerText = 'ACTIVE (L2)';
+                    metaEl.style.color = 'var(--accent-green)';
+                } else {
+                    metaEl.innerText = 'STANDBY (PASSTHROUGH)';
+                    metaEl.style.color = 'var(--text-primary)';
+                }
+            }
+            let corrEl = document.getElementById('risk-corr-pair');
+            if (corrEl) {
+                let fmtCorr = (v) => {
+                    if (v === null || v === undefined) return '<span style="color:var(--text-dim);">--</span>';
+                    let n = Number(v);
+                    let col = n >= 0.75 ? 'var(--accent-red)' : (n >= 0.55 ? 'var(--text-primary)' : 'var(--accent-green)');
+                    return `<span style="color:${col};">${n.toFixed(2)}</span>`;
+                };
+                corrEl.innerHTML = `${fmtCorr(data.corr_btc_eth)} / ${fmtCorr(data.corr_btc_hype)} / ${fmtCorr(data.corr_eth_hype)}`;
+            }
+            let sigEl = document.getElementById('risk-fleet-sigma');
+            if (sigEl) {
+                let sig = Number(data.fleet_sigma_pct || 0);
+                let maxSig = Number(data.max_fleet_sigma_pct || 4.5);
+                let col = sig >= maxSig * 0.85 ? 'var(--accent-red)' : (sig >= maxSig * 0.55 ? 'var(--text-primary)' : 'var(--accent-green)');
+                sigEl.innerHTML = `<span style="color:${col};">${sig.toFixed(2)}%</span> / ${maxSig.toFixed(2)}%`;
+            }
+        }
+
+        async function fetchRisk() {
+            try {
+                let res = await fetch('/api/risk?_t=' + Date.now(), { cache: 'no-store' });
+                if (res.ok) {
+                    renderRiskTelemetry(await res.json());
+                }
+            } catch(e) {}
+        }
+
         // ASYNC FLEET FETCHER (Guaranteed initial render + HTTP fallback)
         async function fetchFleet() {
             try {
@@ -1034,6 +1126,7 @@
             
             Promise.all([
                 fetchFleet(),
+                fetchRisk(),
                 fetchSystem(),
                 fetchTicker(),
                 fetchFnG()
@@ -1052,6 +1145,7 @@
         function handleMobileResume() {
             if (!document.hidden && document.visibilityState === 'visible') {
                 fetchFleet();
+                fetchRisk();
                 fetchSystem();
                 fetchTicker();
                 if (typeof socket !== 'undefined' && socket && !socket.connected) {
@@ -1065,11 +1159,13 @@
 
         // POLLING INTERVALS
         setInterval(fetchFleet, 5000);   // Fallback fleet polling every 5s
+        setInterval(fetchRisk, 5000);
         setInterval(fetchSystem, 4000);
         setInterval(fetchTicker, 5000);
         setInterval(fetchFnG, 600000);
         
         fetchFleet();
+        fetchRisk();
         fetchSystem();
         fetchTicker();
         fetchFnG();
@@ -1090,6 +1186,10 @@
 
         socket.on('fleet_update', function(data) {
             renderFleet(data);
+        });
+
+        socket.on('risk_update', function(data) {
+            renderRiskTelemetry(data);
         });
 
         socket.on('force_reload', function() {

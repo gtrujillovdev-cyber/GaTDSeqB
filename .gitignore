@@ -172,6 +172,7 @@ control.json
 state_*.json
 trades_*.json
 control.json
+fleet_risk.json
 
 portfolio.json
 bot_unified.log

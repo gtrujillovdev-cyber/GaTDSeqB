@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 import pandas as pd
 
@@ -331,6 +333,51 @@ def calculate_td_sequential(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def calculate_regime_indicators(
+    close: pd.Series,
+    ker_period: int = 14,
+    vr_lag: int = 5,
+    vr_window: int = 30,
+    ker_weight: float = 0.60,
+    tau: float = 0.45,
+    beta: float = 8.0,
+) -> Tuple[pd.Series, pd.Series, pd.Series]:
+    """Calcula KER, Variance Ratio causal y p_trend continuo en (0, 1) (O(N) NumPy/Pandas)."""
+    c = close.to_numpy(dtype=np.float64)
+    n = len(c)
+    eps = 1e-12
+
+    # 1. Kaufman Efficiency Ratio (vectorizado con cumsum)
+    abs_diff = np.abs(np.diff(c, prepend=c[0])) if n > 0 else np.empty(0, dtype=np.float64)
+    csum_vol = np.cumsum(abs_diff)
+    volatility = np.full(n, np.nan, dtype=np.float64)
+    direction = np.full(n, np.nan, dtype=np.float64)
+    if n > ker_period:
+        volatility[ker_period:] = csum_vol[ker_period:] - csum_vol[:-ker_period]
+        direction[ker_period:] = np.abs(c[ker_period:] - c[:-ker_period])
+    ker = np.clip(direction / (volatility + eps), 0.0, 1.0)
+
+    # 2. Lo-MacKinlay Variance Ratio causal sobre log-retornos
+    log_ret = np.zeros(n, dtype=np.float64)
+    if n > 1:
+        log_ret[1:] = np.log(np.maximum(c[1:], eps) / np.maximum(c[:-1], eps))
+    s_ret = pd.Series(log_ret, index=close.index)
+    var_1 = s_ret.rolling(vr_window, min_periods=vr_window).var(ddof=1).to_numpy()
+    ret_q = s_ret.rolling(vr_lag, min_periods=vr_lag).sum()
+    var_q = ret_q.rolling(vr_window, min_periods=vr_window).var(ddof=1).to_numpy()
+    vr = np.where(np.isfinite(var_1) & (var_1 > eps), var_q / (vr_lag * var_1 + eps), 1.0)
+    vr_sig = 1.0 / (1.0 + np.exp(-np.clip(2.5 * (vr - 1.0), -20.0, 20.0)))
+
+    # 3. Score compuesto continuo (fallback 0.50 en barras warmup)
+    raw_score = ker_weight * np.nan_to_num(ker, nan=0.5) + (1.0 - ker_weight) * np.nan_to_num(vr_sig, nan=0.5)
+    p_trend = 1.0 / (1.0 + np.exp(-np.clip(beta * (raw_score - tau), -20.0, 20.0)))
+    return (
+        pd.Series(np.nan_to_num(ker, nan=0.5), index=close.index),
+        pd.Series(np.nan_to_num(vr, nan=1.0), index=close.index),
+        pd.Series(p_trend, index=close.index),
+    )
+
+
 def prepare_market_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Prepara todos los indicadores requeridos por la flota GaTDSEQ."""
     df = df.copy()
@@ -339,6 +386,7 @@ def prepare_market_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['rsi'] = calculate_rsi(df['close'], period=14)
     df['atr'] = calculate_atr(df, period=14)
     df['adx'] = calculate_adx(df, period=14)
+    df['ker'], df['vr'], df['p_trend'] = calculate_regime_indicators(df['close'])
     df['volume_sma'] = df['volume'].rolling(window=20).mean()
     df['sma_20'] = df['close'].rolling(window=20).mean()
     df['std_20'] = df['close'].rolling(window=20).std()

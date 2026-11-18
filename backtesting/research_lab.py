@@ -256,7 +256,83 @@ def fragility_top5_removal(round_trips: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def check_go_nogo_gates(basket_res: Dict[str, Any], wf_res: Dict[str, Any], frag_res: Dict[str, Any], slip2x_res: Dict[str, Any]) -> Dict[str, Any]:
+def _norm_cdf(x: float) -> float:
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _norm_ppf(p: float) -> float:
+    """Acklam's inverse normal CDF approximation (pure math, accuracy ~1e-9)."""
+    p = max(1e-12, min(1.0 - 1e-12, float(p)))
+    a = (-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00)
+    b = (-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01)
+    c = (-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00)
+    d = (7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00)
+    plow, phigh = 0.02425, 1.0 - 0.02425
+    if p < plow:
+        q = math.sqrt(-2.0 * math.log(p))
+        return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1.0)
+    if p <= phigh:
+        q = p - 0.5
+        r = q * q
+        return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1.0)
+    q = math.sqrt(-2.0 * math.log(1.0 - p))
+    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1.0)
+
+
+def compute_deflated_sharpe_ratio(
+    returns: List[float],
+    n_trials: int = 1,
+    trial_sharpes_var: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Calcula el Deflated Sharpe Ratio (Bailey & Lopez de Prado, 2014) corrigiendo
+    asimetria, curtosis y sesgo de seleccion por multiples pruebas (N trials).
+    """
+    arr = np.asarray(returns, dtype=np.float64)
+    arr = arr[np.isfinite(arr)]
+    t_len = len(arr)
+    if t_len < 10:
+        return {"dsr": 0.0, "sr_obs": 0.0, "sr_star": 0.0, "passed": False}
+
+    mu = float(np.mean(arr))
+    sd = float(np.std(arr, ddof=1))
+    if sd <= 1e-12:
+        return {"dsr": 0.0, "sr_obs": 0.0, "sr_star": 0.0, "passed": False}
+
+    sr_obs = mu / sd
+    centered = (arr - mu) / sd
+    skew = float(np.mean(centered ** 3))
+    kurt = float(np.mean(centered ** 4))  # Curtosis de Pearson (Normal = 3.0)
+
+    if n_trials <= 1:
+        sr_star = 0.0
+    else:
+        euler_gamma = 0.5772156649
+        v_sr = float(trial_sharpes_var) if (trial_sharpes_var is not None and trial_sharpes_var > 0) else (1.0 / max(1, t_len - 1))
+        z1 = _norm_ppf(1.0 - 1.0 / float(n_trials))
+        z2 = _norm_ppf(1.0 - 1.0 / (float(n_trials) * math.e))
+        sr_star = math.sqrt(v_sr) * ((1.0 - euler_gamma) * z1 + euler_gamma * z2)
+
+    denom_sq = max(1e-12, 1.0 - skew * sr_obs + ((kurt - 1.0) / 4.0) * (sr_obs ** 2))
+    z_stat = ((sr_obs - sr_star) * math.sqrt(max(1, t_len - 1))) / math.sqrt(denom_sq)
+    dsr = _norm_cdf(z_stat)
+    return {
+        "dsr": round(dsr, 4),
+        "sr_obs": round(sr_obs, 4),
+        "sr_star": round(sr_star, 4),
+        "skew": round(skew, 4),
+        "kurtosis": round(kurt, 4),
+        "passed": dsr >= 0.95,
+    }
+
+
+def check_go_nogo_gates(
+    basket_res: Dict[str, Any],
+    wf_res: Dict[str, Any],
+    frag_res: Dict[str, Any],
+    slip2x_res: Dict[str, Any],
+    dsr_res: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Aplica los criterios estrictos institucionales antes de pasar a dinero real."""
     eff_sharpe = max(basket_res.get("portfolio_sharpe", 0.0), basket_res.get("avg_sharpe", 0.0))
     eff_calmar = max(basket_res.get("portfolio_calmar", 0.0), basket_res.get("avg_calmar", 0.0))
@@ -269,5 +345,7 @@ def check_go_nogo_gates(basket_res: Dict[str, Any], wf_res: Dict[str, Any], frag
         "fragility_top5_survived": frag_res["survived"],
         "slippage_2x_positive": slip2x_res["net_pnl"] > 0 and slip2x_res["profit_factor"] >= 1.05,
     }
+    if dsr_res is not None:
+        gates["dsr_>=_0.95"] = bool(dsr_res.get("passed", False))
     passed = all(gates.values())
     return {"passed_all": passed, "gates": gates}

@@ -1,7 +1,10 @@
 import json
+import math
 import os
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 MIN_CONFIDENCE = 0.55
 
@@ -25,9 +28,15 @@ DEFAULT_BOT_PARAMS: Dict[str, Any] = {
     "enable_breakeven": True,
     "enable_dca_13": True,
     "enable_trailing": True,
+    # Parametros v3.0 (Regimen Continuo & Meta-Labeling)
+    "regime_mr_max_p_trend": 0.45,
+    "regime_trend_min_p_trend": 0.55,
+    "meta_threshold": 0.55,
+    "use_meta_gate": False,
 }
 
 _FLEET_PARAMS_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}, "filepath": ""}
+_META_WEIGHTS_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}, "filepath": ""}
 
 
 def normalize_symbol(symbol: str) -> str:
@@ -71,8 +80,16 @@ def get_scaled_atr(raw_atr: float, price: float, timeframe: str) -> float:
     return max(atr, floor_atr)
 
 
-def get_base_risk(symbol: str, timeframe: str) -> float:
-    """Riesgo base por timeframe con paridad de riesgo para altcoins de alta beta."""
+def get_base_risk(
+    symbol: str,
+    timeframe: str,
+    realized_vol_30d: Optional[float] = None,
+    target_daily_vol: float = 0.030,
+) -> float:
+    """
+    Riesgo base por timeframe con paridad de riesgo dinamica opcional.
+    Si realized_vol_30d es None, conserva exactamente el fallback historico (HYPE *= 0.65).
+    """
     risk_matrix = {
         "1w": 0.025,
         "1d": 0.020,
@@ -82,9 +99,32 @@ def get_base_risk(symbol: str, timeframe: str) -> float:
         "5m": 0.005,
     }
     base = risk_matrix.get(timeframe, 0.015)
+    if realized_vol_30d is not None and realized_vol_30d > 1e-6:
+        vol_scale = max(0.35, min(1.25, target_daily_vol / float(realized_vol_30d)))
+        return base * vol_scale
     if normalize_symbol(symbol) == "HYPE":
         base *= 0.65
     return base
+
+
+def _load_json_ttl(cache: Dict[str, Any], filepath: str, ttl_seconds: float) -> Dict[str, Any]:
+    now = time.time()
+    if (
+        ttl_seconds <= 0
+        or cache["filepath"] != filepath
+        or (now - cache["timestamp"]) > ttl_seconds
+    ):
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, "r") as f:
+                    cache["data"] = json.load(f)
+            except Exception:
+                cache["data"] = {}
+        else:
+            cache["data"] = {}
+        cache["timestamp"] = now
+        cache["filepath"] = filepath
+    return cache.get("data", {})
 
 
 def load_fleet_params(
@@ -98,26 +138,7 @@ def load_fleet_params(
     Carga dinamicamente los parametros de riesgo desde fleet_optimized.json con cache TTL.
     Fallback seguro a DEFAULT_BOT_PARAMS si el archivo o entrada no existen.
     """
-    global _FLEET_PARAMS_CACHE
-    now = time.time()
-
-    if (
-        ttl_seconds <= 0
-        or _FLEET_PARAMS_CACHE["filepath"] != fleet_file
-        or (now - _FLEET_PARAMS_CACHE["timestamp"]) > ttl_seconds
-    ):
-        if os.path.exists(fleet_file):
-            try:
-                with open(fleet_file, "r") as f:
-                    _FLEET_PARAMS_CACHE["data"] = json.load(f)
-            except Exception:
-                _FLEET_PARAMS_CACHE["data"] = {}
-        else:
-            _FLEET_PARAMS_CACHE["data"] = {}
-        _FLEET_PARAMS_CACHE["timestamp"] = now
-        _FLEET_PARAMS_CACHE["filepath"] = fleet_file
-
-    data = _FLEET_PARAMS_CACHE.get("data", {})
+    data = _load_json_ttl(_FLEET_PARAMS_CACHE, fleet_file, ttl_seconds)
     if not data:
         return dict(DEFAULT_BOT_PARAMS)
 
@@ -136,6 +157,186 @@ def load_fleet_params(
             return merged
 
     return dict(DEFAULT_BOT_PARAMS)
+
+
+def load_meta_weights(
+    strategy: str = "MR",
+    weights_file: str = "meta_model_weights.json",
+    ttl_seconds: float = 60.0,
+) -> Optional[Dict[str, Any]]:
+    """Carga pesos L2 pre-escalados para inferencia O(1) en ARMv7 sin scikit-learn."""
+    data = _load_json_ttl(_META_WEIGHTS_CACHE, weights_file, ttl_seconds)
+    entry = data.get(strategy.upper())
+    if not isinstance(entry, dict) or "weights" not in entry or "bias" not in entry:
+        return None
+    return entry
+
+
+def extract_meta_features(
+    closed_candle,
+    action: str,
+    ema200: float,
+    funding_rate: float = 0.0,
+    htf_4h_aligned: bool = False,
+    is_trend_mode: bool = False,
+) -> np.ndarray:
+    """Extrae 5 features estacionarias, adimensionales y causales de la vela cerrada."""
+    y_side = 1.0 if action == "BUY" else -1.0
+    p_trend = float(closed_candle.get("p_trend", 0.5))
+    if p_trend != p_trend:  # NaN guard
+        p_trend = 0.5
+    f1_regime = p_trend if is_trend_mode else (1.0 - p_trend)
+    f2_htf = 1.0 if htf_4h_aligned else 0.0
+    f3_funding = -y_side * max(-2.0, min(2.0, float(funding_rate) / 0.0005))
+
+    close_p = float(closed_candle["close"])
+    atr = max(float(closed_candle.get("atr", close_p * 0.015)), 1e-8)
+    f4_ema_dist = y_side * max(-5.0, min(5.0, (close_p - float(ema200)) / atr))
+
+    vol = float(closed_candle.get("volume", 0.0))
+    vol_sma = float(closed_candle.get("volume_sma", vol))
+    vol_ratio = (vol / vol_sma) if vol_sma > 1e-8 else 1.0
+    f5_log_vol = math.log(max(0.2, min(5.0, vol_ratio)))
+
+    return np.array([f1_regime, f2_htf, f3_funding, f4_ema_dist, f5_log_vol], dtype=np.float64)
+
+
+def predict_meta_probability(
+    features: np.ndarray,
+    meta_weights: Optional[Dict[str, Any]],
+) -> Tuple[float, float]:
+    """
+    Inferencia logistica pura en NumPy (< 0.01 ms en Pi 3B).
+    Retorna (probabilidad_exito, multiplicador_tamano).
+    """
+    if not meta_weights:
+        return 1.0, 1.0
+    w = np.asarray(meta_weights["weights"], dtype=np.float64)
+    if w.shape[0] != features.shape[0]:
+        return 1.0, 1.0
+    b = float(meta_weights["bias"])
+    thresh = float(meta_weights.get("threshold", 0.55))
+
+    logit = float(np.dot(w, features)) + b
+    prob = 1.0 / (1.0 + math.exp(-max(-20.0, min(20.0, logit))))
+    if prob < thresh:
+        return prob, 0.0
+    denom = max(1e-6, 1.0 - thresh)
+    bet_mult = max(0.25, min(1.25, 0.25 + ((prob - thresh) / denom)))
+    return prob, bet_mult
+
+
+def compute_rolling_corr_and_vol(
+    closed_dfs: Dict[str, Any],
+    window: int = 30,
+    prior_corr: float = 0.65,
+) -> Tuple[Dict[Tuple[str, str], float], Dict[str, float]]:
+    """
+    Calcula la matriz de correlacion 30d con shrinkage lineal hacia prior cripto
+    y las volatilidades diarias realizadas por activo sobre velas estrictamente cerradas.
+    """
+    returns_map: Dict[str, np.ndarray] = {}
+    vols: Dict[str, float] = {}
+
+    for sym, df in closed_dfs.items():
+        if df is None or len(df) < 5:
+            continue
+        clean = normalize_symbol(sym)
+        closes = df["close"].to_numpy(dtype=np.float64)
+        tail = closes[-(window + 1):]
+        if len(tail) < 3:
+            continue
+        rets = np.diff(np.log(np.maximum(tail, 1e-12)))
+        returns_map[clean] = rets
+        vols[clean] = float(np.std(rets, ddof=1)) if len(rets) >= 2 else 0.03
+
+    corr_matrix: Dict[Tuple[str, str], float] = {}
+    syms = sorted(returns_map.keys())
+    for i, s1 in enumerate(syms):
+        corr_matrix[(s1, s1)] = 1.0
+        r1 = returns_map[s1]
+        for s2 in syms[i + 1:]:
+            r2 = returns_map[s2]
+            n_obs = min(len(r1), len(r2))
+            if n_obs < 5:
+                rho = prior_corr
+            else:
+                a, b = r1[-n_obs:], r2[-n_obs:]
+                std_a, std_b = float(np.std(a, ddof=1)), float(np.std(b, ddof=1))
+                if std_a <= 1e-12 or std_b <= 1e-12:
+                    rho = prior_corr
+                else:
+                    sample_rho = float(np.corrcoef(a, b)[0, 1])
+                    if not math.isfinite(sample_rho):
+                        sample_rho = prior_corr
+                    lam = min(1.0, n_obs / float(window))
+                    rho = max(-0.99, min(0.99, lam * sample_rho + (1.0 - lam) * prior_corr))
+            corr_matrix[(s1, s2)] = round(rho, 4)
+            corr_matrix[(s2, s1)] = round(rho, 4)
+
+    return corr_matrix, vols
+
+
+def compute_portfolio_dampening(
+    candidate_symbol: str,
+    candidate_action: str,
+    candidate_risk_pct: float,
+    active_positions: List[Dict[str, Any]],
+    corr_matrix: Optional[Dict[Tuple[str, str], float]] = None,
+    gamma: float = 0.85,
+    max_fleet_sigma: float = 0.045,
+    ref_risk: float = 0.020,
+) -> float:
+    """
+    Calcula factor de amortiguacion [0.0, 1.0] ajustado por matriz de correlacion 30d
+    y presupuesto de riesgo agregado de flota.
+    """
+    if not active_positions:
+        return 1.0
+
+    cand_sym = normalize_symbol(candidate_symbol)
+    cand_sign = 1.0 if candidate_action == "BUY" else -1.0
+
+    def _corr(a: str, b: str) -> float:
+        if a == b:
+            return 1.0
+        if corr_matrix:
+            if (a, b) in corr_matrix:
+                return float(corr_matrix[(a, b)])
+            if (b, a) in corr_matrix:
+                return float(corr_matrix[(b, a)])
+        return 0.65
+
+    overlap = 0.0
+    for pos in active_positions:
+        p_sym = normalize_symbol(pos.get("symbol", ""))
+        p_sign = 1.0 if pos.get("position", "BUY") == "BUY" else -1.0
+        p_risk = float(pos.get("risk_pct", ref_risk))
+        rho = _corr(cand_sym, p_sym)
+        directional_corr = max(0.0, cand_sign * p_sign * rho)
+        overlap += directional_corr * (p_risk / max(1e-6, ref_risk))
+
+    damp = max(0.25, 1.0 / math.sqrt(1.0 + gamma * overlap))
+    proposed_risk = candidate_risk_pct * damp
+
+    net_risk: Dict[str, float] = {}
+    for pos in active_positions:
+        p_sym = normalize_symbol(pos.get("symbol", ""))
+        p_sign = 1.0 if pos.get("position", "BUY") == "BUY" else -1.0
+        net_risk[p_sym] = net_risk.get(p_sym, 0.0) + p_sign * float(pos.get("risk_pct", ref_risk))
+    net_risk[cand_sym] = net_risk.get(cand_sym, 0.0) + cand_sign * proposed_risk
+
+    syms = list(net_risk.keys())
+    var_p = 0.0
+    for s1 in syms:
+        for s2 in syms:
+            var_p += net_risk[s1] * net_risk[s2] * _corr(s1, s2)
+    sigma_p = math.sqrt(max(0.0, var_p))
+
+    if sigma_p > max_fleet_sigma and sigma_p > 1e-8:
+        damp *= (max_fleet_sigma / sigma_p)
+
+    return max(0.0, min(1.0, round(damp, 4)))
 
 
 def compute_weekly_context(w_df) -> Optional[Dict[str, Any]]:
@@ -309,19 +510,24 @@ def calculate_confidence_score(
             elif funding_rate < -0.0002:
                 score -= 0.05
 
-    # 7. Regimen ADX (14) (+-5%)
-    adx_val = candle.get("adx", 0.0)
-    if adx_val > 0.0:
-        if not is_counter_trend:
-            if adx_val >= 25.0:
-                score += 0.05
-            elif adx_val < 18.0:
-                score -= 0.05
-        else:
-            if adx_val < 20.0:
-                score += 0.05
-            elif adx_val >= 28.0:
-                score -= 0.05
+    # 7. Regimen Continuo p_trend (+-5%) con fallback a ADX (14)
+    p_trend = candle.get("p_trend", None)
+    if p_trend is not None and p_trend == p_trend:
+        pt = float(p_trend)
+        score += (0.05 * (2.0 * pt - 1.0)) if not is_counter_trend else (0.05 * (1.0 - 2.0 * pt))
+    else:
+        adx_val = candle.get("adx", 0.0)
+        if adx_val > 0.0:
+            if not is_counter_trend:
+                if adx_val >= 25.0:
+                    score += 0.05
+                elif adx_val < 18.0:
+                    score -= 0.05
+            else:
+                if adx_val < 20.0:
+                    score += 0.05
+                elif adx_val >= 28.0:
+                    score -= 0.05
 
     # 8. Top-Down Macro Alignment: DeMark Semanal [1W]
     if weekly_context:
@@ -431,6 +637,37 @@ def compute_conviction_boost(symbol: str, conf_score: float) -> float:
     return 1.0
 
 
+def _apply_meta_gate(
+    sig: Dict[str, Any],
+    closed_candle,
+    ema200: float,
+    params: Dict[str, Any],
+    funding_rate: float,
+    htf_4h_aligned: bool,
+    meta_weights: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    is_trend = sig["mode"] == "REGIME_TREND"
+    if not meta_weights or not bool(params.get("use_meta_gate", False)):
+        sig.setdefault("meta_prob", 1.0)
+        sig.setdefault("risk_scale", sig.get("regime_scale", 1.0))
+        return sig
+
+    feats = extract_meta_features(
+        closed_candle,
+        sig["action"],
+        ema200,
+        funding_rate=funding_rate,
+        htf_4h_aligned=htf_4h_aligned,
+        is_trend_mode=is_trend,
+    )
+    prob, bet_mult = predict_meta_probability(feats, meta_weights)
+    if bet_mult <= 0.0:
+        return None
+    sig["meta_prob"] = round(prob, 4)
+    sig["risk_scale"] = round(sig.get("regime_scale", 1.0) * bet_mult, 4)
+    return sig
+
+
 def evaluate_orthogonal_signal(
     strategy_type: str,
     closed_candle,
@@ -438,86 +675,112 @@ def evaluate_orthogonal_signal(
     adx_val: float,
     ema200: float,
     params: Dict[str, Any],
+    funding_rate: float = 0.0,
+    htf_4h_aligned: bool = False,
+    meta_weights: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    SSOT para las estrategias ortogonales validadas en laboratorio de 4 anos:
-      - MR (TD9_MR): Reversion a la media en rangos (ADX <= 24), SL 2.0 / TP 3.0 ATR.
-      - DUAL (REGIME_DUAL): ADX <= 24 -> MR TD9; ADX > 24 -> Donchian 55 + EMA200 Trend.
-    Retorna dict con action, reason, sl_mult, tp_mult, mode o None si no hay senal.
+    SSOT v3.0 para las estrategias ortogonales (MR y DUAL):
+      - Si closed_candle incluye 'p_trend' continuo (KER + Variance Ratio), aplica transicion
+        suave y banda de histeresis [0.45, 0.55].
+      - Si no incluye 'p_trend', mantiene fallback exacto por adx_val <= 24.
     """
     strat = strategy_type.upper()
     signal_price = float(closed_candle["close"])
+    p_trend_raw = closed_candle.get("p_trend", None)
+    has_continuous = p_trend_raw is not None and p_trend_raw == p_trend_raw
+
+    mr_max_pt = float(params.get("regime_mr_max_p_trend", 0.45))
+    tr_min_pt = float(params.get("regime_trend_min_p_trend", 0.55))
 
     if strat in ("MR", "TD9_MR"):
-        adx_max = float(params.get("adx_max", 24.0))
-        if adx_val > adx_max:
-            return None
+        if has_continuous:
+            p_trend = float(p_trend_raw)
+            if p_trend > mr_max_pt:
+                return None
+            p_range = 1.0 - p_trend
+            reg_scale = max(0.25, min(1.0, (p_range - 0.35) / 0.35))
+        else:
+            adx_max = float(params.get("adx_max", 24.0))
+            if adx_val > adx_max:
+                return None
+            reg_scale = 1.0
+
         td_buy, td_sell = check_td_signal(closed_candle, candle_2_ago)
-        if td_buy:
-            return {
-                "action": "BUY",
-                "reason": "MR TD9 Buy (Range)",
-                "sl_mult": float(params.get("mr_sl_atr", 2.0)),
-                "tp_mult": float(params.get("mr_tp_atr", 3.0)),
-                "mode": "REGIME_MR",
-            }
-        if td_sell:
-            return {
-                "action": "SELL",
-                "reason": "MR TD9 Sell (Range)",
-                "sl_mult": float(params.get("mr_sl_atr", 2.0)),
-                "tp_mult": float(params.get("mr_tp_atr", 3.0)),
-                "mode": "REGIME_MR",
-            }
-        return None
+        if not (td_buy or td_sell):
+            return None
+        action = "BUY" if td_buy else "SELL"
+        sig = {
+            "action": action,
+            "reason": f"MR TD9 {'Buy' if action == 'BUY' else 'Sell'} (Range)",
+            "sl_mult": float(params.get("mr_sl_atr", 2.0)),
+            "tp_mult": float(params.get("mr_tp_atr", 3.0)),
+            "mode": "REGIME_MR",
+            "regime_scale": round(reg_scale, 4),
+        }
+        return _apply_meta_gate(sig, closed_candle, ema200, params, funding_rate, htf_4h_aligned, meta_weights)
 
     if strat in ("DUAL", "REGIME_DUAL"):
-        adx_split = float(params.get("adx_split", 24.0))
-        if adx_val <= adx_split:
+        if has_continuous:
+            p_trend = float(p_trend_raw)
+            in_mr = p_trend < mr_max_pt
+            in_trend = p_trend > tr_min_pt
+            in_neutral = (not in_mr) and (not in_trend)
+        else:
+            adx_split = float(params.get("adx_split", 24.0))
+            in_mr = adx_val <= adx_split
+            in_trend = adx_val > adx_split
+            in_neutral = False
+
+        if in_mr or in_neutral:
             td_buy, td_sell = check_td_signal(closed_candle, candle_2_ago)
-            if td_buy:
-                return {
-                    "action": "BUY",
-                    "reason": "DUAL MR TD9 Buy",
+            if td_buy or td_sell:
+                if in_neutral and not bool(closed_candle.get("td_perfected", False)):
+                    return None
+                reg_scale = (
+                    0.50
+                    if in_neutral
+                    else (max(0.25, min(1.0, 1.0 - float(p_trend_raw))) if has_continuous else 1.0)
+                )
+                action = "BUY" if td_buy else "SELL"
+                sig = {
+                    "action": action,
+                    "reason": f"DUAL MR TD9 {'Buy' if action == 'BUY' else 'Sell'}",
                     "sl_mult": float(params.get("mr_sl_atr", 2.0)),
                     "tp_mult": float(params.get("mr_tp_atr", 3.0)),
                     "mode": "REGIME_MR",
+                    "regime_scale": round(reg_scale, 4),
                 }
-            if td_sell:
-                return {
-                    "action": "SELL",
-                    "reason": "DUAL MR TD9 Sell",
-                    "sl_mult": float(params.get("mr_sl_atr", 2.0)),
-                    "tp_mult": float(params.get("mr_tp_atr", 3.0)),
-                    "mode": "REGIME_MR",
-                }
+                return _apply_meta_gate(sig, closed_candle, ema200, params, funding_rate, htf_4h_aligned, meta_weights)
             return None
 
-        dc_period = int(params.get("dc_period", 55))
-        dc_hi = closed_candle.get(f"dc_high_{dc_period}")
-        dc_lo = closed_candle.get(f"dc_low_{dc_period}")
-        if dc_hi is None or dc_lo is None or dc_hi != dc_hi or dc_lo != dc_lo:
-            return None
-        dc_hi_f = float(dc_hi)
-        dc_lo_f = float(dc_lo)
-        sl_mult = float(params.get("atr_sl_trend", params.get("trend_sl_atr", 1.5)))
-        tp_mult = float(params.get("atr_tp_trend", params.get("trend_tp_atr", 2.5)))
-        if signal_price > dc_hi_f and signal_price > ema200:
-            return {
-                "action": "BUY",
-                "reason": f"DUAL Trend DC{dc_period} Buy",
+        if in_trend:
+            dc_period = int(params.get("dc_period", 55))
+            dc_hi = closed_candle.get(f"dc_high_{dc_period}")
+            dc_lo = closed_candle.get(f"dc_low_{dc_period}")
+            if dc_hi is None or dc_lo is None or dc_hi != dc_hi or dc_lo != dc_lo:
+                return None
+            dc_hi_f = float(dc_hi)
+            dc_lo_f = float(dc_lo)
+            sl_mult = float(params.get("atr_sl_trend", params.get("trend_sl_atr", 1.5)))
+            tp_mult = float(params.get("atr_tp_trend", params.get("trend_tp_atr", 2.5)))
+            reg_scale = max(0.35, min(1.0, float(p_trend_raw))) if has_continuous else 1.0
+
+            if signal_price > dc_hi_f and signal_price > ema200:
+                action = "BUY"
+            elif signal_price < dc_lo_f and signal_price < ema200:
+                action = "SELL"
+            else:
+                return None
+
+            sig = {
+                "action": action,
+                "reason": f"DUAL Trend DC{dc_period} {'Buy' if action == 'BUY' else 'Sell'}",
                 "sl_mult": sl_mult,
                 "tp_mult": tp_mult,
                 "mode": "REGIME_TREND",
+                "regime_scale": round(reg_scale, 4),
             }
-        if signal_price < dc_lo_f and signal_price < ema200:
-            return {
-                "action": "SELL",
-                "reason": f"DUAL Trend DC{dc_period} Sell",
-                "sl_mult": sl_mult,
-                "tp_mult": tp_mult,
-                "mode": "REGIME_TREND",
-            }
-        return None
+            return _apply_meta_gate(sig, closed_candle, ema200, params, funding_rate, htf_4h_aligned, meta_weights)
 
     return None

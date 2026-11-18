@@ -8,7 +8,7 @@ import json
 import os
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import ccxt
 import pandas as pd
@@ -35,11 +35,15 @@ from core.strategy import (
     compute_conviction_boost,
     compute_conviction_multiplier,
     compute_entry_levels,
+    compute_portfolio_dampening,
+    compute_rolling_corr_and_vol,
     compute_weekly_context,
     evaluate_orthogonal_signal,
     get_base_risk,
     get_scaled_atr,
     load_fleet_params,
+    load_meta_weights,
+    normalize_symbol,
 )
 
 # Defaults globales (respaldo para llamadas legacy; en produccion se pasan explicitos)
@@ -49,6 +53,8 @@ STATE_FILE = "state.json"
 TRADES_FILE = "trades.json"
 INITIAL_BANK = 10000.0
 FLEET_OPTIMIZED_FILE = "fleet_optimized.json"
+META_WEIGHTS_FILE = "meta_model_weights.json"
+FLEET_RISK_FILE = "fleet_risk.json"
 
 MAX_TOTAL_FLEET_TRADES = 6
 MAX_DIRECTIONAL_TRADES = 4
@@ -213,13 +219,14 @@ def _check_4h_td9_confluence(symbol: str, action: str) -> bool:
 
 def get_fleet_position_stats(base_dir: str = ".") -> Dict[str, Any]:
     """
-    Escanea state_*.json y trades_*.json para consolidar exposicion global y drawdown de flota.
+    Escanea state_*.json y trades_*.json para consolidar exposicion global, posiciones activas y drawdown.
     """
     stats: Dict[str, Any] = {
         "total": 0,
         "longs": 0,
         "shorts": 0,
         "by_symbol": {sym: 0 for sym in FLEET_ASSETS},
+        "active_positions": [],
         "fleet_drawdown_pct": 0.0,
     }
     for file in glob.glob(os.path.join(base_dir, "state_*.json")):
@@ -228,14 +235,24 @@ def get_fleet_position_stats(base_dir: str = ".") -> Dict[str, Any]:
                 st = json.load(f)
             if st.get("status") == "IN_TRADE":
                 stats["total"] += 1
-                if st.get("position", "BUY") == "BUY":
+                pos_side = st.get("position", "BUY")
+                if pos_side == "BUY":
                     stats["longs"] += 1
                 else:
                     stats["shorts"] += 1
                 base = os.path.basename(file)
                 parts = base.replace("state_", "").split("_")
-                if parts and parts[0] in stats["by_symbol"]:
-                    stats["by_symbol"][parts[0]] += 1
+                sym_part = parts[0] if parts else ""
+                if sym_part in stats["by_symbol"]:
+                    stats["by_symbol"][sym_part] += 1
+                risk_usd = float(st.get("risk_usd", INITIAL_BANK * 0.02))
+                stats["active_positions"].append(
+                    {
+                        "symbol": sym_part,
+                        "position": pos_side,
+                        "risk_pct": risk_usd / max(10.0, INITIAL_BANK),
+                    }
+                )
         except Exception:
             pass
 
@@ -255,6 +272,47 @@ def get_fleet_position_stats(base_dir: str = ".") -> Dict[str, Any]:
         if total_realized < 0 and total_initial > 0:
             stats["fleet_drawdown_pct"] = (abs(total_realized) / total_initial) * 100.0
     return stats
+
+
+def save_fleet_risk_snapshot(
+    corr_matrix: Dict[Tuple[str, str], float],
+    vols: Dict[str, float],
+    fleet_stats: Dict[str, Any],
+    meta_active: bool,
+    filepath: str = FLEET_RISK_FILE,
+):
+    """Persiste de forma atomica la matriz de correlacion 30d y presupuesto de riesgo para el Kiosko."""
+    active = fleet_stats.get("active_positions", [])
+    net_risk: Dict[str, float] = {}
+    for pos in active:
+        sym = normalize_symbol(pos.get("symbol", ""))
+        sign = 1.0 if pos.get("position", "BUY") == "BUY" else -1.0
+        net_risk[sym] = net_risk.get(sym, 0.0) + sign * float(pos.get("risk_pct", 0.02))
+
+    var_p = 0.0
+    for s1, r1 in net_risk.items():
+        for s2, r2 in net_risk.items():
+            rho = 1.0 if s1 == s2 else corr_matrix.get((s1, s2), corr_matrix.get((s2, s1), 0.65))
+            var_p += r1 * r2 * rho
+    sigma_p_pct = round((var_p ** 0.5) * 100.0, 2) if var_p > 0 else 0.0
+
+    payload = {
+        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "corr_btc_eth": round(float(corr_matrix.get(("BTC", "ETH"), 0.65)), 2),
+        "corr_btc_hype": round(float(corr_matrix.get(("BTC", "HYPE"), 0.65)), 2),
+        "corr_eth_hype": round(float(corr_matrix.get(("ETH", "HYPE"), 0.65)), 2),
+        "vol_30d": {k: round(float(v) * 100.0, 2) for k, v in vols.items()},
+        "fleet_sigma_pct": sigma_p_pct,
+        "max_fleet_sigma_pct": 4.5,
+        "meta_active": bool(meta_active),
+    }
+    tmp_target = f"{filepath}.tmp"
+    try:
+        with open(tmp_target, "w") as f:
+            json.dump(payload, f, allow_nan=False)
+        os.replace(tmp_target, filepath)
+    except Exception as e:
+        print(f"Error en escritura atomica de {filepath}: {e}")
 
 
 def get_fear_and_greed() -> int:
@@ -321,6 +379,9 @@ def _clear_trade_fields(state: Dict[str, Any]):
         "trade_id",
         "timestamp",
         "strategy_mode",
+        "meta_prob",
+        "portfolio_dampening",
+        "regime_scale",
     ]
     for k in trade_keys:
         state.pop(k, None)
@@ -830,6 +891,7 @@ def analyze_market(
     weekly_context: Optional[Dict[str, Any]] = None,
     symbol: Optional[str] = None,
     timeframe: Optional[str] = None,
+    portfolio_context: Optional[Dict[str, Any]] = None,
 ):
     sym = symbol or bot_id.split("_")[0] or SYMBOL
     tf = timeframe or TIMEFRAME
@@ -871,6 +933,13 @@ def analyze_market(
     td_perf = bool(closed_candle.get("td_perfected", False))
     tdst_res_val = round(float(closed_candle.get("tdst_res", 0.0)), 2)
     tdst_sup_val = round(float(closed_candle.get("tdst_sup", 0.0)), 2)
+    p_trend_val = round(float(closed_candle.get("p_trend", 0.5)), 3)
+    ker_val = round(float(closed_candle.get("ker", 0.5)), 3)
+    vr_val = round(float(closed_candle.get("vr", 1.0)), 3)
+    regime_label = "RANGE" if p_trend_val < 0.45 else ("TREND" if p_trend_val > 0.55 else "NEUTRAL")
+    vols_map = (portfolio_context or {}).get("vols", {})
+    vol_30d = vols_map.get(normalize_symbol(sym))
+    meta_weights = load_meta_weights(strategy_type, weights_file=META_WEIGHTS_FILE)
 
     state_dirty = False
     updates = {
@@ -882,7 +951,14 @@ def analyze_market(
         "tdst_res": tdst_res_val,
         "tdst_sup": tdst_sup_val,
         "adx": round(float(closed_candle.get("adx", 0.0)), 1),
+        "p_trend": p_trend_val,
+        "ker": ker_val,
+        "vr": vr_val,
+        "regime_label": regime_label,
+        "meta_active": meta_weights is not None,
     }
+    if vol_30d is not None:
+        updates["vol_30d"] = round(float(vol_30d) * 100.0, 2)
     if weekly_context:
         updates["w_td_count"] = int(weekly_context.get("td_count", 0))
         updates["w_td_perfected"] = bool(weekly_context.get("td_perfected", False))
@@ -899,7 +975,7 @@ def analyze_market(
         adx_log = float(closed_candle.get("adx", 0.0))
         print(
             f"[{bot_id}] {sym} [{tf}] [{strategy_type}] | Price: ${current_live_price:,.2f} | "
-            f"TD: {count} | RSI: {rsi:.1f} | ADX: {adx_log:.1f} | EMA200: ${ema200:,.2f}"
+            f"TD: {count} | RSI: {rsi:.1f} | ADX: {adx_log:.1f} | P_TREND: {p_trend_val:.2f} ({regime_label}) | EMA200: ${ema200:,.2f}"
         )
 
     if state.get("status") == "IDLE":
@@ -913,7 +989,32 @@ def analyze_market(
         if strategy_type in ("MR", "DUAL"):
             adx_val = float(closed_candle.get("adx", 0.0))
             bot_params = get_bot_params(sym, tf, strategy_type)
-            sig = evaluate_orthogonal_signal(strategy_type, closed_candle, df.iloc[-3], adx_val, ema200, bot_params)
+            funding_val = get_funding_rate(sym) if meta_weights else 0.0
+            htf_aligned = False
+            sig = evaluate_orthogonal_signal(
+                strategy_type,
+                closed_candle,
+                df.iloc[-3],
+                adx_val,
+                ema200,
+                bot_params,
+                funding_rate=funding_val,
+                htf_4h_aligned=htf_aligned,
+                meta_weights=None,
+            )
+            if sig is not None and meta_weights and bool(bot_params.get("use_meta_gate", False)):
+                htf_aligned = _check_4h_td9_confluence(sym, sig["action"])
+                sig = evaluate_orthogonal_signal(
+                    strategy_type,
+                    closed_candle,
+                    df.iloc[-3],
+                    adx_val,
+                    ema200,
+                    bot_params,
+                    funding_rate=funding_val,
+                    htf_4h_aligned=htf_aligned,
+                    meta_weights=meta_weights,
+                )
             if sig is not None:
                 _enter_orthogonal(
                     sig=sig,
@@ -926,6 +1027,7 @@ def analyze_market(
                     state=state,
                     state_file=s_file,
                     trades_file=t_file,
+                    portfolio_context=portfolio_context,
                 )
             return
 
@@ -993,6 +1095,7 @@ def analyze_market(
                 state=state,
                 state_file=s_file,
                 trades_file=t_file,
+                portfolio_context=portfolio_context,
             )
         elif trigger_sell and rsi > 30:
             _evaluate_and_enter(
@@ -1013,6 +1116,7 @@ def analyze_market(
                 state=state,
                 state_file=s_file,
                 trades_file=t_file,
+                portfolio_context=portfolio_context,
             )
 
     elif state.get("status") == "IN_TRADE":
@@ -1052,6 +1156,7 @@ def _enter_orthogonal(
     state: Dict[str, Any],
     state_file: str,
     trades_file: str,
+    portfolio_context: Optional[Dict[str, Any]] = None,
 ):
     action = sig["action"]
     fleet_stats = get_fleet_position_stats()
@@ -1081,9 +1186,24 @@ def _enter_orthogonal(
         # Bounded TP: ensure TP never drops to <= 0 on extreme volatility
         tp = max(price * 0.05, price - (atr * tp_mult))
 
-    base_risk = get_base_risk(symbol, timeframe)
-    portfolio_dampening = 0.75 if fleet_stats[dir_key] >= 2 else 1.0
-    final_risk = base_risk * portfolio_dampening
+    p_ctx = portfolio_context or {}
+    vol_30d = p_ctx.get("vols", {}).get(normalize_symbol(symbol))
+    corr_matrix = p_ctx.get("corr_matrix")
+    base_risk = get_base_risk(symbol, timeframe, realized_vol_30d=vol_30d)
+    risk_scale = float(sig.get("risk_scale", sig.get("regime_scale", 1.0)))
+    cand_risk = base_risk * risk_scale
+    portfolio_dampening = compute_portfolio_dampening(
+        symbol, action, cand_risk, fleet_stats.get("active_positions", []), corr_matrix=corr_matrix
+    )
+    final_risk = cand_risk * portfolio_dampening
+    if final_risk <= 1e-6:
+        print(f"🛑 PORTFOLIO RISK BUDGET [{bot_id}]: Ex-ante sigma excedido.")
+        return
+
+    state["portfolio_dampening"] = round(portfolio_dampening, 2)
+    state["regime_scale"] = round(float(sig.get("regime_scale", 1.0)), 2)
+    if "meta_prob" in sig:
+        state["meta_prob"] = round(float(sig["meta_prob"]), 2)
 
     execute_trade(
         action=action,
@@ -1121,6 +1241,7 @@ def _evaluate_and_enter(
     state: Dict[str, Any],
     state_file: str,
     trades_file: str,
+    portfolio_context: Optional[Dict[str, Any]] = None,
 ):
     is_counter_trend = (price < ema200) if action == "BUY" else (price > ema200)
     fng_val = get_fear_and_greed()
@@ -1168,9 +1289,11 @@ def _evaluate_and_enter(
     sl, tp, tag, _, _ = compute_entry_levels(action, signal_reason, price, atr, is_counter_trend, bot_params)
     reason = f"{signal_reason} ({tag}) [Conf: {conf_score:.2f} | F&G: {fng_val}]" if "TD9" in signal_reason else f"{signal_reason} + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 
-    base_risk = get_base_risk(symbol, timeframe)
+    p_ctx = portfolio_context or {}
+    vol_30d = p_ctx.get("vols", {}).get(normalize_symbol(symbol))
+    corr_matrix = p_ctx.get("corr_matrix")
+    base_risk = get_base_risk(symbol, timeframe, realized_vol_30d=vol_30d)
     conviction_mult = compute_conviction_multiplier(action, rsi)
-    portfolio_dampening = 0.75 if fleet_stats[dir_key] >= 2 else 1.0
     conviction_boost = compute_conviction_boost(symbol, conf_score)
 
     # Gate de confluencia multi-timeframe: si el 4H también tiene un TD9 reciente
@@ -1182,7 +1305,16 @@ def _evaluate_and_enter(
         reason += " [+4H✓]"
         print(f"📡 HTF CONFLUENCE [{bot_id}]: TD9 4H alineado → boost +30% (riesgo x{htf_boost})")
 
-    final_risk = base_risk * conviction_mult * portfolio_dampening * conviction_boost * htf_boost
+    cand_risk = base_risk * conviction_mult * conviction_boost * htf_boost
+    portfolio_dampening = compute_portfolio_dampening(
+        symbol, action, cand_risk, fleet_stats.get("active_positions", []), corr_matrix=corr_matrix
+    )
+    final_risk = cand_risk * portfolio_dampening
+    if final_risk <= 1e-6:
+        print(f"🛑 PORTFOLIO RISK BUDGET [{bot_id}]: Ex-ante sigma excedido.")
+        return
+
+    state["portfolio_dampening"] = round(portfolio_dampening, 2)
     execute_trade(
         action=action,
         price=price,
@@ -1256,6 +1388,11 @@ def main():
                 except Exception as e:
                     print(f"Error fetching {symbol} ({tf}): {e}")
 
+            # Matriz de correlacion 30d y volatilidad realizada sobre velas estrictamente cerradas
+            closed_map = {sym: d.iloc[:-1] for sym, d in df_cache.items() if len(d) >= 5}
+            corr_matrix, vols = compute_rolling_corr_and_vol(closed_map, window=30)
+            portfolio_ctx = {"corr_matrix": corr_matrix, "vols": vols}
+
             for bot in bots:
                 symbol = bot["symbol"]
                 if symbol not in df_cache:
@@ -1269,9 +1406,13 @@ def main():
                         weekly_context_cache.get(symbol),
                         symbol=symbol,
                         timeframe=tf,
+                        portfolio_context=portfolio_ctx,
                     )
                 except Exception as e:
                     print(f"Error analizando {bot['id']} [{tf}]: {e}")
+
+            meta_active = os.path.exists(META_WEIGHTS_FILE)
+            save_fleet_risk_snapshot(corr_matrix, vols, get_fleet_position_stats(), meta_active)
             gc.collect()
 
         now = time.time()

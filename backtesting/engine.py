@@ -15,6 +15,7 @@ from core.strategy import (
     get_base_risk,
     get_scaled_atr,
     load_fleet_params,
+    load_meta_weights,
     normalize_symbol,
 )
 
@@ -441,15 +442,45 @@ class BacktestEngine:
                 action = "SELL"
 
         elif self.strategy in ("MR", "DUAL", "REGIME_DUAL"):
+            htf_buy = bool(closed_candle.get("td9_4h_buy_recent", False))
+            htf_sell = bool(closed_candle.get("td9_4h_sell_recent", False))
+            meta_weights = load_meta_weights(self.strategy) if self.params.get("use_meta_gate", False) else None
+            # Primera pasada para conocer direccion de la senal primaria, o evaluacion directa con htf
             sig = evaluate_orthogonal_signal(
-                self.strategy, closed_candle, df.iloc[i - 3], adx_val, ema200, self.params
+                self.strategy,
+                closed_candle,
+                df.iloc[i - 3],
+                adx_val,
+                ema200,
+                self.params,
+                funding_rate=funding_val,
+                htf_4h_aligned=htf_buy or htf_sell,
+                meta_weights=meta_weights,
             )
             if sig is None:
                 return
+            # Verificacion direccional exacta de confluencia 4H si se usa meta_weights
+            if meta_weights and self.params.get("use_meta_gate", False):
+                dir_aligned = htf_buy if sig["action"] == "BUY" else htf_sell
+                if dir_aligned != (htf_buy or htf_sell):
+                    sig = evaluate_orthogonal_signal(
+                        self.strategy,
+                        closed_candle,
+                        df.iloc[i - 3],
+                        adx_val,
+                        ema200,
+                        self.params,
+                        funding_rate=funding_val,
+                        htf_4h_aligned=dir_aligned,
+                        meta_weights=meta_weights,
+                    )
+                    if sig is None:
+                        return
             action = sig["action"]
             reason = f"{sig['mode']}:{sig['reason']}"
             sl_mult = sig["sl_mult"]
             tp_mult = sig["tp_mult"]
+            risk_pct *= float(sig.get("risk_scale", 1.0))
 
         if action is None:
             return

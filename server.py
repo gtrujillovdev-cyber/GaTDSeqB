@@ -246,9 +246,38 @@ def get_fleet_data(base_dir: str = ".") -> dict:
     return fleet
 
 
+def get_fleet_risk(base_dir: str = BASE_DIR) -> dict:
+    risk_file = os.path.join(base_dir, "fleet_risk.json")
+    meta_active = os.path.exists(os.path.join(base_dir, "meta_model_weights.json"))
+    defaults = {
+        "corr_btc_eth": None,
+        "corr_btc_hype": None,
+        "corr_eth_hype": None,
+        "vol_30d": {},
+        "fleet_sigma_pct": 0.0,
+        "max_fleet_sigma_pct": 4.5,
+        "meta_active": meta_active,
+        "updated_at": None,
+    }
+    if os.path.exists(risk_file):
+        try:
+            with open(risk_file, "r") as f:
+                data = json.load(f)
+            defaults.update(data)
+            defaults["meta_active"] = bool(data.get("meta_active", meta_active))
+        except Exception:
+            pass
+    return defaults
+
+
 @app.route("/api/fleet")
 def api_fleet():
     return jsonify(get_fleet_data(base_dir=BASE_DIR))
+
+
+@app.route("/api/risk")
+def api_risk():
+    return jsonify(get_fleet_risk(base_dir=BASE_DIR))
 
 
 @app.route("/api/ticker")
@@ -326,6 +355,7 @@ def handle_connect():
     global clients
     clients += 1
     emit("fleet_update", get_fleet_data(base_dir=BASE_DIR))
+    emit("risk_update", get_fleet_risk(base_dir=BASE_DIR))
     for line in terminal_buffer:
         emit("terminal_log", {"msg": line})
 
@@ -367,6 +397,7 @@ def websocket_monitor_loop():
         if changed or (now_ts - last_broadcast_time > 10):
             try:
                 socketio.emit("fleet_update", get_fleet_data(base_dir=BASE_DIR))
+                socketio.emit("risk_update", get_fleet_risk(base_dir=BASE_DIR))
             except Exception:
                 pass
             last_broadcast_time = now_ts
