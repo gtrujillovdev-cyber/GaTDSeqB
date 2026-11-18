@@ -14,6 +14,7 @@ from core.strategy import (
     DEFAULT_BOT_PARAMS,
     compute_portfolio_dampening,
     compute_rolling_corr_and_vol,
+    evaluate_hyb_meta_gate,
     evaluate_orthogonal_signal,
     extract_meta_features,
     get_base_risk,
@@ -44,29 +45,42 @@ class TestV3QuantModules(unittest.TestCase):
         self.assertAlmostEqual(float(pt_c.iloc[-11]), float(pt_mod.iloc[-11]), places=12)
 
     def test_continuous_regime_orthogonal_signal_and_hysteresis(self):
-        """MR opera en p_trend<=0.45; DUAL exige td_perfected en zona neutra [0.45, 0.55]."""
+        """MR exige conjuncion ADX<=24 y p_trend<=0.45; DUAL aplica filtro neutro en p_trend>0.45 con ADX<=24."""
         c2 = pd.Series({"close": 100.0, "high": 102.0, "low": 98.0})
         closed_mr = pd.Series(
             {"close": 105.0, "td_count": -9, "td_perfected": True, "p_trend": 0.25, "dc_high_55": 110.0, "dc_low_55": 90.0}
         )
-        sig_mr = evaluate_orthogonal_signal("MR", closed_mr, c2, 30.0, 100.0, DEFAULT_BOT_PARAMS)
+        # Con ADX<=24 y p_trend<=0.45 -> entra MR con TP 2.4 ATR
+        sig_mr = evaluate_orthogonal_signal("MR", closed_mr, c2, 18.0, 100.0, DEFAULT_BOT_PARAMS)
         self.assertIsNotNone(sig_mr)
         self.assertEqual(sig_mr["mode"], "REGIME_MR")
+        self.assertAlmostEqual(sig_mr["tp_mult"], 2.4, places=2)
         self.assertGreater(sig_mr["regime_scale"], 0.8)
+
+        # Con ADX>24 -> el crash-guard bloquea MR aunque p_trend sea bajo
+        self.assertIsNone(evaluate_orthogonal_signal("MR", closed_mr, c2, 30.0, 100.0, DEFAULT_BOT_PARAMS))
 
         closed_neutral_unperf = pd.Series(
             {"close": 105.0, "td_count": -9, "td_perfected": False, "p_trend": 0.50, "dc_high_55": 110.0, "dc_low_55": 90.0}
         )
-        # c2 tiene close=100 < 105, asi que check_td_signal seria True si no fuera por el filtro neutro unperfected
         self.assertIsNone(evaluate_orthogonal_signal("DUAL", closed_neutral_unperf, c2, 20.0, 100.0, DEFAULT_BOT_PARAMS))
 
         closed_trend = pd.Series(
             {"close": 115.0, "td_count": 3, "td_perfected": False, "p_trend": 0.78, "dc_high_55": 110.0, "dc_low_55": 90.0}
         )
-        sig_tr = evaluate_orthogonal_signal("DUAL", closed_trend, c2, 18.0, 100.0, DEFAULT_BOT_PARAMS)
+        sig_tr = evaluate_orthogonal_signal("DUAL", closed_trend, c2, 28.0, 100.0, DEFAULT_BOT_PARAMS)
         self.assertIsNotNone(sig_tr)
         self.assertEqual(sig_tr["mode"], "REGIME_TREND")
         self.assertEqual(sig_tr["action"], "BUY")
+
+        # Verificar SSOT evaluate_hyb_meta_gate
+        bad_w = {"weights": [0.0, 0.0, 0.0, 0.0, 0.0], "bias": -2.0, "threshold": 0.55}
+        ok_pass, _, mult_pass = evaluate_hyb_meta_gate(closed_mr, "BUY", 100.0, 0.0, False, False, DEFAULT_BOT_PARAMS, None)
+        self.assertTrue(ok_pass)
+        self.assertEqual(mult_pass, 1.0)
+        ok_blk, _, mult_blk = evaluate_hyb_meta_gate(closed_mr, "BUY", 100.0, 0.0, False, False, DEFAULT_BOT_PARAMS, bad_w)
+        self.assertFalse(ok_blk)
+        self.assertEqual(mult_blk, 0.0)
 
     def test_meta_labeling_inference_and_gate(self):
         """Meta-Labeling L2 debe filtrar senales de baja probabilidad y escalar las de alta."""

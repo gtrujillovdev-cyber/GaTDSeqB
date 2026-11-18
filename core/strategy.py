@@ -28,11 +28,14 @@ DEFAULT_BOT_PARAMS: Dict[str, Any] = {
     "enable_breakeven": True,
     "enable_dca_13": True,
     "enable_trailing": True,
-    # Parametros v3.0 (Regimen Continuo & Meta-Labeling)
+    # Parametros v3.1 (Regimen Conjunction ADX+p_trend & Meta-Labeling)
+    "mr_sl_atr": 2.0,
+    "mr_tp_atr": 2.4,
     "regime_mr_max_p_trend": 0.45,
     "regime_trend_min_p_trend": 0.55,
     "meta_threshold": 0.55,
     "use_meta_gate": False,
+    "use_hyb_meta_gate": True,
 }
 
 _FLEET_PARAMS_CACHE: Dict[str, Any] = {"timestamp": 0.0, "data": {}, "filepath": ""}
@@ -458,16 +461,25 @@ def calculate_confidence_score(
     score += max(-0.15, min(0.25, mom_score))
 
     # 3. Volumen Institucional vs SMA 20 (25%)
+    # Evidencia empirica 4a: en contratendencia (TD9 fade), volumen explosivo >=1.5x es ruptura adversa
     vol = candle.get("volume", 0.0)
     avg_vol = candle.get("volume_sma", vol)
     if avg_vol > 0:
         vol_ratio = vol / avg_vol
-        if vol_ratio >= 1.5:
-            score += 0.25
-        elif vol_ratio >= 1.0:
-            score += 0.15
+        if is_counter_trend:
+            if vol_ratio >= 1.5:
+                score += 0.05
+            elif 0.8 <= vol_ratio < 1.3:
+                score += 0.20
+            else:
+                score += 0.10
         else:
-            score += 0.05
+            if vol_ratio >= 1.5:
+                score += 0.25
+            elif vol_ratio >= 1.0:
+                score += 0.15
+            else:
+                score += 0.05
 
     # 4. Tendencia Macro EMA 200 (20%)
     score += 0.05 if is_counter_trend else 0.20
@@ -510,24 +522,26 @@ def calculate_confidence_score(
             elif funding_rate < -0.0002:
                 score -= 0.05
 
-    # 7. Regimen Continuo p_trend (+-5%) con fallback a ADX (14)
+    # 7. Regimen Hibrido ADX (14) + p_trend Continuo (+-5%)
+    adx_val = float(candle.get("adx", 0.0) or 0.0)
     p_trend = candle.get("p_trend", None)
+    if adx_val > 0.0:
+        if not is_counter_trend:
+            if adx_val >= 25.0:
+                score += 0.05
+            elif adx_val < 18.0:
+                score -= 0.05
+        else:
+            if adx_val < 20.0:
+                score += 0.05
+            elif adx_val >= 28.0:
+                score -= 0.05
     if p_trend is not None and p_trend == p_trend:
         pt = float(p_trend)
-        score += (0.05 * (2.0 * pt - 1.0)) if not is_counter_trend else (0.05 * (1.0 - 2.0 * pt))
-    else:
-        adx_val = candle.get("adx", 0.0)
-        if adx_val > 0.0:
-            if not is_counter_trend:
-                if adx_val >= 25.0:
-                    score += 0.05
-                elif adx_val < 18.0:
-                    score -= 0.05
-            else:
-                if adx_val < 20.0:
-                    score += 0.05
-                elif adx_val >= 28.0:
-                    score -= 0.05
+        if not is_counter_trend and pt >= 0.55:
+            score += 0.03
+        elif is_counter_trend and pt > 0.55:
+            score -= 0.03
 
     # 8. Top-Down Macro Alignment: DeMark Semanal [1W]
     if weekly_context:
@@ -637,6 +651,36 @@ def compute_conviction_boost(symbol: str, conf_score: float) -> float:
     return 1.0
 
 
+def evaluate_hyb_meta_gate(
+    closed_candle,
+    action: str,
+    ema200: float,
+    funding_rate: float,
+    htf_4h_aligned: bool,
+    is_counter_trend: bool,
+    params: Dict[str, Any],
+    meta_weights: Optional[Dict[str, Any]] = None,
+) -> Tuple[bool, float, float]:
+    """
+    SSOT Meta-Gate L2 para estrategia HYB.
+    Si meta_weights es None o use_hyb_meta_gate es False, deja pasar con multiplicador 1.0.
+    """
+    if not meta_weights or not bool(params.get("use_hyb_meta_gate", True)):
+        return True, 1.0, 1.0
+    feats = extract_meta_features(
+        closed_candle,
+        action,
+        ema200,
+        funding_rate=funding_rate,
+        htf_4h_aligned=htf_4h_aligned,
+        is_trend_mode=(not is_counter_trend),
+    )
+    prob, bet_mult = predict_meta_probability(feats, meta_weights)
+    if bet_mult <= 0.0:
+        return False, round(prob, 4), 0.0
+    return True, round(prob, 4), round(bet_mult, 4)
+
+
 def _apply_meta_gate(
     sig: Dict[str, Any],
     closed_candle,
@@ -694,16 +738,16 @@ def evaluate_orthogonal_signal(
     tr_min_pt = float(params.get("regime_trend_min_p_trend", 0.55))
 
     if strat in ("MR", "TD9_MR"):
+        adx_max = float(params.get("adx_max", 24.0))
+        if adx_val > adx_max:
+            return None
         if has_continuous:
             p_trend = float(p_trend_raw)
             if p_trend > mr_max_pt:
                 return None
             p_range = 1.0 - p_trend
-            reg_scale = max(0.25, min(1.0, (p_range - 0.35) / 0.35))
+            reg_scale = max(0.35, min(1.0, (p_range - 0.35) / 0.35))
         else:
-            adx_max = float(params.get("adx_max", 24.0))
-            if adx_val > adx_max:
-                return None
             reg_scale = 1.0
 
         td_buy, td_sell = check_td_signal(closed_candle, candle_2_ago)
@@ -714,20 +758,20 @@ def evaluate_orthogonal_signal(
             "action": action,
             "reason": f"MR TD9 {'Buy' if action == 'BUY' else 'Sell'} (Range)",
             "sl_mult": float(params.get("mr_sl_atr", 2.0)),
-            "tp_mult": float(params.get("mr_tp_atr", 3.0)),
+            "tp_mult": float(params.get("mr_tp_atr", 2.4)),
             "mode": "REGIME_MR",
             "regime_scale": round(reg_scale, 4),
         }
         return _apply_meta_gate(sig, closed_candle, ema200, params, funding_rate, htf_4h_aligned, meta_weights)
 
     if strat in ("DUAL", "REGIME_DUAL"):
+        adx_split = float(params.get("adx_split", 24.0))
         if has_continuous:
             p_trend = float(p_trend_raw)
-            in_mr = p_trend < mr_max_pt
-            in_trend = p_trend > tr_min_pt
-            in_neutral = (not in_mr) and (not in_trend)
+            in_mr = (adx_val <= adx_split) and (p_trend <= mr_max_pt)
+            in_neutral = (adx_val <= adx_split) and (p_trend > mr_max_pt)
+            in_trend = adx_val > adx_split
         else:
-            adx_split = float(params.get("adx_split", 24.0))
             in_mr = adx_val <= adx_split
             in_trend = adx_val > adx_split
             in_neutral = False
@@ -740,14 +784,14 @@ def evaluate_orthogonal_signal(
                 reg_scale = (
                     0.50
                     if in_neutral
-                    else (max(0.25, min(1.0, 1.0 - float(p_trend_raw))) if has_continuous else 1.0)
+                    else (max(0.35, min(1.0, 1.0 - float(p_trend_raw))) if has_continuous else 1.0)
                 )
                 action = "BUY" if td_buy else "SELL"
                 sig = {
                     "action": action,
                     "reason": f"DUAL MR TD9 {'Buy' if action == 'BUY' else 'Sell'}",
                     "sl_mult": float(params.get("mr_sl_atr", 2.0)),
-                    "tp_mult": float(params.get("mr_tp_atr", 3.0)),
+                    "tp_mult": float(params.get("mr_tp_atr", 2.4)),
                     "mode": "REGIME_MR",
                     "regime_scale": round(reg_scale, 4),
                 }
@@ -764,7 +808,7 @@ def evaluate_orthogonal_signal(
             dc_lo_f = float(dc_lo)
             sl_mult = float(params.get("atr_sl_trend", params.get("trend_sl_atr", 1.5)))
             tp_mult = float(params.get("atr_tp_trend", params.get("trend_tp_atr", 2.5)))
-            reg_scale = max(0.35, min(1.0, float(p_trend_raw))) if has_continuous else 1.0
+            reg_scale = max(0.50, min(1.0, float(p_trend_raw))) if has_continuous else 1.0
 
             if signal_price > dc_hi_f and signal_price > ema200:
                 action = "BUY"

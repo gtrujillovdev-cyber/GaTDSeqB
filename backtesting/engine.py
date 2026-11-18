@@ -11,6 +11,7 @@ from core.strategy import (
     compute_conviction_multiplier,
     compute_entry_levels,
     compute_weekly_context,
+    evaluate_hyb_meta_gate,
     evaluate_orthogonal_signal,
     get_base_risk,
     get_scaled_atr,
@@ -337,6 +338,13 @@ class BacktestEngine:
                 closed_candle, "BUY", divergence, is_counter, funding_rate=funding_val, weekly_context=weekly_ctx
             )
             if conf >= req_conf:
+                hyb_weights = load_meta_weights("HYB") if self.strategy == "HYB" and self.params.get("use_hyb_meta_gate", True) else None
+                htf_buy = bool(closed_candle.get("td9_4h_buy_recent", False))
+                allowed, _, meta_mult = evaluate_hyb_meta_gate(
+                    closed_candle, "BUY", ema200, funding_val, htf_buy, is_counter, self.params, hyb_weights
+                )
+                if not allowed:
+                    return
                 entry_price = self._apply_slippage(raw_open_price, "BUY")
                 sl, tp, tag, _, _ = compute_entry_levels(
                     "BUY", reason, entry_price, atr, is_counter, self.params
@@ -344,7 +352,7 @@ class BacktestEngine:
                 full_reason = f"{reason} ({tag})" if "TD9" in reason else f"{reason} + RSI {rsi:.1f}"
                 conviction = compute_conviction_multiplier("BUY", rsi)
                 boost = compute_conviction_boost(self.clean_symbol, conf)
-                final_risk = self._get_base_risk() * conviction * boost
+                final_risk = self._get_base_risk() * conviction * boost * meta_mult
                 self._open_trade("BUY", entry_price, sl, tp, full_reason, live_candle["datetime"], final_risk, atr)
 
         elif trigger_sell and rsi > 30:
@@ -359,6 +367,13 @@ class BacktestEngine:
                 closed_candle, "SELL", divergence, is_counter, funding_rate=funding_val, weekly_context=weekly_ctx
             )
             if conf >= req_conf:
+                hyb_weights = load_meta_weights("HYB") if self.strategy == "HYB" and self.params.get("use_hyb_meta_gate", True) else None
+                htf_sell = bool(closed_candle.get("td9_4h_sell_recent", False))
+                allowed, _, meta_mult = evaluate_hyb_meta_gate(
+                    closed_candle, "SELL", ema200, funding_val, htf_sell, is_counter, self.params, hyb_weights
+                )
+                if not allowed:
+                    return
                 entry_price = self._apply_slippage(raw_open_price, "SELL")
                 sl, tp, tag, _, _ = compute_entry_levels(
                     "SELL", reason, entry_price, atr, is_counter, self.params
@@ -366,7 +381,7 @@ class BacktestEngine:
                 full_reason = f"{reason} ({tag})" if "TD9" in reason else f"{reason} + RSI {rsi:.1f}"
                 conviction = compute_conviction_multiplier("SELL", rsi)
                 boost = compute_conviction_boost(self.clean_symbol, conf)
-                final_risk = self._get_base_risk() * conviction * boost
+                final_risk = self._get_base_risk() * conviction * boost * meta_mult
                 self._open_trade("SELL", entry_price, sl, tp, full_reason, live_candle["datetime"], final_risk, atr)
 
     def _check_research_entry(self, closed_candle, live_candle, df, i, atr, adx_val, funding_val):

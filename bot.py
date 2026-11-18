@@ -38,6 +38,7 @@ from core.strategy import (
     compute_portfolio_dampening,
     compute_rolling_corr_and_vol,
     compute_weekly_context,
+    evaluate_hyb_meta_gate,
     evaluate_orthogonal_signal,
     get_base_risk,
     get_scaled_atr,
@@ -1300,12 +1301,22 @@ def _evaluate_and_enter(
     # en la misma dirección, se escala el riesgo base un +30%.
     # Solo aplica en bots 1D (evita recursión en bots 4H y no existe en 1W).
     htf_boost = 1.0
+    htf_aligned = False
     if timeframe == "1d" and _check_4h_td9_confluence(symbol, action):
+        htf_aligned = True
         htf_boost = 1.3
         reason += " [+4H✓]"
         print(f"📡 HTF CONFLUENCE [{bot_id}]: TD9 4H alineado → boost +30% (riesgo x{htf_boost})")
 
-    cand_risk = base_risk * conviction_mult * conviction_boost * htf_boost
+    hyb_weights = load_meta_weights(strategy_type, weights_file=META_WEIGHTS_FILE)
+    allowed_meta, meta_prob, meta_mult = evaluate_hyb_meta_gate(
+        closed_candle, action, ema200, funding_val, htf_aligned, is_counter_trend, bot_params, hyb_weights
+    )
+    if not allowed_meta:
+        print(f"🛑 META-GATE [{bot_id}]: {action} filtrada por baja prob ({meta_prob:.2f}).")
+        return
+
+    cand_risk = base_risk * conviction_mult * conviction_boost * htf_boost * meta_mult
     portfolio_dampening = compute_portfolio_dampening(
         symbol, action, cand_risk, fleet_stats.get("active_positions", []), corr_matrix=corr_matrix
     )
@@ -1315,6 +1326,8 @@ def _evaluate_and_enter(
         return
 
     state["portfolio_dampening"] = round(portfolio_dampening, 2)
+    if hyb_weights and bool(bot_params.get("use_hyb_meta_gate", True)):
+        state["meta_prob"] = round(meta_prob, 2)
     execute_trade(
         action=action,
         price=price,
