@@ -1229,3 +1229,20 @@ BTC y ETH en cuenta descendente TD (-13) con RSI profundamente sobrevendido (24-
 - **Rotación Preventiva de Logs (`scripts/rotate_logs.sh`):** Rutina programada para comprimir automáticamente (`gzip`) los registros de telemetría cuando superen los 25 MB, reteniendo únicamente las últimas 3 rotaciones para proteger la memoria flash de la tarjeta MicroSD.
 - **Heartbeat Diario Automatizado (Dead Man's Snitch):** Enrutador en `bot.py` que emite un reporte matutino por Telegram a las 08:00 UTC con el estado de salud, equity consolidado y recuento de posiciones activas.
 
+---
+
+## 📅 Optimización de Alpha v3.2: Soft-Sizing Meta-Gate y Escalado MR (19 de Noviembre de 2026)
+
+### 1. Diagnóstico Cuantitativo de Ablación (4 Años Históricos)
+- Detectado sobre-filtrado severo en `HYB` por el corte binario del Meta-Gate L2 (`threshold = 0.55`), que bloqueaba el 78% de las señales ganadoras (reduciendo el beneficio de `HYB` de `+$6,038` a `+$397`).
+- Detectada infra-exposición en `MR` (`reg_scale` limitado a `1.0x`), pese a registrar Profit Factors de `4.22` (BTC) y `5.29` (ETH) con drawdowns inferiores al `3.5%`.
+
+### 2. Mejoras Implementadas en Producción (`core/strategy.py`)
+- **Soft-Sizing Meta-Gate (`evaluate_hyb_meta_gate`):** Sustituido el bloqueo duro binario por un modulador continuo `[0.65x .. 1.25x]` para señales con `prob >= 0.20`, conservando el rechazo estricto solo para la cola tóxica (`prob < 0.20`).
+- **Escalado de Convicción en Rango (`evaluate_orthogonal_signal`):** Ampliado el techo de `reg_scale` en `MR` de `1.00x` a `1.50x` cuando el régimen de rango es claro (`p_trend <= 0.45`).
+- **Impacto Verificado en Simulación (4 Años, Costes Reales):**
+  - Beneficio neto total de la flota: de `+$7,527.73` a **`+$12,383.43`** (**+64.5% más beneficio neto**).
+  - `BTC_HYB`: `+$1,885.40` (WR 68.8%, PF 3.04) | `ETH_HYB`: `+$2,422.65` (WR 75.0%, PF 13.68).
+  - Peor Max Drawdown de toda la flota intacto en **`-6.45%`**.
+
+

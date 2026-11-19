@@ -33,23 +33,23 @@
             --topbar-btn-bg: #111111;
         }
 
-        /* LIGHT MODE: INSTITUTIONAL HIGH-CONTRAST PAPER TERMINAL */
+        /* LIGHT MODE: INSTITUTIONAL HIGH-CONTRAST PAPER TERMINAL (ZERO BLUE/CYAN) */
         body.theme-light {
-            --bg-root: #f4f5f7;
+            --bg-root: #fafafa;
             --bg-panel: #ffffff;
-            --bg-card: #ebeef2;
-            --bg-active-card: #e3fae8;
-            --border-dim: #c5cbd3;
+            --bg-card: #f2f2f2;
+            --bg-active-card: #eaf7ee;
+            --border-dim: #d4d4d4;
             --border-bright: #b87000;
             --border-active: #008f39;
             --text-primary: #b87000;
-            --text-white: #11141a;
-            --text-muted: #3a424e;
-            --text-dim: #555d6b;
+            --text-white: #111111;
+            --text-muted: #444444;
+            --text-dim: #666666;
             --accent-green: #008f39;
             --accent-red: #c91414;
-            --range-fill: linear-gradient(90deg, #c91414 0%, #b0b8c2 50%, #008f39 100%);
-            --topbar-btn-bg: #e2e6eb;
+            --range-fill: linear-gradient(90deg, #c91414 0%, #888888 50%, #008f39 100%);
+            --topbar-btn-bg: #e6e6e6;
         }
 
         body { 
@@ -573,8 +573,9 @@
         // DUAL THEME ENGINE (DEFAULT: BLOOMBERG DARK)
         // Modes: 'dark', 'light'
         // ==========================================
-        // FIX TEMA SISTEMA: ciclo dark → light → system (sigue apariencia del SO)
-        let currentThemeMode = localStorage.getItem('gatdseq_theme_mode') || 'system';
+        // Limpieza forzada de cache / localStorage antiguo para garantizar negro Bloomberg
+        localStorage.removeItem('gatdseq_theme_mode');
+        let currentThemeMode = 'dark';
 
         function getSystemIsDark() {
             return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;

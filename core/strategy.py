@@ -676,9 +676,12 @@ def evaluate_hyb_meta_gate(
         is_trend_mode=(not is_counter_trend),
     )
     prob, bet_mult = predict_meta_probability(feats, meta_weights)
-    if bet_mult <= 0.0:
+    # Soft-Sizing Meta-Gate para HYB: solo bloquea cola toxica extrema (prob < 0.20);
+    # por encima modula el tamano suavemente [0.65x .. 1.25x] sin asfixiar senales validas.
+    if prob < 0.20:
         return False, round(prob, 4), 0.0
-    return True, round(prob, 4), round(bet_mult, 4)
+    soft_mult = max(0.65, min(1.25, 0.55 + (0.70 * prob))) if bet_mult <= 0.0 else bet_mult
+    return True, round(prob, 4), round(soft_mult, 4)
 
 
 def _apply_meta_gate(
@@ -746,9 +749,9 @@ def evaluate_orthogonal_signal(
             if p_trend > mr_max_pt:
                 return None
             p_range = 1.0 - p_trend
-            reg_scale = max(0.35, min(1.0, (p_range - 0.35) / 0.35))
+            reg_scale = max(0.50, min(1.50, (p_range - 0.25) / 0.35))
         else:
-            reg_scale = 1.0
+            reg_scale = 1.25
 
         td_buy, td_sell = check_td_signal(closed_candle, candle_2_ago)
         if not (td_buy or td_sell):
