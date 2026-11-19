@@ -23,22 +23,10 @@ def get_cache_path(symbol: str, timeframe: str, data_dir: str = DEFAULT_DATA_DIR
     return os.path.join(data_dir, f"{sanitized}_{timeframe}.parquet")
 
 
-def fetch_historical_ohlcv(symbol: str = "BTC/USDT", timeframe: str = "1h", days: int = 180) -> pd.DataFrame:
-    """
-    Descarga datos historicos de Binance con paginacion para superar el limite de 1000/1500 velas.
-    """
-    import ccxt
-
-    exchange = ccxt.binance({"enableRateLimit": True})
-    now_ms = int(time.time() * 1000)
-    start_ms = now_ms - (days * 24 * 60 * 60 * 1000)
-
+def _paginate_ccxt_ohlcv(exchange, symbol: str, timeframe: str, start_ms: int, now_ms: int, limit: int = 1000):
+    """Pagina limpiamente fetch_ohlcv en un exchange CCXT con reintentos temporales."""
     all_candles = []
     current_since = start_ms
-    limit = 1000
-
-    print(f"📥 Descargando {days} días de histórico para {symbol} [{timeframe}]...")
-
     retries = 0
     while True:
         try:
@@ -61,14 +49,45 @@ def fetch_historical_ohlcv(symbol: str = "BTC/USDT", timeframe: str = "1h", days
                 raise RuntimeError(f"Fallo descargando {symbol} [{timeframe}] tras 3 reintentos: {e}") from e
             print(f"⚠️ Error temporal al descargar: {e}. Reintentando ({retries}/3)...")
             time.sleep(2)
+    return all_candles
+
+
+def fetch_historical_ohlcv(symbol: str = "BTC/USDT", timeframe: str = "1h", days: int = 180) -> pd.DataFrame:
+    """
+    Descarga datos historicos de Binance con paginacion para superar el limite de 1000/1500 velas.
+    Si Binance Spot tiene historial insuficiente (< 200 velas, ej. tokens recientes como HYPE),
+    consulta automaticamente Binance Futures (binanceusdm) y Hyperliquid para obtener la serie mas larga.
+    """
+    import ccxt
+
+    exchange = ccxt.binance({"enableRateLimit": True})
+    now_ms = int(time.time() * 1000)
+    start_ms = now_ms - (days * 24 * 60 * 60 * 1000)
+
+    print(f"📥 Descargando {days} días de histórico para {symbol} [{timeframe}]...")
+    all_candles = _paginate_ccxt_ohlcv(exchange, symbol, timeframe, start_ms, now_ms)
+
+    span_days = ((all_candles[-1][0] - all_candles[0][0]) / 86400000.0) if len(all_candles) >= 2 else 0.0
+    if span_days < (days * 0.5) and days >= 200:
+        base = symbol.split("/")[0].upper()
+        fallbacks = [
+            (ccxt.binanceusdm({"enableRateLimit": True}), f"{base}/USDT:USDT"),
+            (ccxt.hyperliquid({"enableRateLimit": True}), f"{base}/USDC:USDC"),
+        ]
+        for fb_ex, fb_sym in fallbacks:
+            try:
+                fb_candles = _paginate_ccxt_ohlcv(fb_ex, fb_sym, timeframe, start_ms, now_ms)
+                if len(fb_candles) > len(all_candles):
+                    print(f"🔄 Fallback {fb_ex.id} ({fb_sym}): {len(fb_candles)} velas > {len(all_candles)} Spot.")
+                    all_candles = fb_candles
+            except Exception:
+                continue
 
     if not all_candles:
         raise ValueError(f"No se pudieron obtener velas para {symbol} [{timeframe}]")
 
     df = pd.DataFrame(all_candles, columns=["timestamp", "open", "high", "low", "close", "volume"])
-    df.drop_duplicates(subset=["timestamp"], inplace=True)
-    df.sort_values(by="timestamp", inplace=True)
-    df.reset_index(drop=True, inplace=True)
+    df = df.drop_duplicates(subset=["timestamp"]).sort_values(by="timestamp").reset_index(drop=True)
     df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
     print(f"✅ Descarga completada: {len(df)} velas desde {df['datetime'].iloc[0]} hasta {df['datetime'].iloc[-1]}")
     return df

@@ -119,6 +119,40 @@ class TestV3QuantModules(unittest.TestCase):
         )
         self.assertIsNone(sig_reject)
 
+    def test_v4_monotonic_soft_sizing_and_dual_or_conjunction(self):
+        """Soft-Sizing debe ser monotono creciente en [0.65..1.25] y DUAL debe activar Trend con p_trend>=0.55."""
+        c2 = pd.Series({"close": 100.0, "high": 102.0, "low": 98.0})
+        base_candle = {
+            "close": 115.0,
+            "atr": 2.0,
+            "volume": 100.0,
+            "volume_sma": 100.0,
+            "td_count": 3,
+            "td_perfected": False,
+            "dc_high_55": 110.0,
+            "dc_low_55": 90.0,
+        }
+        # Con ADX <= 24 pero p_trend >= 0.55, DUAL debe entrar en modo tendencial (OR-gate)
+        sig_or = evaluate_orthogonal_signal(
+            "DUAL", pd.Series(dict(base_candle, p_trend=0.60)), c2, 18.0, 100.0, DEFAULT_BOT_PARAMS
+        )
+        self.assertIsNotNone(sig_or)
+        self.assertEqual(sig_or["mode"], "REGIME_TREND")
+
+        # Monotonicidad estricta en evaluate_hyb_meta_gate sobre [0.20 .. 0.85]
+        w_mono = {"weights": [1.0, 0.0, 0.0, 0.0, 0.0], "bias": -0.5, "soft_floor": 0.20, "soft_ceil": 0.85}
+        mults = []
+        for pt in [0.95, 0.70, 0.50, 0.30, 0.05]:  # f1 = 1 - pt en counter-trend -> prob crece
+            c_m = pd.Series(dict(base_candle, p_trend=pt))
+            ok, prob, mult = evaluate_hyb_meta_gate(c_m, "BUY", 120.0, 0.0, False, True, DEFAULT_BOT_PARAMS, w_mono)
+            self.assertTrue(ok)
+            mults.append((prob, mult))
+        for (p_lo, m_lo), (p_hi, m_hi) in zip(mults, mults[1:]):
+            self.assertLess(p_lo, p_hi)
+            self.assertLessEqual(m_lo, m_hi)
+            self.assertGreaterEqual(m_lo, 0.65)
+            self.assertLessEqual(m_hi, 1.25)
+
     def test_portfolio_correlation_dampening_and_vol_parity(self):
         """Correlacion positiva en misma direccion amortigua riesgo; coberturas opuestas no se penalizan."""
         self.assertLess(get_base_risk("HYPE", "1d", realized_vol_30d=0.06), get_base_risk("BTC", "1d", realized_vol_30d=0.025))

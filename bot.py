@@ -684,8 +684,8 @@ def check_exit_conditions(
     so_pct = float(bot_params.get("scale_out_pct", 0.5))
     enable_so = is_hybrid and bool(bot_params.get("enable_scale_out", True))
 
-    # 3. Breakeven Shield (solo para HYB)
-    if is_hybrid:
+    # 3. Breakeven Shield (solo para HYB si esta habilitado en params)
+    if is_hybrid and bool(bot_params.get("enable_breakeven", True)):
         if action == "BUY" and high_price >= (entry + (trade_atr * be_mult)):
             if updated_sl < entry:
                 updated_sl = entry
@@ -1171,7 +1171,7 @@ def analyze_market(
     elif state.get("status") == "IN_TRADE":
         pos = state.get("position")
         strat_mode = state.get("strategy_mode", strategy_type)
-        if strat_mode == "HYB":
+        if strat_mode == "HYB" and bool(get_bot_params(sym, tf, strategy_type).get("enable_dca_13", True)):
             if pos == "BUY" and countdown == -13 and not state.get("reinforced_13"):
                 execute_reinforcement(
                     current_live_price, atr, state, "BUY", symbol=sym, timeframe=tf, state_file=s_file, trades_file=t_file
@@ -1298,7 +1298,8 @@ def _evaluate_and_enter(
     conf_score = calculate_confidence_score(
         closed_candle, action, divergence, is_counter_trend, fng_val, funding_val, weekly_context
     )
-    req_conf = 0.70 if symbol == "HYPE" else MIN_CONFIDENCE
+    bot_params = get_bot_params(symbol, timeframe, strategy_type)
+    req_conf = 0.70 if symbol == "HYPE" else float(bot_params.get("min_confidence", MIN_CONFIDENCE))
 
     fleet_stats = get_fleet_position_stats()
     if conf_score < req_conf:
@@ -1334,7 +1335,6 @@ def _evaluate_and_enter(
     if state.get("last_trigger_time") == trigger_time:
         return
 
-    bot_params = get_bot_params(symbol, timeframe, strategy_type)
     sl, tp, tag, _, _ = compute_entry_levels(action, signal_reason, price, atr, is_counter_trend, bot_params)
     reason = f"{signal_reason} ({tag}) [Conf: {conf_score:.2f} | F&G: {fng_val}]" if "TD9" in signal_reason else f"{signal_reason} + RSI {rsi:.1f} [Conf: {conf_score:.2f} | F&G: {fng_val}]"
 

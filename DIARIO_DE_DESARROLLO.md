@@ -1246,3 +1246,28 @@ BTC y ETH en cuenta descendente TD (-13) con RSI profundamente sobrevendido (24-
   - Peor Max Drawdown de toda la flota intacto en **`-6.45%`**.
 
 
+---
+
+## 📅 Auditoría Cuantitativa 6Y (2020–2026) y Calibración Meta-Gate v4.0 (19 de Noviembre de 2026)
+
+### 1. Diagnóstico y Resolución de Cuellos de Botella en el Meta-Gate L2
+- **Corrección de Inversión No Monótona (`core/strategy.py`):**
+  - Detectado en `evaluate_hyb_meta_gate` que señales con $p \in [0.20, 0.55)$ (~70% del flujo en 6 años) recibían un multiplicador mayor (`0.69x–0.93x`) que señales con $p \ge 0.55$ (`0.25x`).
+  - Extraído el helper único `_compute_soft_sizing()` con mapeo estrictamente monótono creciente `[0.65x .. 1.25x]` sobre los cuantiles calibrados `[soft_floor, soft_ceil]` de cada estrategia.
+  - Extendido el soporte de Soft-Sizing a `_apply_meta_gate()` para `MR` y `DUAL` (activable vía `meta_soft_sizing: true`), eliminando el corte binario en `0.55` que amputaba estrategias con R:R $\ge 2:1$.
+- **Conjunción de Régimen en `DUAL` (`evaluate_orthogonal_signal`):**
+  - Activada la disyunción de expansión tendencial `in_trend = (adx_val > adx_split) or (p_trend >= tr_min_pt)` y suavizado el rango de `regime_scale` en tendencia (`[0.65x .. 1.05x]`).
+- **Paridad 1:1 en Producción (`bot.py`):**
+  - Añadido respeto explícito de `enable_breakeven`, `enable_dca_13` y `min_confidence` desde `get_bot_params()` para garantizar paridad exacta con `BacktestEngine`.
+
+### 2. Pipeline de Datos, Entrenamiento Purgado 6Y y Walk-Forward
+- **Fallback Multi-Exchange (`data_manager.py`):** Incorporado fallback automático a `binanceusdm` y `hyperliquid` cuando Binance Spot no cubre el rango histórico solicitado (ampliando `HYPE/USDT` de 57 a 715 días reales desde `2024-12-05`).
+- **Reentrenamiento L2 a 6 Años (`scripts/train_meta_model.py`, `meta_model_weights.json`):** Entrenados pesos L2 (`v4.0-l2-soft`) para las tres estrategias (`HYB`: 302 IS / 130 OOS; `MR`: 126 IS / 58 OOS; `DUAL`: 530 IS / 236 OOS) sobre 2,450 días con embargo de 10 días y ponderación por $|R|$.
+- **Walk-Forward Purgado por Estrategia (`backtesting/optimizer.py`, `optimize_fleet.py`):** Añadidas grillas específicas (`STRATEGY_PARAM_GRIDS`) incluyendo `mr_sl_atr`/`mr_tp_atr` para `MR` y `DUAL`, embargo temporal de 10 velas entre IS (70%) y OOS (30%), inyección de confluencia `4h` y funding histórico real, y guardia de muestra mínima (`>= 1000` velas en `1d`) que mantiene `HYPE` como `is_calibrated: false`.
+
+### 3. Resultados Verificados en 6 Años (`fleet_optimized.json` | 2020–2026)
+- **Cartera Agregada Core 6-Bot (`BTC+ETH` $\times$ `HYB+MR+DUAL`):**
+  - Trades: `254` | Win Rate: `50.8%` | Profit Factor: **`1.91`** (vs `1.58` baseline)
+  - Retorno Neto 6Y: **`+50.36%`** (vs `+19.23%` baseline) | Sharpe Anualizado: **`1.33`** (vs `0.99`)
+  - Max Drawdown: **`6.35%`** ($\le 10.0\%$) | Monte Carlo Z-Score: **`+4.81`** ($p = 0.0000$)
+- **Pruebas Automatizadas:** Añadida verificación de monotonicidad Soft-Sizing y conjunción OR de `DUAL` en `tests/test_v3_quant_modules.py` (`32/32` tests pasando en `0.107s`).

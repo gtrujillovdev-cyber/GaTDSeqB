@@ -13,9 +13,9 @@ import time
 from datetime import datetime
 import pandas as pd
 
-from backtesting.data_manager import load_dataset
-from backtesting.indicators import prepare_market_indicators
-from backtesting.optimizer import DEFAULT_PARAM_GRID, run_walk_forward
+from backtesting.data_manager import load_dataset, load_funding_dataset
+from backtesting.indicators import inject_htf_confluence, prepare_market_indicators
+from backtesting.optimizer import STRATEGY_PARAM_GRIDS, run_walk_forward
 from core.strategy import FLEET_ASSETS, FLEET_STRATEGIES, FLEET_TIMEFRAMES
 
 DEFAULT_SYMBOLS = [f"{sym}/USDT" for sym in FLEET_ASSETS]
@@ -30,34 +30,67 @@ _WARMUP_DAYS = {
 }
 
 
-def optimize_target(symbol: str, tf: str, strategy: str, days: int, bank: float, weekly_df=None):
+def optimize_target(
+    symbol: str,
+    tf: str,
+    strategy: str,
+    days: int,
+    bank: float,
+    weekly_df=None,
+    df_cache=None,
+    funding_cache=None,
+):
     print(f"\n⚡ [OPTIMIZER] Walk-Forward para {symbol} [{tf}] | Estrategia: {strategy} ({days} días)...")
     t0 = time.time()
     try:
         fetch_days = days + _WARMUP_DAYS.get(tf, 60)
-        raw_df = load_dataset(symbol=symbol, timeframe=tf, days=fetch_days)
-        if days and "datetime" in raw_df.columns:
-            cutoff = raw_df["datetime"].max() - pd.Timedelta(days=fetch_days)
-            raw_df = raw_df[raw_df["datetime"] >= cutoff].reset_index(drop=True)
+        cache_key = (symbol, tf, fetch_days)
+        if df_cache is not None and cache_key in df_cache:
+            df = df_cache[cache_key]
+        else:
+            raw_df = load_dataset(symbol=symbol, timeframe=tf, days=fetch_days)
+            if days and "datetime" in raw_df.columns:
+                cutoff = raw_df["datetime"].max() - pd.Timedelta(days=fetch_days)
+                raw_df = raw_df[raw_df["datetime"] >= cutoff].reset_index(drop=True)
 
-        df = prepare_market_indicators(raw_df)
+            df = prepare_market_indicators(raw_df)
+            if tf == "1d":
+                try:
+                    raw_4h = load_dataset(symbol=symbol, timeframe="4h", days=fetch_days)
+                    df4 = prepare_market_indicators(raw_4h)
+                    df = inject_htf_confluence(df, df4, lookback_days=3)
+                except Exception as e:
+                    print(f"⚠️ Sin confluencia 4H para {symbol}: {e}")
+            if df_cache is not None:
+                df_cache[cache_key] = df
+
+        if funding_cache is not None and (symbol, fetch_days) in funding_cache:
+            f_df = funding_cache[(symbol, fetch_days)]
+        else:
+            f_df = load_funding_dataset(symbol=symbol, days=fetch_days)
+            if funding_cache is not None:
+                funding_cache[(symbol, fetch_days)] = f_df
+        grid = STRATEGY_PARAM_GRIDS.get(strategy.upper())
         wf = run_walk_forward(
             df=df,
             symbol=symbol,
             timeframe=tf,
             strategy=strategy,
             initial_bank=bank,
-            param_grid=DEFAULT_PARAM_GRID,
+            param_grid=grid,
             weekly_df=weekly_df,
+            embargo_bars=10,
+            funding_df=f_df,
         )
 
         oos = wf["out_of_sample"]
+        mc = oos.get("monte_carlo", {})
         elapsed = time.time() - t0
         status = "CALIBRATED" if wf["is_calibrated"] else "DEFAULT (LOW SAMPLE)"
         print(
             f"✅ [DONE {elapsed:.1f}s] {symbol} [{tf}] {strategy} [{status}] | "
-            f"OOS Sharpe={oos['sharpe_ratio']:.2f} | OOS PnL=+${oos['net_profit']:,.2f} | "
-            f"B&H={oos.get('bh_return_pct', 0.0):+.2f}% | Trades={oos['total_trades']}"
+            f"OOS Sharpe={oos['sharpe_ratio']:.2f} | OOS Calmar={oos.get('calmar_ratio', 0.0):.2f} | "
+            f"OOS PnL=+${oos['net_profit']:,.2f} | B&H={oos.get('bh_return_pct', 0.0):+.2f}% | Trades={oos['total_trades']}"
         )
         return {
             "symbol": symbol,
@@ -71,9 +104,11 @@ def optimize_target(symbol: str, tf: str, strategy: str, days: int, bank: float,
                 "bh_return_pct": float(oos.get("bh_return_pct", 0.0)),
                 "alpha_vs_bh_pct": float(oos.get("alpha_vs_bh_pct", 0.0)),
                 "sharpe": float(oos["sharpe_ratio"]),
+                "calmar": float(oos.get("calmar_ratio", 0.0)),
                 "profit_factor": float(oos["profit_factor"]),
                 "win_rate": float(oos["win_rate"]),
                 "max_dd_pct": float(oos["max_drawdown_pct"]),
+                "monte_carlo_z": float(mc.get("z_score", 0.0)),
                 "trades": int(oos["total_trades"]),
                 "in_sample_trades": int(wf["in_sample"]["trades"]),
                 "in_sample_sharpe": float(wf["in_sample"]["sharpe"]),
@@ -89,7 +124,7 @@ def main():
     parser.add_argument("--symbols", nargs="+", default=DEFAULT_SYMBOLS, help="Simbolos a optimizar")
     parser.add_argument("--tf", nargs="+", default=DEFAULT_TIMEFRAMES, help="Timeframes a optimizar")
     parser.add_argument("--strategies", nargs="+", default=DEFAULT_STRATEGIES, help="Estrategias")
-    parser.add_argument("--days", type=int, default=365, help="Dias de ventana de evaluacion")
+    parser.add_argument("--days", type=int, default=2250, help="Dias de ventana de evaluacion (6Y por defecto)")
     parser.add_argument("--bank", type=float, default=10000.0, help="Capital base por bot")
     parser.add_argument("--out", type=str, default="fleet_optimized.json", help="Ruta de exportacion")
     args = parser.parse_args()
@@ -120,12 +155,17 @@ def main():
             print(f"⚠️ Sin contexto 1W para {symbol}: {e}")
             weekly_cache[symbol] = None
 
+    df_cache = {}
+    funding_cache = {}
     for symbol in args.symbols:
         for tf in args.tf:
             for strat in args.strategies:
                 key = f"{symbol}_{tf}_{strat}"
                 w_df = weekly_cache.get(symbol) if tf in ("1h", "4h", "1d") else None
-                res = optimize_target(symbol, tf, strat, args.days, args.bank, weekly_df=w_df)
+                res = optimize_target(
+                    symbol, tf, strat, args.days, args.bank,
+                    weekly_df=w_df, df_cache=df_cache, funding_cache=funding_cache,
+                )
                 if res:
                     fleet_results[key] = res
 

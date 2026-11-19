@@ -28,12 +28,16 @@ DEFAULT_BOT_PARAMS: Dict[str, Any] = {
     "enable_breakeven": True,
     "enable_dca_13": True,
     "enable_trailing": True,
-    # Parametros v3.1 (Regimen Conjunction ADX+p_trend & Meta-Labeling)
+    # Parametros v3.1 / v4.0 (Regimen Conjunction ADX+p_trend & Soft-Sizing Meta-Labeling)
+    "dc_period": 55,
+    "adx_split": 24.0,
+    "adx_max": 24.0,
     "mr_sl_atr": 2.0,
     "mr_tp_atr": 2.4,
     "regime_mr_max_p_trend": 0.45,
     "regime_trend_min_p_trend": 0.55,
     "meta_threshold": 0.55,
+    "meta_soft_sizing": True,
     "use_meta_gate": False,
     "use_hyb_meta_gate": True,
 }
@@ -651,6 +655,20 @@ def compute_conviction_boost(symbol: str, conf_score: float) -> float:
     return 1.0
 
 
+def _compute_soft_sizing(prob: float, meta_weights: Dict[str, Any]) -> float:
+    """
+    Mapeo estrictamente monotono creciente [0.65x .. 1.25x] para prob >= soft_floor.
+    Rechaza unicamente la cola toxica extrema (prob < soft_floor, por defecto 0.20).
+    """
+    soft_floor = float(meta_weights.get("soft_floor", 0.20))
+    soft_ceil = float(meta_weights.get("soft_ceil", 0.85))
+    if prob < soft_floor:
+        return 0.0
+    span = max(1e-6, soft_ceil - soft_floor)
+    norm = max(0.0, min(1.0, (prob - soft_floor) / span))
+    return 0.65 + norm * (1.25 - 0.65)
+
+
 def evaluate_hyb_meta_gate(
     closed_candle,
     action: str,
@@ -662,7 +680,7 @@ def evaluate_hyb_meta_gate(
     meta_weights: Optional[Dict[str, Any]] = None,
 ) -> Tuple[bool, float, float]:
     """
-    SSOT Meta-Gate L2 para estrategia HYB.
+    SSOT Meta-Gate L2 para estrategia HYB (v4.0 Soft-Sizing monotono).
     Si meta_weights es None o use_hyb_meta_gate es False, deja pasar con multiplicador 1.0.
     """
     if not meta_weights or not bool(params.get("use_hyb_meta_gate", True)):
@@ -675,12 +693,10 @@ def evaluate_hyb_meta_gate(
         htf_4h_aligned=htf_4h_aligned,
         is_trend_mode=(not is_counter_trend),
     )
-    prob, bet_mult = predict_meta_probability(feats, meta_weights)
-    # Soft-Sizing Meta-Gate para HYB: solo bloquea cola toxica extrema (prob < 0.20);
-    # por encima modula el tamano suavemente [0.65x .. 1.25x] sin asfixiar senales validas.
-    if prob < 0.20:
+    prob, _ = predict_meta_probability(feats, meta_weights)
+    soft_mult = _compute_soft_sizing(prob, meta_weights)
+    if soft_mult <= 0.0:
         return False, round(prob, 4), 0.0
-    soft_mult = max(0.65, min(1.25, 0.55 + (0.70 * prob))) if bet_mult <= 0.0 else bet_mult
     return True, round(prob, 4), round(soft_mult, 4)
 
 
@@ -708,10 +724,16 @@ def _apply_meta_gate(
         is_trend_mode=is_trend,
     )
     prob, bet_mult = predict_meta_probability(feats, meta_weights)
-    if bet_mult <= 0.0:
-        return None
+    if bool(params.get("meta_soft_sizing", True)):
+        mult = _compute_soft_sizing(prob, meta_weights)
+        if mult <= 0.0:
+            return None
+    else:
+        if bet_mult <= 0.0:
+            return None
+        mult = bet_mult
     sig["meta_prob"] = round(prob, 4)
-    sig["risk_scale"] = round(sig.get("regime_scale", 1.0) * bet_mult, 4)
+    sig["risk_scale"] = round(sig.get("regime_scale", 1.0) * mult, 4)
     return sig
 
 
@@ -727,10 +749,10 @@ def evaluate_orthogonal_signal(
     meta_weights: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    SSOT v3.0 para las estrategias ortogonales (MR y DUAL):
-      - Si closed_candle incluye 'p_trend' continuo (KER + Variance Ratio), aplica transicion
-        suave y banda de histeresis [0.45, 0.55].
-      - Si no incluye 'p_trend', mantiene fallback exacto por adx_val <= 24.
+    SSOT v4.0 para las estrategias ortogonales (MR y DUAL):
+      - MR: conjuncion estricta ADX <= 24 AND p_trend <= 0.45.
+      - DUAL: expansion tendencial ante ADX > 24 OR p_trend >= 0.55; zona neutra exige TD9 perf.
+      - Fallback determinista por adx_val <= 24 si no hay p_trend.
     """
     strat = strategy_type.upper()
     signal_price = float(closed_candle["close"])
@@ -760,8 +782,8 @@ def evaluate_orthogonal_signal(
         sig = {
             "action": action,
             "reason": f"MR TD9 {'Buy' if action == 'BUY' else 'Sell'} (Range)",
-            "sl_mult": float(params.get("mr_sl_atr", 2.0)),
-            "tp_mult": float(params.get("mr_tp_atr", 2.4)),
+            "sl_mult": float(params.get("mr_sl_atr", 1.5)),
+            "tp_mult": float(params.get("mr_tp_atr", 2.5)),
             "mode": "REGIME_MR",
             "regime_scale": round(reg_scale, 4),
         }
@@ -772,8 +794,8 @@ def evaluate_orthogonal_signal(
         if has_continuous:
             p_trend = float(p_trend_raw)
             in_mr = (adx_val <= adx_split) and (p_trend <= mr_max_pt)
-            in_neutral = (adx_val <= adx_split) and (p_trend > mr_max_pt)
-            in_trend = adx_val > adx_split
+            in_trend = (adx_val > adx_split) or (p_trend >= tr_min_pt)
+            in_neutral = (not in_mr) and (not in_trend)
         else:
             in_mr = adx_val <= adx_split
             in_trend = adx_val > adx_split
@@ -787,14 +809,14 @@ def evaluate_orthogonal_signal(
                 reg_scale = (
                     0.50
                     if in_neutral
-                    else (max(0.35, min(1.0, 1.0 - float(p_trend_raw))) if has_continuous else 1.0)
+                    else (max(0.50, min(1.30, ((1.0 - float(p_trend_raw)) - 0.25) / 0.35)) if has_continuous else 1.0)
                 )
                 action = "BUY" if td_buy else "SELL"
                 sig = {
                     "action": action,
                     "reason": f"DUAL MR TD9 {'Buy' if action == 'BUY' else 'Sell'}",
-                    "sl_mult": float(params.get("mr_sl_atr", 2.0)),
-                    "tp_mult": float(params.get("mr_tp_atr", 2.4)),
+                    "sl_mult": float(params.get("mr_sl_atr", 1.5)),
+                    "tp_mult": float(params.get("mr_tp_atr", 2.5)),
                     "mode": "REGIME_MR",
                     "regime_scale": round(reg_scale, 4),
                 }
@@ -810,8 +832,8 @@ def evaluate_orthogonal_signal(
             dc_hi_f = float(dc_hi)
             dc_lo_f = float(dc_lo)
             sl_mult = float(params.get("atr_sl_trend", params.get("trend_sl_atr", 1.5)))
-            tp_mult = float(params.get("atr_tp_trend", params.get("trend_tp_atr", 2.5)))
-            reg_scale = max(0.50, min(1.0, float(p_trend_raw))) if has_continuous else 1.0
+            tp_mult = float(params.get("atr_tp_trend", params.get("trend_tp_atr", 3.0)))
+            reg_scale = max(0.65, min(1.05, 0.45 + 0.65 * float(p_trend_raw))) if has_continuous else 1.0
 
             if signal_price > dc_hi_f and signal_price > ema200:
                 action = "BUY"

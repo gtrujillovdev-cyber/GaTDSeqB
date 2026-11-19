@@ -13,6 +13,40 @@ DEFAULT_PARAM_GRID: Dict[str, List[Any]] = {
     "enable_scale_out": [True, False],
 }
 
+STRATEGY_PARAM_GRIDS: Dict[str, Dict[str, List[Any]]] = {
+    "HYB": {
+        "atr_sl_trend": [1.5, 2.0],
+        "atr_tp_trend": [3.5, 4.0, 4.5],
+        "be_threshold_atr": [1.5],
+        "enable_breakeven": [False],
+        "enable_scale_out": [False],
+        "enable_dca_13": [False],
+        "min_confidence": [0.45, 0.55],
+        "use_hyb_meta_gate": [True],
+    },
+    "MR": {
+        "mr_sl_atr": [1.5, 2.0],
+        "mr_tp_atr": [2.4, 2.5, 3.0],
+        "atr_sl_trend": [1.5],
+        "atr_tp_trend": [2.5],
+        "be_threshold_atr": [1.0],
+        "enable_scale_out": [False],
+        "use_meta_gate": [True],
+        "meta_soft_sizing": [True],
+    },
+    "DUAL": {
+        "dc_period": [20, 55],
+        "atr_sl_trend": [1.5, 2.0],
+        "atr_tp_trend": [2.5, 3.0, 3.5],
+        "mr_sl_atr": [1.5, 2.0],
+        "mr_tp_atr": [2.4, 2.5],
+        "be_threshold_atr": [1.0],
+        "enable_scale_out": [False],
+        "use_meta_gate": [True],
+        "meta_soft_sizing": [True],
+    },
+}
+
 
 def run_grid_search(
     df: pd.DataFrame,
@@ -23,13 +57,14 @@ def run_grid_search(
     param_grid: Optional[Dict[str, List[Any]]] = None,
     weekly_df: Optional[pd.DataFrame] = None,
     eval_start_idx: Optional[int] = None,
+    funding_df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """
     Ejecuta un barrido de parametros (Grid Search) para afinar la estrategia.
     Nunca explora be_threshold_atr < 1.0 para evitar el efecto Choke.
     """
     if param_grid is None:
-        param_grid = dict(DEFAULT_PARAM_GRID)
+        param_grid = dict(STRATEGY_PARAM_GRIDS.get(strategy.upper(), DEFAULT_PARAM_GRID))
 
     keys = list(param_grid.keys())
     combinations = list(itertools.product(*[param_grid[k] for k in keys]))
@@ -49,7 +84,13 @@ def run_grid_search(
             initial_bank=initial_bank,
             params=params,
         )
-        res = engine.run(df, weekly_df=weekly_df, eval_start_idx=eval_start_idx, precomputed_context=precomputed)
+        res = engine.run(
+            df,
+            weekly_df=weekly_df,
+            eval_start_idx=eval_start_idx,
+            precomputed_context=precomputed,
+            funding_df=funding_df,
+        )
         m = compute_metrics(initial_bank, res["final_bank"], res["trades"], res["equity_curve"], timeframe)
 
         row = dict(params)
@@ -63,6 +104,7 @@ def run_grid_search(
                 "profit_factor": m["profit_factor"],
                 "max_dd_pct": m["max_drawdown_pct"],
                 "sharpe": m["sharpe_ratio"],
+                "calmar": m["calmar_ratio"],
                 "trades": m["total_trades"],
             }
         )
@@ -91,21 +133,28 @@ def run_walk_forward(
     weekly_df: Optional[pd.DataFrame] = None,
     is_ratio: float = 0.70,
     min_is_trades: int = 5,
+    embargo_bars: int = 10,
+    funding_df: Optional[pd.DataFrame] = None,
 ) -> Dict[str, Any]:
     """
-    Validacion Walk-Forward (In-Sample 70% / Out-of-Sample 30%).
-    Previene overfitting: selecciona parametros en IS y reporta rendimiento real en OOS.
+    Validacion Walk-Forward purgada (In-Sample 70% / Embargo / Out-of-Sample 30%).
+    Previene overfitting y autocorrelacion serial entre IS y OOS.
     Si IS tiene menos de min_is_trades, mantiene defaults institucionales.
     """
     total = len(df)
     warmup = min(200, max(30, total // 5))
     usable = total - warmup
     split_idx = warmup + int(usable * is_ratio)
+    oos_start_idx = min(total - 10, split_idx + max(0, int(embargo_bars)))
 
-    if usable < 40 or split_idx <= warmup + 10 or split_idx >= total - 10:
+    if param_grid is None:
+        param_grid = dict(STRATEGY_PARAM_GRIDS.get(strategy.upper(), DEFAULT_PARAM_GRID))
+    grid_keys = list(param_grid.keys())
+
+    if usable < 40 or split_idx <= warmup + 10 or oos_start_idx >= total - 10:
         # Dataset demasiado corto para split; usar defaults evaluando todo el rango
         engine = BacktestEngine(symbol=symbol, timeframe=timeframe, strategy=strategy, initial_bank=initial_bank)
-        res = engine.run(df, weekly_df=weekly_df, eval_start_idx=warmup)
+        res = engine.run(df, weekly_df=weekly_df, eval_start_idx=warmup, funding_df=funding_df)
         m = compute_metrics(initial_bank, res["final_bank"], res["trades"], res["equity_curve"], timeframe)
         in_sample_norm = {
             "net_pnl": float(m["net_profit"]),
@@ -138,18 +187,29 @@ def run_walk_forward(
         param_grid=param_grid,
         weekly_df=weekly_df,
         eval_start_idx=warmup,
+        funding_df=funding_df,
     )
 
     top = res_df.iloc[0].to_dict()
-    is_calibrated = int(top["trades"]) >= min_is_trades
+    min_bars_for_calib = 1000 if timeframe == "1d" else 250
+    is_calibrated = (int(top["trades"]) >= min_is_trades) and (total >= min_bars_for_calib)
 
     if is_calibrated:
-        chosen_params = {
-            "atr_sl_trend": float(top["atr_sl_trend"]),
-            "atr_tp_trend": float(top["atr_tp_trend"]),
-            "be_threshold_atr": max(1.0, float(top["be_threshold_atr"])),
-            "enable_scale_out": bool(top["enable_scale_out"]),
-        }
+        chosen_params = {}
+        for k in grid_keys:
+            val = top[k]
+            if isinstance(val, bool) or str(type(val)).endswith("bool_'>"):
+                chosen_params[k] = bool(val)
+            elif k == "dc_period":
+                chosen_params[k] = int(val)
+            elif isinstance(val, (int, float)):
+                chosen_params[k] = float(val)
+            else:
+                chosen_params[k] = val
+        chosen_params.setdefault("atr_sl_trend", DEFAULT_BOT_PARAMS["atr_sl_trend"])
+        chosen_params.setdefault("atr_tp_trend", DEFAULT_BOT_PARAMS["atr_tp_trend"])
+        chosen_params["be_threshold_atr"] = max(1.0, float(chosen_params.get("be_threshold_atr", 1.0)))
+        chosen_params.setdefault("enable_scale_out", DEFAULT_BOT_PARAMS["enable_scale_out"])
     else:
         chosen_params = {
             "atr_sl_trend": DEFAULT_BOT_PARAMS["atr_sl_trend"],
@@ -158,7 +218,7 @@ def run_walk_forward(
             "enable_scale_out": DEFAULT_BOT_PARAMS["enable_scale_out"],
         }
 
-    # Evaluar en Out-Of-Sample usando df completo pero empezando exactamente en split_idx (con warm-up intacto)
+    # Evaluar en Out-Of-Sample usando df completo desde oos_start_idx (tras embargo de 10 velas)
     oos_engine = BacktestEngine(
         symbol=symbol,
         timeframe=timeframe,
@@ -166,7 +226,7 @@ def run_walk_forward(
         initial_bank=initial_bank,
         params=chosen_params,
     )
-    oos_res = oos_engine.run(df, weekly_df=weekly_df, eval_start_idx=split_idx)
+    oos_res = oos_engine.run(df, weekly_df=weekly_df, eval_start_idx=oos_start_idx, funding_df=funding_df)
     oos_metrics = compute_metrics(initial_bank, oos_res["final_bank"], oos_res["trades"], oos_res["equity_curve"], timeframe)
 
     return {
