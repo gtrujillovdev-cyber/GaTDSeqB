@@ -395,7 +395,9 @@
             <!-- Track 1 -->
             <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
             <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
-            <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">SOL:</span><span class="ticker-price tick-SOL">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">BNB:</span><span class="ticker-price tick-BNB">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">AVAX:</span><span class="ticker-price tick-AVAX">--</span></div>
             <div class="ticker-item"><span class="ticker-name">BTC.D:</span><span class="ticker-price tick-BTCD">--</span></div>
             <div class="ticker-item"><span class="ticker-name">DXY:</span><span class="ticker-price tick-DXY">--</span></div>
             <div class="ticker-item"><span class="ticker-name">VIX:</span><span class="ticker-price tick-VIX">--</span></div>
@@ -404,7 +406,9 @@
             <!-- Track 2 (Duplicate for Seamless Loop) -->
             <div class="ticker-item"><span class="ticker-name">BTC:</span><span class="ticker-price tick-BTC">--</span></div>
             <div class="ticker-item"><span class="ticker-name">ETH:</span><span class="ticker-price tick-ETH">--</span></div>
-            <div class="ticker-item"><span class="ticker-name">HYPE:</span><span class="ticker-price tick-HYPE">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">SOL:</span><span class="ticker-price tick-SOL">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">BNB:</span><span class="ticker-price tick-BNB">--</span></div>
+            <div class="ticker-item"><span class="ticker-name">AVAX:</span><span class="ticker-price tick-AVAX">--</span></div>
             <div class="ticker-item"><span class="ticker-name">BTC.D:</span><span class="ticker-price tick-BTCD">--</span></div>
             <div class="ticker-item"><span class="ticker-name">DXY:</span><span class="ticker-price tick-DXY">--</span></div>
             <div class="ticker-item"><span class="ticker-name">VIX:</span><span class="ticker-price tick-VIX">--</span></div>
@@ -529,7 +533,7 @@
     </div>
 
     <script>
-        let globalPrices = { 'BTC': 0, 'ETH': 0, 'HYPE': 0 };
+        let globalPrices = { 'BTC': 0, 'ETH': 0, 'SOL': 0, 'BNB': 0, 'AVAX': 0 };
         let currentFleet = null;
 
         function smartDecimals(val) {
@@ -664,7 +668,7 @@
                 let res = await fetch('/api/ticker?_t=' + Date.now(), { cache: 'no-store' });
                 if (res.ok) {
                     let data = await res.json();
-                    for (let sym of ['BTC', 'ETH', 'HYPE', 'BTCD', 'DXY', 'VIX', 'SP500', 'NASDAQ']) {
+                    for (let sym of ['BTC', 'ETH', 'SOL', 'BNB', 'AVAX', 'BTCD', 'DXY', 'VIX', 'SP500', 'NASDAQ']) {
                         if (data[sym]) {
                             let price = data[sym][0];
                             let pct = data[sym][1];
@@ -729,21 +733,21 @@
                 let totalBank = 0;
                 let allTrades = [];
 
-                // Metrics per Strategy (Validated 1D Fleet Leaderboard)
+                // Metrics per Strategy (Validated 1D v5.0 Core Trend Fleet)
                 let strategyStats = {
-                    'HYB': { name: 'HYBRID VANGUARD', realized: 0, trades: 0, wins: 0, bank: 0 },
-                    'MR': { name: 'TD9 RANGING', realized: 0, trades: 0, wins: 0, bank: 0 },
-                    'DUAL': { name: 'REGIME DUAL', realized: 0, trades: 0, wins: 0, bank: 0 }
+                    'TREND': { name: 'CORE TREND DC55', realized: 0, trades: 0, wins: 0, bank: 0 }
                 };
 
-                let assets = ['BTC', 'ETH', 'HYPE'];
+                let assets = ['BTC', 'ETH', 'SOL', 'BNB', 'AVAX'];
                 let assetLabels = {
                     'BTC': 'BITCOIN',
                     'ETH': 'ETHEREUM',
-                    'HYPE': 'HYPERLIQUID'
+                    'SOL': 'SOLANA',
+                    'BNB': 'BINANCE COIN',
+                    'AVAX': 'AVALANCHE'
                 };
                 let timeframes = ['1d'];
-                let variants = ['HYB', 'MR', 'DUAL'];
+                let variants = ['TREND'];
 
                 let gridHtml = '';
 
@@ -752,8 +756,8 @@
                     let dec = smartDecimals(livePrice);
                     let assetPriceStr = livePrice > 0 ? fmtPrice(livePrice, dec) : '--';
 
-                    // Top-Down Weekly Context Badge (guardado en state *_HYB_1d)
-                    let hyb1d = (fleet[`${asset}_HYB`] && fleet[`${asset}_HYB`]['1d']) ? fleet[`${asset}_HYB`]['1d'] : null;
+                    // Top-Down Weekly Context Badge (guardado en state *_TREND_1d)
+                    let hyb1d = (fleet[`${asset}_TREND`] && fleet[`${asset}_TREND`]['1d']) ? fleet[`${asset}_TREND`]['1d'] : null;
                     let wTd = (hyb1d && hyb1d.w_td_count !== undefined) ? hyb1d.w_td_count : null;
                     let wPerfFlag = hyb1d ? hyb1d.w_td_perfected : false;
                     let wRes = hyb1d ? (hyb1d.w_tdst_res || 0) : 0;

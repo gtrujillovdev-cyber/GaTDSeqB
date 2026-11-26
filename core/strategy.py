@@ -8,13 +8,17 @@ import numpy as np
 
 MIN_CONFIDENCE = 0.55
 
-FLEET_ASSETS = ["BTC", "ETH", "HYPE"]
+# Hard Risk Caps (v5.0 Risk Engineering)
+MAX_RISK_TREND = 0.015     # 1.50% max risk per trade in trend-aligned strategies
+MAX_RISK_COUNTER = 0.0075  # 0.75% max risk per trade in counter-trend / range strategies
+
+FLEET_ASSETS = ["BTC", "ETH", "SOL", "BNB", "AVAX"]
 FLEET_TIMEFRAMES = ["1d"]
-FLEET_STRATEGIES = ["HYB", "MR", "DUAL"]
+FLEET_STRATEGIES = ["TREND"]
 
 DEFAULT_BOT_PARAMS: Dict[str, Any] = {
-    "atr_sl_trend": 1.5,
-    "atr_tp_trend": 3.5,
+    "atr_sl_trend": 2.0,
+    "atr_tp_trend": 8.0,
     "atr_sl_counter": 1.5,
     "atr_tp_counter": 2.5,
     "atr_sl_wyckoff": 1.5,
@@ -22,18 +26,24 @@ DEFAULT_BOT_PARAMS: Dict[str, Any] = {
     "be_threshold_atr": 1.5,
     "scale_out_atr": 2.0,
     "scale_out_pct": 0.5,
-    "trailing_atr": 2.0,
+    "trailing_atr": 3.0,
     "min_confidence": MIN_CONFIDENCE,
-    "enable_scale_out": True,
-    "enable_breakeven": True,
-    "enable_dca_13": True,
+    "enable_scale_out": False,
+    "enable_breakeven": False,
+    "enable_dca_13": False,
     "enable_trailing": True,
-    # Parametros v3.1 / v4.0 (Regimen Conjunction ADX+p_trend & Soft-Sizing Meta-Labeling)
+    # Parametros v3.1 / v4.0 / v5.0
     "dc_period": 55,
+    "dc_exit_period": 10,
+    "adx_min": 20.0,
     "adx_split": 24.0,
     "adx_max": 24.0,
-    "mr_sl_atr": 2.0,
-    "mr_tp_atr": 2.4,
+    "mr_sl_atr": 1.5,
+    "mr_tp_atr": 2.5,
+    "pb_sl_atr": 1.5,
+    "pb_tp_atr": 3.0,
+    "pb_rsi_buy": 42.0,
+    "pb_rsi_sell": 58.0,
     "regime_mr_max_p_trend": 0.45,
     "regime_trend_min_p_trend": 0.55,
     "meta_threshold": 0.55,
@@ -164,6 +174,40 @@ def load_fleet_params(
             return merged
 
     return dict(DEFAULT_BOT_PARAMS)
+
+
+def is_bot_calibrated(
+    symbol: str,
+    timeframe: str,
+    strategy: str,
+    fleet_file: str = "fleet_optimized.json",
+    ttl_seconds: float = 60.0,
+) -> bool:
+    """
+    Compuerta de Admision a Produccion (v5.0 Production Gate).
+    Retorna True unicamente si el bot figura en fleet_optimized.json con is_calibrated == True.
+    """
+    data = _load_json_ttl(_FLEET_PARAMS_CACHE, fleet_file, ttl_seconds)
+    if not data:
+        return False
+    clean_sym = normalize_symbol(symbol)
+    strat_up = strategy.upper()
+    for key, val in data.items():
+        k_sym = normalize_symbol(key.split("_")[0] if "_" in key else key)
+        k_clean = key.replace("/", "_").replace(":USDT", "")
+        if k_sym == clean_sym and f"_{timeframe}_" in k_clean and k_clean.endswith(f"_{strat_up}"):
+            return bool(val.get("is_calibrated", False))
+    return False
+
+
+def cap_trade_risk(risk_pct: float, is_counter_trend: bool = False) -> float:
+    """
+    Techo duro de riesgo por operacion (v5.0 Risk Engineering).
+      - Tendencia / Pullback alineado: <= 1.50% (MAX_RISK_TREND)
+      - Contratendencia / Rango:       <= 0.75% (MAX_RISK_COUNTER)
+    """
+    cap = MAX_RISK_COUNTER if is_counter_trend else MAX_RISK_TREND
+    return max(0.0, min(float(risk_pct), cap))
 
 
 def load_meta_weights(
@@ -568,16 +612,23 @@ def calculate_confidence_score(
 
 
 def check_td_signal(closed_candle, candle_2_ago) -> Tuple[bool, bool]:
-    """Regla unica de activacion TD9 con Price-Flip o Setup Perfection."""
+    """
+    Regla unica de activacion TD9 (v5.0):
+      - En Setup Perfection (td_perf), solo dispara en finalizacion exacta (-9/-13 o +9/+13),
+        evitando disparar en caida libre continua (-10, -11, ..., -19).
+      - Tras superar 9, exige confirmacion real de giro de precio (Price-Flip vs 2 velas atras).
+    """
     count = closed_candle["td_count"]
     td_perf = bool(closed_candle.get("td_perfected", False))
     close_p = closed_candle["close"]
 
     td_buy = bool(
-        (count <= -9) and (td_perf or close_p > candle_2_ago["close"] or close_p > candle_2_ago["high"])
+        ((count in (-9, -13)) and td_perf)
+        or ((count <= -9) and (close_p > candle_2_ago["close"] or close_p > candle_2_ago["high"]))
     )
     td_sell = bool(
-        (count >= 9) and (td_perf or close_p < candle_2_ago["close"] or close_p < candle_2_ago["low"])
+        ((count in (9, 13)) and td_perf)
+        or ((count >= 9) and (close_p < candle_2_ago["close"] or close_p < candle_2_ago["low"]))
     )
     return td_buy, td_sell
 
@@ -645,13 +696,19 @@ def compute_conviction_multiplier(action: str, rsi: float) -> float:
     return 1.0
 
 
-def compute_conviction_boost(symbol: str, conf_score: float) -> float:
+def compute_conviction_boost(symbol: str, conf_score: float, is_counter_trend: bool = False) -> float:
+    """
+    v5.0: Prohibido amplificar riesgo en contratendencia (reduce a 0.5x).
+    En tendencia, boost acotado a 1.25x (en lugar de 2.0x) para evitar tail-risk.
+    """
+    if is_counter_trend:
+        return 0.5
     clean_sym = normalize_symbol(symbol)
-    if clean_sym in ("BTC", "ETH"):
+    if clean_sym in ("BTC", "ETH", "SOL", "BNB"):
         if conf_score >= 0.75:
-            return 2.0
+            return 1.25
         if conf_score >= 0.65:
-            return 1.5
+            return 1.10
     return 1.0
 
 
@@ -761,6 +818,78 @@ def evaluate_orthogonal_signal(
 
     mr_max_pt = float(params.get("regime_mr_max_p_trend", 0.45))
     tr_min_pt = float(params.get("regime_trend_min_p_trend", 0.55))
+
+    # --- v5.0 SLEEVE 1: CORE TREND FOLLOWING PURO (Sin contaminacion MR) ---
+    if strat == "TREND":
+        adx_min = float(params.get("adx_min", 20.0))
+        in_trend = (adx_val >= adx_min) or (has_continuous and float(p_trend_raw) >= tr_min_pt)
+        if not in_trend:
+            return None
+
+        dc_period = int(params.get("dc_period", 55))
+        dc_hi = closed_candle.get(f"dc_high_{dc_period}")
+        dc_lo = closed_candle.get(f"dc_low_{dc_period}")
+        if dc_hi is None or dc_lo is None or dc_hi != dc_hi or dc_lo != dc_lo:
+            return None
+        dc_hi_f = float(dc_hi)
+        dc_lo_f = float(dc_lo)
+
+        if signal_price > dc_hi_f and signal_price > ema200:
+            action = "BUY"
+        elif signal_price < dc_lo_f and signal_price < ema200:
+            action = "SELL"
+        else:
+            return None
+
+        sl_mult = float(params.get("atr_sl_trend", 2.0))
+        tp_mult = float(params.get("atr_tp_trend", 8.0))
+        reg_scale = max(0.75, min(1.05, 0.55 + 0.55 * float(p_trend_raw))) if has_continuous else 1.0
+        sig = {
+            "action": action,
+            "reason": f"TREND DC{dc_period} {'Buy' if action == 'BUY' else 'Sell'}",
+            "sl_mult": sl_mult,
+            "tp_mult": tp_mult,
+            "mode": "REGIME_TREND",
+            "regime_scale": round(reg_scale, 4),
+            "is_counter_trend": False,
+        }
+        return _apply_meta_gate(sig, closed_candle, ema200, params, funding_rate, htf_4h_aligned, meta_weights)
+
+    # --- v5.0 SLEEVE 2: TREND-ALIGNED PULLBACK (Reversion a favor de EMA200) ---
+    if strat == "PULLBACK":
+        pb_adx_max = float(params.get("pb_adx_max", 45.0))
+        if adx_val > pb_adx_max:
+            return None
+
+        td_buy, td_sell = check_td_signal(closed_candle, candle_2_ago)
+        rsi_val = float(closed_candle.get("rsi", 50.0))
+        pb_rsi_buy = float(params.get("pb_rsi_buy", 42.0))
+        pb_rsi_sell = float(params.get("pb_rsi_sell", 58.0))
+        c2_close = float(candle_2_ago["close"])
+
+        # Solo entradas alineadas con la macro tendencia (EMA200) + confirmacion de giro
+        action = None
+        if signal_price > ema200 and (td_buy or (rsi_val <= pb_rsi_buy and signal_price > c2_close)):
+            action = "BUY"
+            tag = "TD9" if td_buy else f"RSI {rsi_val:.0f}"
+        elif signal_price < ema200 and (td_sell or (rsi_val >= pb_rsi_sell and signal_price < c2_close)):
+            action = "SELL"
+            tag = "TD9" if td_sell else f"RSI {rsi_val:.0f}"
+        else:
+            return None
+
+        sl_mult = float(params.get("pb_sl_atr", 1.5))
+        tp_mult = float(params.get("pb_tp_atr", 3.0))
+        sig = {
+            "action": action,
+            "reason": f"PULLBACK {tag} {'Buy' if action == 'BUY' else 'Sell'} (EMA200)",
+            "sl_mult": sl_mult,
+            "tp_mult": tp_mult,
+            "mode": "REGIME_PULLBACK",
+            "regime_scale": 1.0,
+            "is_counter_trend": False,
+        }
+        return _apply_meta_gate(sig, closed_candle, ema200, params, funding_rate, htf_4h_aligned, meta_weights)
 
     if strat in ("MR", "TD9_MR"):
         adx_max = float(params.get("adx_max", 24.0))

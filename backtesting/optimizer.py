@@ -14,6 +14,22 @@ DEFAULT_PARAM_GRID: Dict[str, List[Any]] = {
 }
 
 STRATEGY_PARAM_GRIDS: Dict[str, Dict[str, List[Any]]] = {
+    "TREND": {
+        "dc_period": [20, 55],
+        "adx_min": [18.0, 22.0],
+        "atr_sl_trend": [1.5, 2.0],
+        "atr_tp_trend": [3.0, 3.5, 4.5],
+        "enable_scale_out": [False],
+        "use_meta_gate": [False],
+    },
+    "PULLBACK": {
+        "pb_sl_atr": [1.5, 2.0],
+        "pb_tp_atr": [2.5, 3.0, 4.0],
+        "pb_rsi_buy": [38.0, 42.0],
+        "pb_rsi_sell": [58.0, 62.0],
+        "enable_scale_out": [False],
+        "use_meta_gate": [False],
+    },
     "HYB": {
         "atr_sl_trend": [1.5, 2.0],
         "atr_tp_trend": [3.5, 4.0, 4.5],
@@ -228,6 +244,17 @@ def run_walk_forward(
     )
     oos_res = oos_engine.run(df, weekly_df=weekly_df, eval_start_idx=oos_start_idx, funding_df=funding_df)
     oos_metrics = compute_metrics(initial_bank, oos_res["final_bank"], oos_res["trades"], oos_res["equity_curve"], timeframe)
+
+    # Compuerta estadistica anti-overfitting v5.0:
+    # Un bot solo se marca is_calibrated=True si supera muestra minima OOS y calidad real OOS.
+    min_oos_trades = 10 if timeframe == "1d" else 15
+    oos_passed = (
+        int(oos_metrics["total_trades"]) >= min_oos_trades
+        and float(oos_metrics["sharpe_ratio"]) >= 0.50
+        and float(oos_metrics["profit_factor"]) >= 1.20
+        and float(oos_metrics["max_drawdown_pct"]) <= 15.0
+    )
+    is_calibrated = bool(is_calibrated and oos_passed)
 
     return {
         "is_calibrated": is_calibrated,

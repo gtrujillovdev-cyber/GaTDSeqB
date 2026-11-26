@@ -5,6 +5,7 @@ from core.indicators import calculate_volume_profile, detect_divergences
 from core.strategy import (
     MIN_CONFIDENCE,
     calculate_confidence_score,
+    cap_trade_risk,
     check_td_signal,
     check_wyckoff_signal,
     compute_conviction_boost,
@@ -280,8 +281,8 @@ class BacktestEngine:
         adx_val = float(closed_candle.get("adx", 0.0))
         funding_val = float(closed_candle.get("funding_rate", self.funding_rate_8h))
 
-        # --- MODOS ORTOGONALES DE INVESTIGACION (CAPA 0 / CAPA 1 / CAPA 2) ---
-        if self.strategy in ("TD9_L0", "TD9_MR", "TD9_MR_4H_GATE", "MR", "TREND_DC", "TREND_EMA", "FUND_SQUEEZE", "REGIME_DUAL", "DUAL"):
+        # --- MODOS ORTOGONALES DE INVESTIGACION Y PRODUCCION v5.0 ---
+        if self.strategy in ("TD9_L0", "TD9_MR", "TD9_MR_4H_GATE", "MR", "TREND_DC", "TREND_EMA", "FUND_SQUEEZE", "REGIME_DUAL", "DUAL", "TREND", "PULLBACK"):
             self._check_research_entry(closed_candle, live_candle, df, i, atr, adx_val, funding_val)
             return
 
@@ -351,8 +352,8 @@ class BacktestEngine:
                 )
                 full_reason = f"{reason} ({tag})" if "TD9" in reason else f"{reason} + RSI {rsi:.1f}"
                 conviction = compute_conviction_multiplier("BUY", rsi)
-                boost = compute_conviction_boost(self.clean_symbol, conf)
-                final_risk = self._get_base_risk() * conviction * boost * meta_mult
+                boost = compute_conviction_boost(self.clean_symbol, conf, is_counter_trend=is_counter)
+                final_risk = cap_trade_risk(self._get_base_risk() * conviction * boost * meta_mult, is_counter_trend=is_counter)
                 self._open_trade("BUY", entry_price, sl, tp, full_reason, live_candle["datetime"], final_risk, atr)
 
         elif trigger_sell and rsi > 30:
@@ -380,8 +381,8 @@ class BacktestEngine:
                 )
                 full_reason = f"{reason} ({tag})" if "TD9" in reason else f"{reason} + RSI {rsi:.1f}"
                 conviction = compute_conviction_multiplier("SELL", rsi)
-                boost = compute_conviction_boost(self.clean_symbol, conf)
-                final_risk = self._get_base_risk() * conviction * boost * meta_mult
+                boost = compute_conviction_boost(self.clean_symbol, conf, is_counter_trend=is_counter)
+                final_risk = cap_trade_risk(self._get_base_risk() * conviction * boost * meta_mult, is_counter_trend=is_counter)
                 self._open_trade("SELL", entry_price, sl, tp, full_reason, live_candle["datetime"], final_risk, atr)
 
     def _check_research_entry(self, closed_candle, live_candle, df, i, atr, adx_val, funding_val):
@@ -456,7 +457,7 @@ class BacktestEngine:
             elif funding_val >= short_f and rsi >= 58.0:
                 action = "SELL"
 
-        elif self.strategy in ("MR", "DUAL", "REGIME_DUAL"):
+        elif self.strategy in ("MR", "DUAL", "REGIME_DUAL", "TREND", "PULLBACK"):
             htf_buy = bool(closed_candle.get("td9_4h_buy_recent", False))
             htf_sell = bool(closed_candle.get("td9_4h_sell_recent", False))
             meta_weights = load_meta_weights(self.strategy) if self.params.get("use_meta_gate", False) else None
@@ -495,7 +496,8 @@ class BacktestEngine:
             reason = f"{sig['mode']}:{sig['reason']}"
             sl_mult = sig["sl_mult"]
             tp_mult = sig["tp_mult"]
-            risk_pct *= float(sig.get("risk_scale", 1.0))
+            is_ct = bool(sig.get("is_counter_trend", sig["mode"] == "REGIME_MR"))
+            risk_pct = cap_trade_risk(risk_pct * float(sig.get("risk_scale", 1.0)), is_counter_trend=is_ct)
 
         if action is None:
             return
@@ -647,7 +649,7 @@ class BacktestEngine:
 
         countdown = int(closed_candle["td_countdown"])
 
-        is_regime_mr = "REGIME_MR" in t.get("reason", "")
+        is_regime_mr = ("REGIME_MR" in t.get("reason", "")) or ("REGIME_PULLBACK" in t.get("reason", ""))
         is_regime_trend = "REGIME_TREND" in t.get("reason", "")
         use_be = (not is_regime_mr) and (not is_regime_trend) and bool(self.params.get("enable_breakeven", True))
         use_so = (not is_regime_mr) and (not is_regime_trend) and bool(self.params.get("enable_scale_out", True))

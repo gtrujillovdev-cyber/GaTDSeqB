@@ -30,6 +30,7 @@ from core.strategy import (
     FLEET_TIMEFRAMES,
     MIN_CONFIDENCE,
     calculate_confidence_score,
+    cap_trade_risk,
     check_td_signal,
     check_wyckoff_signal,
     compute_conviction_boost,
@@ -42,6 +43,7 @@ from core.strategy import (
     evaluate_orthogonal_signal,
     get_base_risk,
     get_scaled_atr,
+    is_bot_calibrated,
     load_fleet_params,
     load_meta_weights,
     normalize_symbol,
@@ -56,6 +58,7 @@ INITIAL_BANK = 10000.0
 FLEET_OPTIMIZED_FILE = "fleet_optimized.json"
 META_WEIGHTS_FILE = "meta_model_weights.json"
 FLEET_RISK_FILE = "fleet_risk.json"
+ENFORCE_PRODUCTION_GATE = True
 
 MAX_TOTAL_FLEET_TRADES = 6
 MAX_DIRECTIONAL_TRADES = 4
@@ -658,8 +661,8 @@ def check_exit_conditions(
     close_reason = ""
 
     strat_mode = state.get("strategy_mode", strategy_type)
-    is_regime_mr = (strat_mode == "REGIME_MR") or (strategy_type == "MR")
-    is_regime_trend = (strat_mode == "REGIME_TREND")
+    is_regime_mr = (strat_mode in ("REGIME_MR", "REGIME_PULLBACK")) or (strategy_type in ("MR", "PULLBACK"))
+    is_regime_trend = (strat_mode == "REGIME_TREND") or (strategy_type == "TREND")
     is_hybrid = (not is_regime_mr) and (not is_regime_trend)
 
     # 1. Macro Weekly Confluence Shield (solo para HYB)
@@ -1028,6 +1031,10 @@ def analyze_market(
         )
 
     if state.get("status") == "IDLE":
+        if ENFORCE_PRODUCTION_GATE and os.path.exists(FLEET_OPTIMIZED_FILE):
+            if not is_bot_calibrated(sym, tf, strategy_type, fleet_file=FLEET_OPTIMIZED_FILE):
+                return
+
         last_sl = float(state.get("last_sl_time", 0.0))
         cooldown = float(state.get("sl_cooldown_secs", 0.0))
         if cooldown > 0 and (time.time() - last_sl) < cooldown:
@@ -1035,7 +1042,7 @@ def analyze_market(
             print(f"[{bot_id}] Cooldown post-SL activo: {rem_h:.1f}h restantes.")
             return
 
-        if strategy_type in ("MR", "DUAL"):
+        if strategy_type in ("MR", "DUAL", "TREND", "PULLBACK"):
             adx_val = float(closed_candle.get("adx", 0.0))
             bot_params = get_bot_params(sym, tf, strategy_type)
             funding_val = get_funding_rate(sym) if meta_weights else 0.0
@@ -1240,11 +1247,12 @@ def _enter_orthogonal(
     corr_matrix = p_ctx.get("corr_matrix")
     base_risk = get_base_risk(symbol, timeframe, realized_vol_30d=vol_30d)
     risk_scale = float(sig.get("risk_scale", sig.get("regime_scale", 1.0)))
-    cand_risk = base_risk * risk_scale
+    is_ct = bool(sig.get("is_counter_trend", sig.get("mode") == "REGIME_MR"))
+    cand_risk = cap_trade_risk(base_risk * risk_scale, is_counter_trend=is_ct)
     portfolio_dampening = compute_portfolio_dampening(
         symbol, action, cand_risk, fleet_stats.get("active_positions", []), corr_matrix=corr_matrix
     )
-    final_risk = cand_risk * portfolio_dampening
+    final_risk = cap_trade_risk(cand_risk * portfolio_dampening, is_counter_trend=is_ct)
     if final_risk <= 1e-6:
         print(f"🛑 PORTFOLIO RISK BUDGET [{bot_id}]: Ex-ante sigma excedido.")
         return
@@ -1343,7 +1351,7 @@ def _evaluate_and_enter(
     corr_matrix = p_ctx.get("corr_matrix")
     base_risk = get_base_risk(symbol, timeframe, realized_vol_30d=vol_30d)
     conviction_mult = compute_conviction_multiplier(action, rsi)
-    conviction_boost = compute_conviction_boost(symbol, conf_score)
+    conviction_boost = compute_conviction_boost(symbol, conf_score, is_counter_trend=is_counter_trend)
 
     # Gate de confluencia multi-timeframe: si el 4H también tiene un TD9 reciente
     # en la misma dirección, se escala el riesgo base un +30%.
@@ -1364,11 +1372,14 @@ def _evaluate_and_enter(
         print(f"🛑 META-GATE [{bot_id}]: {action} filtrada por baja prob ({meta_prob:.2f}).")
         return
 
-    cand_risk = base_risk * conviction_mult * conviction_boost * htf_boost * meta_mult
+    cand_risk = cap_trade_risk(
+        base_risk * conviction_mult * conviction_boost * htf_boost * meta_mult,
+        is_counter_trend=is_counter_trend,
+    )
     portfolio_dampening = compute_portfolio_dampening(
         symbol, action, cand_risk, fleet_stats.get("active_positions", []), corr_matrix=corr_matrix
     )
-    final_risk = cand_risk * portfolio_dampening
+    final_risk = cap_trade_risk(cand_risk * portfolio_dampening, is_counter_trend=is_counter_trend)
     if final_risk <= 1e-6:
         print(f"🛑 PORTFOLIO RISK BUDGET [{bot_id}]: Ex-ante sigma excedido.")
         return

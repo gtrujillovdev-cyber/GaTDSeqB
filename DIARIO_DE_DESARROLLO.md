@@ -1271,3 +1271,32 @@ BTC y ETH en cuenta descendente TD (-13) con RSI profundamente sobrevendido (24-
   - Retorno Neto 6Y: **`+50.36%`** (vs `+19.23%` baseline) | Sharpe Anualizado: **`1.33`** (vs `0.99`)
   - Max Drawdown: **`6.35%`** ($\le 10.0\%$) | Monte Carlo Z-Score: **`+4.81`** ($p = 0.0000$)
 - **Pruebas Automatizadas:** Añadida verificación de monotonicidad Soft-Sizing y conjunción OR de `DUAL` en `tests/test_v3_quant_modules.py` (`32/32` tests pasando en `0.107s`).
+
+
+---
+
+## 📅 Reestructuración Algorítmica v5.0 — Core Trend Ortogonal y Compuerta de Producción (26 de Noviembre de 2026)
+
+### 1. Diagnóstico Forense de Producción v4.0
+- **Bifurcación Real en Vivo:** Tendencia (`DUAL Trend DC55`) registró `3/3` ganadoras (`+$775.87` realizado + Short abierto en BTC en beneficio), mientras que contratendencia/rango (`HYB`, `MR`, `DUAL MR`, `HYPE`) registró `0/7` (`-$1,404.17`).
+- **Fallos Raíz Corregidos:**
+  - `check_td_signal` (`core/strategy.py`): Eliminado el disparo continuo en caída libre (`-10..-19` con `td_perf`), exigiendo finalización exacta (`-9/-13`) o confirmación real de giro (*Price-Flip*).
+  - `compute_conviction_boost` (`core/strategy.py`): Eliminado el multiplicador `2.0x` en operaciones contratendencia (reducido a `0.5x`; tendencia acotada a `1.25x`).
+  - **Hard Risk Caps (`cap_trade_risk`):** Techo duro por operación de `1.50%` en tendencia (`MAX_RISK_TREND`) y `0.75%` en contratendencia (`MAX_RISK_COUNTER`), aplicado con paridad 1:1 en `bot.py` y `backtesting/engine.py`.
+  - **Production Gate (`is_bot_calibrated`):** Bloqueo automático en producción para cualquier bot cuyo `is_calibrated` sea `false` en `fleet_optimized.json` (retirado `HYPE`).
+
+### 2. Screening Walk-Forward 6Y y Migración a Flota v5.0 (`TREND [1d]`)
+- **Compuerta Estadística Anti-Overfitting (`backtesting/optimizer.py`):** Exigencia mínima OOS (`>= 10` trades en `1d`, `Sharpe >= 0.50`, `PF >= 1.20`, `MaxDD <= 15%`) con costes reales (`0.04%` taker + `5 bps` slippage + funding histórico).
+- **Descarte Empírico:** `4h` descartado por deterioro de costes/ruido (`PF ~0.97–1.07`, `DD 15–25%`); `PULLBACK`, `TREND_EMA` y `FUND_SQUEEZE` no superaron OOS; `LINK`, `ADA`, `DOGE`, `LTC` filtrados por la compuerta.
+- **Flota Validada v5.0 (5 Bots `TREND [1d]` — Convergencia Universal `DC55` + `EMA200` + `SL 1.5–2.0 ATR` + `TP 3.0–3.5 ATR`):**
+  - `BTC/USDT`: OOS `Sharpe 0.75` | `PF 1.61` | `DD 6.2%` | `+$548.74` (`12` trades vs B&H `-41.3%`)
+  - `ETH/USDT`: OOS `Sharpe 0.83` | `PF 1.38` | `DD 6.6%` | `+$844.96` (`24` trades vs B&H `-47.3%`)
+  - `SOL/USDT`: OOS `Sharpe 0.67` | `PF 1.60` | `DD 7.2%` | `+$680.43` (`15` trades vs B&H `-42.6%`)
+  - `BNB/USDT`: OOS `Sharpe 1.14` | `PF 1.83` | `DD 6.1%` | `+$1,547.59` (`21` trades vs B&H `-15.1%`)
+  - `AVAX/USDT`: OOS `Sharpe 1.24` | `PF 2.92` | `DD 2.0%` | `+$1,002.41` (`10` trades vs B&H `-69.7%`)
+  - **Agregado OOS:** `82` trades | `+$4,624.13` neto | `MaxDD <= 7.2%` en todos los activos.
+
+### 3. Kiosk Bloomberg, Tests y Despliegue
+- **Dashboard (`server.py`, `templates/lite.html`):** Actualizado el ticker y el grid Bloomberg Dark para la flota de 5 activos (`BTC`, `ETH`, `SOL`, `BNB`, `AVAX` — `TREND [1d]`).
+- **Pruebas (`tests/test_v5_quant_restructuring.py`):** Añadida batería unitaria v5.0 (TD9 anti-spam, Hard Risk Caps, `TREND` puro sin contaminación MR, Production Gate).
+- **Producción (`rpi`):** Migrada la posición Short abierta de `BTC_DUAL_1d` a `BTC_TREND_1d`, archivados los estados legacy v4 en `legacy/archived_fleet_20261126/`, y reiniciados `gatdseq-bot` y `gatdseq-server`.
