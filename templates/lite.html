@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" id="meta-theme-color" content="#000000">
     <meta name="apple-mobile-web-app-title" content="GaTDSEQ">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -34,7 +36,7 @@
         }
 
         /* LIGHT MODE: INSTITUTIONAL HIGH-CONTRAST PAPER TERMINAL (ZERO BLUE/CYAN) */
-        body.theme-light {
+        html.theme-light, body.theme-light {
             --bg-root: #fafafa;
             --bg-panel: #ffffff;
             --bg-card: #f2f2f2;
@@ -52,13 +54,20 @@
             --topbar-btn-bg: #e6e6e6;
         }
 
+        html {
+            background-color: var(--bg-root);
+            color-scheme: dark light;
+        }
+
         body { 
             background-color: var(--bg-root); 
             color: var(--text-primary); 
             font-family: "Courier New", Courier, monospace;
             font-variant-numeric: tabular-nums;
-            margin: 0; padding: 10px 12px; font-size: 12px;
-            height: 100vh; overflow: hidden;
+            margin: 0;
+            padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px));
+            font-size: 12px;
+            height: 100vh; height: 100dvh; overflow: hidden;
             display: flex; flex-direction: column;
             transition: background-color 0.3s ease, color 0.3s ease;
         }
@@ -382,8 +391,8 @@
                 <button class="refresh-pill-btn" id="f5-refresh-btn" onclick="triggerManualF5()" title="Tap: Refresh Data | Double-Tap: Hard Reload">
                     <span id="f5-icon">↻</span> <span class="refresh-label-text">F5</span>
                 </button>
-                <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Toggle Dark / Light Mode">
-                    <span id="theme-icon">🌙</span> <span id="theme-label" class="theme-label-text">DARK</span>
+                <button class="theme-pill-btn" id="theme-toggle-btn" onclick="cycleThemeMode()" title="Theme: System Auto / Dark / Light">
+                    <span id="theme-icon">💻</span> <span id="theme-label" class="theme-label-text">AUTO</span>
                 </button>
             </div>
         </div>
@@ -574,12 +583,11 @@
         }
 
         // ==========================================
-        // DUAL THEME ENGINE (DEFAULT: BLOOMBERG DARK)
-        // Modes: 'dark', 'light'
+        // SYSTEM-FIRST THEME ENGINE (DEFAULT: SYSTEM AUTO)
+        // Modes: 'system', 'dark', 'light'
         // ==========================================
-        // Limpieza forzada de cache / localStorage antiguo para garantizar negro Bloomberg
-        localStorage.removeItem('gatdseq_theme_mode');
-        let currentThemeMode = 'dark';
+        let savedTheme = localStorage.getItem('gatdseq_theme_mode');
+        let currentThemeMode = (savedTheme === 'dark' || savedTheme === 'light' || savedTheme === 'system') ? savedTheme : 'system';
 
         function getSystemIsDark() {
             return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -592,22 +600,24 @@
             if (currentThemeMode === 'system') {
                 isDark = getSystemIsDark();
                 icon = '💻'; label = 'AUTO';
-                titleText = 'Theme: Sigue el sistema (' + (isDark ? 'oscuro' : 'claro') + ') | Click para oscuro forzado';
+                titleText = 'Theme: System (' + (isDark ? 'Dark' : 'Light') + ') | Click for Dark';
             } else if (currentThemeMode === 'light') {
                 isDark = false;
                 icon = '☀️'; label = 'LIGHT';
-                titleText = 'Theme: Claro forzado | Click para sistema automático';
+                titleText = 'Theme: Light | Click for System Auto';
             } else {
                 isDark = true;
                 icon = '🌙'; label = 'DARK';
-                titleText = 'Theme: Bloomberg Dark | Click para claro';
+                titleText = 'Theme: Bloomberg Dark | Click for Light';
             }
 
-            if (isDark) {
-                document.body.classList.remove('theme-light');
-            } else {
-                document.body.classList.add('theme-light');
-            }
+            document.documentElement.classList.toggle('theme-light', !isDark);
+            document.body.classList.toggle('theme-light', !isDark);
+            document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+            document.documentElement.style.backgroundColor = isDark ? '#000000' : '#fafafa';
+
+            let metaTheme = document.getElementById('meta-theme-color');
+            if (metaTheme) metaTheme.setAttribute('content', isDark ? '#000000' : '#fafafa');
 
             let iconEl = document.getElementById('theme-icon');
             let labelEl = document.getElementById('theme-label');
@@ -618,10 +628,10 @@
         }
 
         function cycleThemeMode() {
-            // Ciclo: dark → light → system → dark
-            if (currentThemeMode === 'dark') currentThemeMode = 'light';
-            else if (currentThemeMode === 'light') currentThemeMode = 'system';
-            else currentThemeMode = 'dark';
+            // Cycle: system -> dark -> light -> system
+            if (currentThemeMode === 'system') currentThemeMode = 'dark';
+            else if (currentThemeMode === 'dark') currentThemeMode = 'light';
+            else currentThemeMode = 'system';
             localStorage.setItem('gatdseq_theme_mode', currentThemeMode);
             applyTheme();
         }

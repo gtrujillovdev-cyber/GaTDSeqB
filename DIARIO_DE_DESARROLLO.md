@@ -1300,3 +1300,10 @@ BTC y ETH en cuenta descendente TD (-13) con RSI profundamente sobrevendido (24-
 - **Dashboard (`server.py`, `templates/lite.html`):** Actualizado el ticker y el grid Bloomberg Dark para la flota de 5 activos (`BTC`, `ETH`, `SOL`, `BNB`, `AVAX` — `TREND [1d]`).
 - **Pruebas (`tests/test_v5_quant_restructuring.py`):** Añadida batería unitaria v5.0 (TD9 anti-spam, Hard Risk Caps, `TREND` puro sin contaminación MR, Production Gate).
 - **Producción (`rpi`):** Migrada la posición Short abierta de `BTC_DUAL_1d` a `BTC_TREND_1d`, archivados los estados legacy v4 en `legacy/archived_fleet_20261126/`, y reiniciados `gatdseq-bot` y `gatdseq-server`.
+
+
+---
+
+## 📅 Fix Kiosk UI: Tema por Sistema (AUTO) y Safe-Area iOS (27 de Noviembre de 2026)
+- **Tema por Defecto (`templates/lite.html`):** Eliminado el forzado a modo oscuro (`currentThemeMode = 'dark'`) y la limpieza forzada de `localStorage`. Ahora el Kiosko arranca por defecto en modo `system` (`AUTO`), siguiendo `prefers-color-scheme` en tiempo real y sincronizando dinámicamente `<meta name="theme-color">` y `color-scheme`.
+- **Fix Difuminado Superior en iPhone / iOS (`templates/lite.html`):** Añadido `viewport-fit=cover`, cambiado `apple-mobile-web-app-status-bar-style` de `black-translucent` a `default`, y aplicado `padding` con `env(safe-area-inset-top/right/bottom/left)` más fondo sólido sincronizado en `html` para evitar que la barra superior / Liquid Glass de iOS solape o difumine la cabecera `.top-bar`.
